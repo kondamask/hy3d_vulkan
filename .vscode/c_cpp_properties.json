@@ -1,0 +1,47 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${vcpkgRoot}/x64-windows/include",
+                "${vcpkgRoot}/x86-windows/include"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE"
+            ],
+            "windowsSdkVersion": "10.0.17763.0",
+            "compilerPath": "C:/Program Files (x86)/Microsoft Visual Studio/2017/Community/VC/Tools/MSVC/14.16.27023/bin/Hostx64/x64/cl.exe",
+            "cStandard": "c11",
+            "cppStandard": "c++11",
+            "intelliSenseMode": "msvc-x64",
+            "compilerArgs": [
+                "-MTd",
+                "-WL",
+                "-Od",
+                "-nologo",
+                "-fp:fast",
+                "-fp:except-",
+                "-Gm-",
+                "-EHsc",
+                "-Zo",
+                "-Oi",
+                "-W4",
+                "-wd4100",
+                "-wd4458",
+                "-FC",
+                "-Zi",
+                "-GS-",
+                "-link",
+                "-subsystem:windows",
+                "-incremental:no",
+                "-opt:ref",
+                "user32.lib",
+                "gdi32.lib"
+            ]
+        }
+    ],
+    "version": 4
+}

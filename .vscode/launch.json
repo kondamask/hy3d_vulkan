@@ -1,0 +1,18 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "launch",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}\\build\\main.exe",
+            "cwd": "${workspaceFolder}\\data",
+            "symbolSearchPath": "${workspaceFolder}\\build",
+            "logging": {
+                "moduleLoad": false
+            },
+            "preLaunchTask": "build",
+            "console": "integratedTerminal"
+        }
+    ]
+}
