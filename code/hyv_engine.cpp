@@ -1,4 +1,4 @@
-#include "hy3d_engine.h"
+#include "hyv_engine.h"
 #include <intrin.h>
 
 static void InitializeMemoryArena(memory_arena *arena, u8 *base, size_t size)
@@ -18,7 +18,7 @@ static void *ReserveMemory(memory_arena *arena, size_t size)
     return result;
 }
 
-static void Initialize(hy3d_engine *e, engine_state *state, engine_memory *memory)
+static void Initialize(hyv_engine *e, engine_state *state, engine_memory *memory)
 {
     e->input = {};
     InitializeMemoryArena(&state->memoryArena,

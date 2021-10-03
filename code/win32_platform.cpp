@@ -553,7 +553,7 @@ int CALLBACK WinMain(
 			char *sourceDLLCopyPath = "W:\\heyoVulkan\\build\\engine.dll";
 			Win32LoadEngineCode(&engineCode, sourceDLLPath, sourceDLLCopyPath);
 
-			hy3d_engine engine = {};
+			hyv_engine engine = {};
 			Win32InitializeVulkan();
 
 			i32 quitMessage = -1;

@@ -1,5 +1,5 @@
 #pragma once
-#include "hy3d_types.h"
+#include "hyv_types.h"
 
 #include <chrono>
 
@@ -172,12 +172,12 @@ struct engine_state
     memory_arena memoryArena;
 };
 
-struct hy3d_engine
+struct hyv_engine
 {
     engine_input input;
     std::chrono::steady_clock::time_point frameStart;
 };
 
-#define UPDATE_AND_RENDER(name) void name(hy3d_engine &e, engine_memory *memory)
+#define UPDATE_AND_RENDER(name) void name(hyv_engine &e, engine_memory *memory)
 typedef UPDATE_AND_RENDER(update_and_render);
 UPDATE_AND_RENDER(UpdateAndRenderStub) {}
