@@ -178,20 +178,6 @@ struct hy3d_engine
     std::chrono::steady_clock::time_point frameStart;
 };
 
-// IMPORTANT:
-// This is the way to create to dynamicaly load your code. In short it
-// says that there is a function of type X with THESE parameters and someone
-// is goind to call it with a function pointer at some point. So we just need
-// that function pointer to load our code whenever we want.
-// https://hero.handmade.network/episode/code/day021/
-
-// 1. Make a macro that defines a function with the name we pass it
 #define UPDATE_AND_RENDER(name) void name(hy3d_engine &e, engine_memory *memory)
-// 2. Create a typedef that says: there is a function of type void (the actual type of the function)
-//    I want to replace it with <name>. So now the function is of type update_and_render.
-//    I can use this to get a pointer to said function.
 typedef UPDATE_AND_RENDER(update_and_render);
-// This translates to:
-// typedef void update_and_render(hy3d_engine &e, engine_memory *memory);
-// 3. Create a stub function that prevents the program from crashing it.
 UPDATE_AND_RENDER(UpdateAndRenderStub) {}

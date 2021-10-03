@@ -523,6 +523,13 @@ static void Win32UnloadEngineCode(win32_engine_code *engineCode)
 	engineCode->UpdateAndRender = UpdateAndRenderStub;
 }
 
+static void Win32InitializeVulkan()
+{
+	uint32_t extensionCount = 0;
+	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
+	return;
+}
+
 int CALLBACK WinMain(
 	HINSTANCE instance,
 	HINSTANCE prevInstance,
@@ -547,6 +554,7 @@ int CALLBACK WinMain(
 			Win32LoadEngineCode(&engineCode, sourceDLLPath, sourceDLLCopyPath);
 
 			hy3d_engine engine = {};
+			Win32InitializeVulkan();
 
 			i32 quitMessage = -1;
 			while (Win32ProcessMessages(window, engine.input, quitMessage))

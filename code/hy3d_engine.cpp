@@ -40,8 +40,5 @@ extern "C" UPDATE_AND_RENDER(UpdateAndRender)
     f32 dt = frameTime.count();
     e.frameStart = frameEnd;
 
-    int a = 5;
-    dt += 5;
-
     // NOTE: RENDER
 }
