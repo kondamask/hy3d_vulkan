@@ -34,11 +34,12 @@ extern "C" UPDATE_AND_RENDER(UpdateAndRender)
     if (!memory->isInitialized)
         Initialize(&e, state, memory);
 
+    //std::chrono::steady_clock::time_point frameEnd = std::chrono::steady_clock::now();
+    //std::chrono::duration<f32> frameTime = frameEnd - e.frameStart;
+    //f32 dt = frameTime.count();
+    //e.frameStart = frameEnd;
+
     // NOTE: UPDATE
-    std::chrono::steady_clock::time_point frameEnd = std::chrono::steady_clock::now();
-    std::chrono::duration<f32> frameTime = frameEnd - e.frameStart;
-    f32 dt = frameTime.count();
-    e.frameStart = frameEnd;
 
     // NOTE: RENDER
 }

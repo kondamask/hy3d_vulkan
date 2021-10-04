@@ -1,6 +1,7 @@
 #pragma once
 #include "hyv_windows.h"
 #include "hyv_engine.h"
+
 #include <vulkan/vulkan.h>
 
 #define VK_CODE unsigned char
@@ -27,7 +28,14 @@ struct win32_window
 	win32_window_dimensions dimensions;
 	HWND handle;
 	HINSTANCE instance;
-	LPCSTR className = "HY3D_WINDOW_CLASS";
+	const char *name = "HYV_ENGINE";
+};
+
+struct win32_vulkan_state
+{
+	VkInstance instance;
+	VkPhysicalDevice gpu;
+	VkDevice device;
 };
 
 struct win32_engine_code

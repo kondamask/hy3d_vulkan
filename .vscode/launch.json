@@ -5,7 +5,7 @@
             "name": "launch",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}\\build\\main.exe",
+            "program": "${workspaceFolder}\\build\\hyv.exe",
             "cwd": "${workspaceFolder}\\data",
             "symbolSearchPath": "${workspaceFolder}\\build",
             "logging": {

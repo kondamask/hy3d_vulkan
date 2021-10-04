@@ -1,5 +1,7 @@
 #pragma once
 
+#define VK_USE_PLATFORM_WIN32_KHR
+
 // target Windows 7 or later
 #define _WIN32_WINNT 0x0601
 #include <sdkddkver.h>

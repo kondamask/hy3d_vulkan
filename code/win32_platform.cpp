@@ -124,24 +124,20 @@ static LRESULT Win32MainWindowProc(HWND handle, UINT message, WPARAM wParam, LPA
 	{
 	case WM_PAINT:
 	{
-		PAINTSTRUCT paint;
-		HDC deviceContext = BeginPaint(handle, &paint);
-		Win32DisplayPixelBuffer(window->pixelBuffer, deviceContext);
-		EndPaint(handle, &paint);
+		ValidateRect(handle, 0);
 		break;
 	}
 
 	case WM_CLOSE:
 	{
-		PostQuitMessage(0);
-		return 0;
+		UnregisterClassA(window->name, window->instance);
+		DestroyWindow(handle);
 		break;
 	}
 
 	case WM_DESTROY:
 	{
-		UnregisterClassA(window->className, window->instance);
-		DestroyWindow(handle);
+		PostQuitMessage(0);
 		break;
 	}
 
@@ -178,83 +174,9 @@ static LRESULT Win32MainWindowProc(HWND handle, UINT message, WPARAM wParam, LPA
 	return result;
 }
 
-static inline void Win32InitializeWindow(win32_window &window, i16 width, i16 height, LPCSTR windowTitle)
-{
-	window.instance = GetModuleHandle(nullptr);
-
-	// Set window class properties
-	WNDCLASSA windowClass = {};
-	windowClass.style = CS_HREDRAW | CS_VREDRAW;
-	windowClass.lpfnWndProc = Win32MainWindowProc;
-	windowClass.lpszClassName = window.className;
-	windowClass.hInstance = window.instance;
-
-	if (!RegisterClassA(&windowClass))
-	{
-		OutputDebugStringA("Window class wasn't registered.\n");
-		return;
-	}
-
-	Win32InitializeBackbuffer(window.pixelBuffer, width, height);
-
-	window.dimensions.width = width;
-	window.dimensions.height = height;
-	// Declare the window client size
-	RECT rect = {0};
-	rect.left = 100;
-	rect.top = 100;
-	rect.right = rect.left + window.dimensions.width;
-	rect.bottom = rect.top + window.dimensions.height;
-
-	// Adjuct the window size according to the style we
-	// have for out window, while keeping the client size
-	// the same.
-	AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW | WS_VISIBLE, FALSE);
-	window.dimensions.width = (i16)(rect.right - rect.left);
-	window.dimensions.height = (i16)(rect.bottom - rect.top);
-
-	// Create the window
-	window.handle = CreateWindowA(
-		window.className,
-		windowTitle,
-		WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-		CW_USEDEFAULT, CW_USEDEFAULT, // X, Y
-		window.dimensions.width,
-		window.dimensions.height,
-		nullptr, nullptr,
-		window.instance,
-		&window // * See note bellow
-	);
-
-	// NOTE: A value to be passed to the window through the
-	// CREATESTRUCT structure pointed to by the lParam of
-	// the WM_CREATE message. This message is sent to the
-	// created window by this function before it returns.
-
-	ShowWindow(window.handle, SW_SHOWDEFAULT);
-}
-
-static inline void Win32InitializeMemory(engine_memory &memory)
-{
-	LPVOID baseAddress = (LPVOID)TERABYTES(2);
-	memory.permanentMemorySize = MEGABYTES(64);
-	memory.transientMemorySize = GIGABYTES(2);
-	u64 totalSize = memory.permanentMemorySize + memory.transientMemorySize;
-	memory.permanentMemory = VirtualAlloc(baseAddress, totalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-	memory.transientMemory = (u8 *)memory.permanentMemory + memory.permanentMemorySize;
-	memory.isInitialized = false;
-
-	memory.DEBUGFreeFileMemory = DEBUGFreeFileMemory;
-	memory.DEBUGReadFile = DEBUGReadFile;
-	memory.DEBUGWriteFile = DEBUGWriteFile;
-}
-
 static void Win32Update(win32_window &window)
 {
-	HDC deviceContext = GetDC(window.handle);
-	Win32DisplayPixelBuffer(window.pixelBuffer, deviceContext);
-	Win32ClearBackbuffer(window.pixelBuffer);
-	ReleaseDC(window.handle, deviceContext);
+	return;
 }
 
 static KEYBOARD_BUTTON Win32TranslateKeyInput(VK_CODE code)
@@ -523,11 +445,157 @@ static void Win32UnloadEngineCode(win32_engine_code *engineCode)
 	engineCode->UpdateAndRender = UpdateAndRenderStub;
 }
 
-static void Win32InitializeVulkan()
+static bool Win32InitializeWindow(win32_window &window, i16 width, i16 height, LPCSTR windowTitle)
 {
-	uint32_t extensionCount = 0;
-	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
-	return;
+	window.instance = GetModuleHandleW(nullptr);
+
+	// Set window class properties
+	WNDCLASSA windowClass = {};
+	windowClass.style = CS_HREDRAW | CS_VREDRAW;
+	windowClass.lpfnWndProc = Win32MainWindowProc;
+	windowClass.lpszClassName = windowTitle;
+	windowClass.hInstance = window.instance;
+	windowClass.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
+	//windowClass.hIcon = LoadIconA(windowClass.hInstance, MAKEINTRESOURCEA(IDI_APPLICATION));
+
+	if (!RegisterClassA(&windowClass))
+	{
+		OutputDebugStringA("ERROR: Window class wasn't registered.\n");
+		return false;
+	}
+
+	window.dimensions.width = width;
+	window.dimensions.height = height;
+	// Declare the window client size
+	RECT rect = {0};
+	rect.left = 100;
+	rect.top = 100;
+	rect.right = rect.left + window.dimensions.width;
+	rect.bottom = rect.top + window.dimensions.height;
+
+	// Adjuct the window size according to the style we
+	// have for out window, while keeping the client size
+	// the same.
+	AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW | WS_VISIBLE, FALSE);
+	window.dimensions.width = (i16)(rect.right - rect.left);
+	window.dimensions.height = (i16)(rect.bottom - rect.top);
+
+	// Create the window
+	window.handle = CreateWindowA(
+		windowTitle,
+		windowTitle,
+		WS_OVERLAPPEDWINDOW | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
+		CW_USEDEFAULT, CW_USEDEFAULT, // X, Y
+		window.dimensions.width,
+		window.dimensions.height,
+		nullptr, nullptr,
+		window.instance,
+		&window // * See note bellow
+	);
+
+	if (!window.handle)
+	{
+		OutputDebugStringA("ERROR: Failed to create window.\n");
+		return false;
+	}
+
+	// NOTE: A value to be passed to the window through the
+	// CREATESTRUCT structure pointed to by the lParam of
+	// the WM_CREATE message. This message is sent to the
+	// created window by this function before it returns.
+
+	ShowWindow(window.handle, SW_SHOWDEFAULT);
+	return true;
+}
+
+static bool Win32InitializeVulkan(win32_window &window, win32_vulkan_state &vulkan)
+{
+	VkApplicationInfo appInfo = {};
+	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+	appInfo.pApplicationName = window.name;
+	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+	appInfo.pEngineName = window.name;
+	appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+	appInfo.apiVersion = VK_API_VERSION_1_0;
+
+	VkInstanceCreateInfo instanceInfo = {};
+	instanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+	instanceInfo.pApplicationInfo = &appInfo;
+
+	VkResult result;
+	result = vkCreateInstance(&instanceInfo, NULL, &vulkan.instance);
+	if (result != VK_SUCCESS)
+	{
+		OutputDebugStringA("ERROR: Failed to create vulkan instance.\n");
+		return false;
+	}
+	u32 gpuCount = 0;
+	result = vkEnumeratePhysicalDevices(vulkan.instance, &gpuCount, 0);
+	if (gpuCount == 0)
+	{
+		return false;
+	}
+
+	ASSERT(gpuCount <= 16);
+	VkPhysicalDevice gpuBuffer[16] = {};
+	vkEnumeratePhysicalDevices(vulkan.instance, &gpuCount, gpuBuffer);
+	vulkan.gpu = gpuBuffer[0];
+
+	u32 qFamilyCount;
+	vkGetPhysicalDeviceQueueFamilyProperties(vulkan.gpu, &qFamilyCount, 0);
+	ASSERT(qFamilyCount <= 16);
+	VkQueueFamilyProperties qFamilyBuffer[16] = {};
+	vkGetPhysicalDeviceQueueFamilyProperties(vulkan.gpu, &qFamilyCount, qFamilyBuffer);
+
+	VkDeviceQueueCreateInfo queueInfo = {};
+	bool foundGraphicsQueue = false;
+	for (u32 i = 0; i < qFamilyCount; i++)
+	{
+		if (qFamilyBuffer[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
+		{
+			queueInfo.queueFamilyIndex = i;
+			foundGraphicsQueue = true;
+			break;
+		}
+	}
+	float queuePriorities[1] = {0.0}; // must be array of size queueCount
+	if (foundGraphicsQueue)
+	{
+		queueInfo.flags = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		queueInfo.queueCount = 1;
+		queueInfo.pQueuePriorities = queuePriorities;
+	}
+
+	VkDeviceCreateInfo deviceInfo = {};
+	deviceInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	deviceInfo.queueCreateInfoCount = 1;
+	deviceInfo.pQueueCreateInfos = &queueInfo;
+
+	result = vkCreateDevice(vulkan.gpu, &deviceInfo, 0, &vulkan.device);
+	if (result != VK_SUCCESS)
+	{
+		OutputDebugStringA("ERROR: Failed to create vulkan device.\n");
+		return false;
+	}
+
+	return true;
+}
+
+static bool Win32InitializeMemory(engine_memory &memory)
+{
+	LPVOID baseAddress = (LPVOID)TERABYTES(2);
+	memory.permanentMemorySize = MEGABYTES(64);
+	memory.transientMemorySize = GIGABYTES(2);
+	u64 totalSize = memory.permanentMemorySize + memory.transientMemorySize;
+	memory.permanentMemory = VirtualAlloc(baseAddress, totalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	memory.transientMemory = (u8 *)memory.permanentMemory + memory.permanentMemorySize;
+	memory.isInitialized = false;
+
+	memory.DEBUGFreeFileMemory = DEBUGFreeFileMemory;
+	memory.DEBUGReadFile = DEBUGReadFile;
+	memory.DEBUGWriteFile = DEBUGWriteFile;
+
+	return (memory.permanentMemory && memory.transientMemory);
 }
 
 int CALLBACK WinMain(
@@ -537,39 +605,46 @@ int CALLBACK WinMain(
 	int nShowCmd)
 {
 
+	// TODO: for some reason, sometimes we can't move the window when the cursor moves from
+	//the client area to the top border.
 	win32_window window;
-	Win32InitializeWindow(window, 512, 512, "HY3D");
-	// TODO:  We don't have proper focus of the window upon creation.
-	// We can't move it unless we alt-tab from it.
-	if (window.handle)
+	if (!Win32InitializeWindow(window, 512, 512, window.name))
 	{
-		engine_memory engineMemory;
-		Win32InitializeMemory(engineMemory);
-
-		if (engineMemory.permanentMemory && engineMemory.transientMemory)
-		{
-			win32_engine_code engineCode = {};
-			char *sourceDLLPath = "W:\\heyoVulkan\\build\\engine.dll";
-			char *sourceDLLCopyPath = "W:\\heyoVulkan\\build\\engine.dll";
-			Win32LoadEngineCode(&engineCode, sourceDLLPath, sourceDLLCopyPath);
-
-			hyv_engine engine = {};
-			Win32InitializeVulkan();
-
-			i32 quitMessage = -1;
-			while (Win32ProcessMessages(window, engine.input, quitMessage))
-			{
-				FILETIME newWriteTime = Win32GetWriteTime(sourceDLLPath);
-				if (CompareFileTime(&newWriteTime, &engineCode.writeTime) == 1)
-				{
-					Win32UnloadEngineCode(&engineCode);
-					Win32LoadEngineCode(&engineCode, sourceDLLPath, sourceDLLCopyPath);
-				}
-				engineCode.UpdateAndRender(engine, &engineMemory);
-				Win32Update(window);
-			}
-			return quitMessage;
-		}
+		return 1;
 	}
-	return 0;
+
+	win32_vulkan_state vulkan;
+	if (!Win32InitializeVulkan(window, vulkan))
+	{
+		return 2;
+	}
+
+	engine_memory engineMemory;
+	if (!Win32InitializeMemory(engineMemory))
+	{
+		return 3;
+	}
+
+	win32_engine_code engineCode = {};
+
+	// TODO: make this less explicit
+	char *sourceDLLPath = "W:\\heyoVulkan\\build\\hyv_engine.dll";
+	char *sourceDLLCopyPath = "W:\\heyoVulkan\\build\\hyv_engine_copy.dll";
+	Win32LoadEngineCode(&engineCode, sourceDLLPath, sourceDLLCopyPath);
+
+	hyv_engine engine = {};
+	i32 quitMessage = -1;
+	while (Win32ProcessMessages(window, engine.input, quitMessage))
+	{
+		FILETIME newWriteTime = Win32GetWriteTime(sourceDLLPath);
+		if (CompareFileTime(&newWriteTime, &engineCode.writeTime) == 1)
+		{
+			Win32UnloadEngineCode(&engineCode);
+			Win32LoadEngineCode(&engineCode, sourceDLLPath, sourceDLLCopyPath);
+		}
+		engineCode.UpdateAndRender(engine, &engineMemory);
+		Win32Update(window);
+	}
+	vkDestroyInstance(vulkan.instance, NULL);
+	return quitMessage;
 }
