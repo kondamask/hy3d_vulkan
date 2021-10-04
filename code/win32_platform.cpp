@@ -578,6 +578,30 @@ static bool Win32InitializeVulkan(win32_window &window, win32_vulkan_state &vulk
 		return false;
 	}
 
+	VkCommandPoolCreateInfo cmdPoolInfo = {};
+	cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	cmdPoolInfo.queueFamilyIndex = queueInfo.queueFamilyIndex;
+	VkCommandPool cmdPool;
+	result = vkCreateCommandPool(vulkan.device, &cmdPoolInfo, 0, &cmdPool);
+	if (result != VK_SUCCESS)
+	{
+		OutputDebugStringA("ERROR: Failed to create vulkan command pool.\n");
+		return false;
+	}
+
+	VkCommandBufferAllocateInfo cmdBufferAllocInfo = {};
+	cmdBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	cmdBufferAllocInfo.commandPool = cmdPool;
+	cmdBufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	cmdBufferAllocInfo.commandBufferCount = 1;
+
+	result = vkAllocateCommandBuffers(vulkan.device, &cmdBufferAllocInfo, &vulkan.cmdBuffer);
+	if (result != VK_SUCCESS)
+	{
+		OutputDebugStringA("ERROR: Failed to allocate vulkan command buffer.\n");
+		return false;
+	}
+
 	return true;
 }
 

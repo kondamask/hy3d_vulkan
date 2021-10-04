@@ -36,6 +36,7 @@ struct win32_vulkan_state
 	VkInstance instance;
 	VkPhysicalDevice gpu;
 	VkDevice device;
+	VkCommandBuffer cmdBuffer;
 };
 
 struct win32_engine_code
