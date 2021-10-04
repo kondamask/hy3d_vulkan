@@ -6,29 +6,9 @@
 
 #define VK_CODE unsigned char
 
-struct win32_window_dimensions
+struct wnd_dim
 {
-	i16 width, height;
-};
-
-struct win32_pixel_buffer
-{
-	BITMAPINFO info;
-	void *memory;
-	void *zBuffer;
-	i16 width;
-	i16 height;
-	i32 size;
-	i8 bytesPerPixel;
-};
-
-struct win32_window
-{
-	win32_pixel_buffer pixelBuffer;
-	win32_window_dimensions dimensions;
-	HWND handle;
-	HINSTANCE instance;
-	const char *name = "HYV_ENGINE";
+	u16 width, height;
 };
 
 struct win32_vulkan_state
@@ -36,7 +16,24 @@ struct win32_vulkan_state
 	VkInstance instance;
 	VkPhysicalDevice gpu;
 	VkDevice device;
+	VkSurfaceKHR surface;
+	VkSurfaceFormatKHR surfaceFormat;
+	u32 graphicsQueueFamilyIndex;
+	u32 presentQueueFamilyIndex;
 	VkCommandBuffer cmdBuffer;
+	VkSwapchainKHR swapchain;
+	u32 swapchainImageCount;
+	VkImage swapchainImages[2];
+	VkImageView imageViews[2];
+};
+
+struct win32_window
+{
+	wnd_dim dimensions;
+	HWND handle;
+	HINSTANCE instance;
+	const char *name = "HYV_ENGINE";
+	win32_vulkan_state vulkan;
 };
 
 struct win32_engine_code
