@@ -11,6 +11,7 @@ struct wnd_dim
 	u16 width, height;
 };
 
+#define NUM_SAMPLES VK_SAMPLE_COUNT_1_BIT
 struct win32_vulkan_state
 {
 	VkInstance instance;
@@ -25,6 +26,11 @@ struct win32_vulkan_state
 	u32 swapchainImageCount;
 	VkImage swapchainImages[2];
 	VkImageView imageViews[2];
+	VkImage depthImage;
+
+#if HYV_DEBUG
+	VkDebugUtilsMessengerEXT debugMessenger;
+#endif
 };
 
 struct win32_window

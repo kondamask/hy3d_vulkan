@@ -1,5 +1,4 @@
 #include "win32_platform.h"
-#include <assert.h>
 
 // NOTE: These file I/O functions should only be used for DEBUG purposes.
 DEBUG_FREE_FILE(DEBUGFreeFileMemory)
@@ -74,6 +73,16 @@ static void Win32DestroyVulkan(win32_vulkan_state &vulkan)
 	vkDeviceWaitIdle(vulkan.device);
 	vkDestroyDevice(vulkan.device, 0);
 	vkDestroySurfaceKHR(vulkan.instance, vulkan.surface, 0);
+
+#if VULKAN_VALIDATION_LAYERS_ON
+	PFN_vkDestroyDebugUtilsMessengerEXT destroyDebugMessenger =
+		(PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(vulkan.instance, "vkDestroyDebugUtilsMessengerEXT");
+	if (destroyDebugMessenger != nullptr)
+	{
+		destroyDebugMessenger(vulkan.instance, vulkan.debugMessenger, 0);
+	}
+#endif
+
 	vkDestroyInstance(vulkan.instance, 0);
 }
 
@@ -413,8 +422,46 @@ static void Win32UnloadEngineCode(win32_engine_code *engineCode)
 	engineCode->UpdateAndRender = UpdateAndRenderStub;
 }
 
+#if VULKAN_VALIDATION_LAYERS_ON
+#include <iostream>
+static VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugCallback(
+	VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+	VkDebugUtilsMessageTypeFlagsEXT messageType,
+	const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
+	void *pUserData)
+{
+	if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
+	{
+		std::cerr << "WARNING:\n"
+				  << pCallbackData->pMessageIdName << std::endl;
+	}
+	else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT)
+	{
+		std::cerr << "VERBOSE:\n"
+				  << pCallbackData->pMessageIdName << std::endl;
+	}
+	else
+	{
+		std::cerr << "ERROR:\n"
+				  << pCallbackData->pMessageIdName << std::endl;
+	}
+
+	std::cerr << pCallbackData->pMessage << std::endl
+			  << std::endl;
+	return VK_FALSE;
+}
+#endif
+
 static bool Win32InitializeWindow(win32_window &window, i16 width, i16 height, LPCSTR windowTitle)
 {
+#if VULKAN_VALIDATION_LAYERS_ON
+	AllocConsole();
+	AttachConsole(GetCurrentProcessId());
+	freopen("CON", "w", stdout);
+	freopen("CON", "w", stderr);
+	SetConsoleTitle("Vulkan Debug");
+#endif
+
 	window.instance = GetModuleHandleW(nullptr);
 
 	// Set window class properties
@@ -423,7 +470,7 @@ static bool Win32InitializeWindow(win32_window &window, i16 width, i16 height, L
 	windowClass.lpfnWndProc = Win32MainWindowProc;
 	windowClass.lpszClassName = windowTitle;
 	windowClass.hInstance = window.instance;
-	windowClass.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
+	windowClass.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
 	//windowClass.hIcon = LoadIconA(windowClass.hInstance, MAKEINTRESOURCEA(IDI_APPLICATION));
 
 	if (!RegisterClassA(&windowClass))
@@ -478,6 +525,62 @@ static bool Win32InitializeWindow(win32_window &window, i16 width, i16 height, L
 
 static bool Win32InitializeVulkan(win32_window &window, wnd_dim dimensions)
 {
+	VkResult result;
+
+#if VULKAN_VALIDATION_LAYERS_ON
+	// NOTE: Enable Validation Layer
+	const bool enableValidationLayers = true;
+
+	char *validationLayers[] = {
+		"VK_LAYER_KHRONOS_validation"};
+
+	u32 layerCount;
+	result = vkEnumerateInstanceLayerProperties(&layerCount, 0);
+	ASSERT(result == VK_SUCCESS);
+
+	VkLayerProperties availableLayers[16];
+	ASSERT(layerCount <= ArrayCount(availableLayers));
+	vkEnumerateInstanceLayerProperties(&layerCount, availableLayers);
+
+	for (const char *layerName : validationLayers)
+	{
+		bool layerFound = false;
+		for (const auto &layerProperties : availableLayers)
+		{
+			if (strcmp(layerName, layerProperties.layerName) == 0)
+			{
+				layerFound = true;
+				break;
+			}
+		}
+		if (!layerFound)
+		{
+			return false;
+		}
+	}
+
+	VkDebugUtilsMessengerCreateInfoEXT debugMessengerInfo = {};
+	debugMessengerInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+	debugMessengerInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+										 VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+	//VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
+	debugMessengerInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+									 VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+									 VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+	debugMessengerInfo.pfnUserCallback = VulkanDebugCallback;
+
+	char *instanceExtensions[] = {
+		VK_KHR_SURFACE_EXTENSION_NAME,
+		VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
+		VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
+#else
+	const bool enableValidationLayers = false;
+
+	char *instanceExtensions[] = {
+		VK_KHR_SURFACE_EXTENSION_NAME,
+		VK_KHR_WIN32_SURFACE_EXTENSION_NAME};
+#endif
+
 	// NOTE: Set application info (optionl but usefule)
 	VkApplicationInfo appInfo = {};
 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -488,19 +591,29 @@ static bool Win32InitializeVulkan(win32_window &window, wnd_dim dimensions)
 	appInfo.apiVersion = VK_API_VERSION_1_0;
 
 	// NOTE: Create an instance and attach extensions
-	char *instanceExtensions[] = {
-		VK_KHR_SURFACE_EXTENSION_NAME,
-		VK_KHR_WIN32_SURFACE_EXTENSION_NAME};
-
 	VkInstanceCreateInfo instanceInfo = {};
 	instanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 	instanceInfo.pApplicationInfo = &appInfo;
 	instanceInfo.enabledExtensionCount = ArrayCount(instanceExtensions);
 	instanceInfo.ppEnabledExtensionNames = instanceExtensions;
+#if VULKAN_VALIDATION_LAYERS_ON
+	instanceInfo.enabledLayerCount = ArrayCount(validationLayers);
+	instanceInfo.ppEnabledLayerNames = validationLayers;
+	instanceInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT *)&debugMessengerInfo;
+#endif
 
-	VkResult result;
 	result = vkCreateInstance(&instanceInfo, NULL, &window.vulkan.instance);
 	ASSERT(result == VK_SUCCESS);
+
+#if VULKAN_VALIDATION_LAYERS_ON
+	PFN_vkCreateDebugUtilsMessengerEXT createDebugMessengerFunc =
+		(PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(window.vulkan.instance, "vkCreateDebugUtilsMessengerEXT");
+	ASSERT(createDebugMessengerFunc != nullptr)
+	{
+		result = createDebugMessengerFunc(window.vulkan.instance, &debugMessengerInfo, 0, &window.vulkan.debugMessenger);
+		ASSERT(result == VK_SUCCESS);
+	}
+#endif
 
 	// NOTE: Select a gpu to use
 	u32 gpuCount = 0;
@@ -629,18 +742,19 @@ static bool Win32InitializeVulkan(win32_window &window, wnd_dim dimensions)
 	result = vkGetPhysicalDeviceSurfaceFormatsKHR(window.vulkan.gpu, window.vulkan.surface, &formatCount, nullptr);
 	ASSERT(result == VK_SUCCESS);
 
-	VkSurfaceFormatKHR surfaceFormats[16] = {};
-	ASSERT(formatCount <= ArrayCount(surfaceFormats));
+	VkSurfaceFormatKHR availableFormats[16] = {};
+	ASSERT(formatCount <= ArrayCount(availableFormats));
 	for (u32 i = 0; i < formatCount; ++i)
 	{
-		result = vkGetPhysicalDeviceSurfaceFormatsKHR(window.vulkan.gpu, window.vulkan.surface, &formatCount, &surfaceFormats[i]);
+		result = vkGetPhysicalDeviceSurfaceFormatsKHR(window.vulkan.gpu, window.vulkan.surface, &formatCount, &availableFormats[i]);
 		ASSERT(result == VK_SUCCESS);
 	}
 
 	bool desiredSurfaceFormatSupported = false;
 	for (u32 i = 0; i < formatCount; ++i)
 	{
-		if (window.vulkan.surfaceFormat.format == surfaceFormats[i].format && window.vulkan.surfaceFormat.colorSpace == surfaceFormats[i].colorSpace)
+		if (window.vulkan.surfaceFormat.format == availableFormats[i].format &&
+			window.vulkan.surfaceFormat.colorSpace == availableFormats[i].colorSpace)
 		{
 			desiredSurfaceFormatSupported = true;
 		}
@@ -754,9 +868,6 @@ static bool Win32InitializeVulkan(win32_window &window, wnd_dim dimensions)
 	swapchainInfo.clipped = true;
 	swapchainInfo.imageColorSpace = window.vulkan.surfaceFormat.colorSpace;
 	swapchainInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-	swapchainInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	swapchainInfo.queueFamilyIndexCount = 0;
-	swapchainInfo.pQueueFamilyIndices = NULL;
 
 	u32 queueFamilyIndices[2] = {window.vulkan.graphicsQueueFamilyIndex, window.vulkan.presentQueueFamilyIndex};
 	if (window.vulkan.graphicsQueueFamilyIndex != window.vulkan.presentQueueFamilyIndex)
@@ -768,6 +879,10 @@ static bool Win32InitializeVulkan(win32_window &window, wnd_dim dimensions)
 		swapchainInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
 		swapchainInfo.queueFamilyIndexCount = 2;
 		swapchainInfo.pQueueFamilyIndices = queueFamilyIndices;
+	}
+	else
+	{
+		swapchainInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	}
 
 	result = vkCreateSwapchainKHR(window.vulkan.device, &swapchainInfo, 0, &window.vulkan.swapchain);
@@ -800,6 +915,39 @@ static bool Win32InitializeVulkan(win32_window &window, wnd_dim dimensions)
 		result = vkCreateImageView(window.vulkan.device, &imageViewInfo, 0, &window.vulkan.imageViews[i]);
 		ASSERT(result == VK_SUCCESS);
 	}
+
+	// NOTE: Create a depth buffer
+	VkImageCreateInfo imageInfo = {};
+	VkFormat depth_format = VK_FORMAT_D16_UNORM;
+	VkFormatProperties props;
+	vkGetPhysicalDeviceFormatProperties(window.vulkan.gpu, depth_format, &props);
+	if (props.linearTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
+	{
+		imageInfo.tiling = VK_IMAGE_TILING_LINEAR;
+	}
+	else if (props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
+	{
+		imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	}
+	else
+	{
+		ASSERT(depth_format != VK_FORMAT_D16_UNORM)
+		return false;
+	}
+	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageInfo.format = VK_FORMAT_D16_UNORM;
+	imageInfo.extent.width = dimensions.width;
+	imageInfo.extent.height = dimensions.height;
+	imageInfo.extent.depth = 1;
+	imageInfo.mipLevels = 1;
+	imageInfo.arrayLayers = 1;
+	imageInfo.samples = NUM_SAMPLES;
+	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	vkCreateImage(window.vulkan.device, &imageInfo, 0, &window.vulkan.depthImage);
 
 	return true;
 }
@@ -835,6 +983,7 @@ int CALLBACK WinMain(
 	{
 		return 1;
 	}
+	OutputDebugString("Test");
 
 	if (!Win32InitializeVulkan(window, dim))
 	{

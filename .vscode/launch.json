@@ -11,8 +11,7 @@
             "logging": {
                 "moduleLoad": false
             },
-            "preLaunchTask": "build",
-            "console": "integratedTerminal"
+            "preLaunchTask": "build"
         }
     ]
 }
