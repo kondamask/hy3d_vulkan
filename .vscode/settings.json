@@ -48,7 +48,17 @@
         "xlocnum": "cpp",
         "xmemory": "cpp",
         "xmemory0": "cpp",
-        "xutility": "cpp"
+        "xutility": "cpp",
+        "array": "cpp",
+        "compare": "cpp",
+        "functional": "cpp",
+        "deque": "cpp",
+        "format": "cpp",
+        "list": "cpp",
+        "span": "cpp",
+        "stack": "cpp",
+        "xhash": "cpp",
+        "xtree": "cpp"
     },
     "C_Cpp.errorSquiggles": "Disabled"
 }

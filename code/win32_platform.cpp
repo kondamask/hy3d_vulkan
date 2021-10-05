@@ -64,12 +64,13 @@ DEBUG_WRITE_FILE(DEBUGWriteFile)
 
 static void Win32DestroyVulkan(win32_vulkan_state &vulkan)
 {
-
+	vkDestroyImage(vulkan.device, vulkan.depthImage, 0);
 	for (uint32_t i = 0; i < vulkan.swapchainImageCount; i++)
 	{
 		vkDestroyImageView(vulkan.device, vulkan.imageViews[i], 0);
 	}
 	vkDestroySwapchainKHR(vulkan.device, vulkan.swapchain, 0);
+	vkDestroyCommandPool(vulkan.device, vulkan.cmdPool, 0);
 	vkDeviceWaitIdle(vulkan.device);
 	vkDestroyDevice(vulkan.device, 0);
 	vkDestroySurfaceKHR(vulkan.instance, vulkan.surface, 0);
@@ -430,24 +431,62 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugCallback(
 	const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
 	void *pUserData)
 {
+	bool isError = false;
+	char *type;
+	if (messageType == VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT)
+		type = "Some general event has occurred";
+	else if (messageType == VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT)
+		type = "Something has occurred during validation against the Vulkan specification that may indicate invalid behavior.";
+	else
+		type = "Potentially non-optimal use of Vulkan.";
+
 	if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
-	{
-		std::cerr << "WARNING:\n"
+		std::cerr << "WARNING: " << type << "\n"
 				  << pCallbackData->pMessageIdName << std::endl;
-	}
 	else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT)
-	{
-		std::cerr << "VERBOSE:\n"
+		std::cerr << "DIAGNOSTIC: " << type << "\n"
 				  << pCallbackData->pMessageIdName << std::endl;
-	}
+	else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
+		std::cerr << "INFO: " << type << "\n"
+				  << pCallbackData->pMessageIdName << std::endl;
 	else
 	{
-		std::cerr << "ERROR:\n"
+		std::cerr << "ERROR: " << type << "\n"
 				  << pCallbackData->pMessageIdName << std::endl;
+		isError = true;
 	}
 
-	std::cerr << pCallbackData->pMessage << std::endl
-			  << std::endl;
+	char c;
+	u32 i = 0;
+	do
+	{
+		c = pCallbackData->pMessage[i];
+		i++;
+	} while (c != ']');
+	i++;
+	do
+	{
+		c = pCallbackData->pMessage[i];
+		if (c != ';' && c != '|')
+		{
+			std::cerr << c;
+			i++;
+		}
+		else
+		{
+			std::cerr << std::endl;
+			i++;
+			do
+			{
+				c = pCallbackData->pMessage[i];
+				i++;
+			} while (c == ' ' || c == '|');
+			i--;
+		}
+	} while (c != '\0');
+	std::cerr << std::endl;
+	if (isError)
+		ASSERT(0);
 	return VK_FALSE;
 }
 #endif
@@ -563,7 +602,8 @@ static bool Win32InitializeVulkan(win32_window &window, wnd_dim dimensions)
 	debugMessengerInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 	debugMessengerInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
 										 VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-	//VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
+	//VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+	//VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT;
 	debugMessengerInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
 									 VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
 									 VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
@@ -716,8 +756,7 @@ static bool Win32InitializeVulkan(win32_window &window, wnd_dim dimensions)
 	VkCommandPoolCreateInfo cmdPoolInfo = {};
 	cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	cmdPoolInfo.queueFamilyIndex = queueInfo.queueFamilyIndex;
-	VkCommandPool cmdPool;
-	result = vkCreateCommandPool(window.vulkan.device, &cmdPoolInfo, 0, &cmdPool);
+	result = vkCreateCommandPool(window.vulkan.device, &cmdPoolInfo, 0, &window.vulkan.cmdPool);
 	if (result != VK_SUCCESS)
 	{
 		OutputDebugStringA("ERROR: Failed to create vulkan command pool.\n");
@@ -726,7 +765,7 @@ static bool Win32InitializeVulkan(win32_window &window, wnd_dim dimensions)
 
 	VkCommandBufferAllocateInfo cmdBufferAllocInfo = {};
 	cmdBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	cmdBufferAllocInfo.commandPool = cmdPool;
+	cmdBufferAllocInfo.commandPool = window.vulkan.cmdPool;
 	cmdBufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	cmdBufferAllocInfo.commandBufferCount = 1;
 

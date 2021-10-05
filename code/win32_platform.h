@@ -21,6 +21,7 @@ struct win32_vulkan_state
 	VkSurfaceFormatKHR surfaceFormat;
 	u32 graphicsQueueFamilyIndex;
 	u32 presentQueueFamilyIndex;
+	VkCommandPool cmdPool;
 	VkCommandBuffer cmdBuffer;
 	VkSwapchainKHR swapchain;
 	u32 swapchainImageCount;

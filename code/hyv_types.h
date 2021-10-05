@@ -3,7 +3,7 @@
 #include <math.h>
 
 // TODO: Make this an actual assetion
-#if 1
+#if HYV_DEBUG
 #define ASSERT(Expression) \
     if (!(Expression))     \
     {                      \
