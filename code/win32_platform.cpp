@@ -493,7 +493,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugCallback(
 	HYV_DEBUG_PRINT('\n');
 	if (isError)
 	{
-		ASSERT(0)
+		ASSERT(0);
 		return VK_FALSE;
 	}
 	return VK_FALSE;
@@ -571,10 +571,8 @@ static bool Win32InitializeWindow(win32_window &window, i16 width, i16 height, L
 	return true;
 }
 
-static bool Win32InitializeVulkan(win32_window &window, wnd_dim dimensions)
+static bool Win32InitializeVulkan(win32_vulkan_state &vulkan, wnd_dim dimensions, HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
 {
-	VkResult result;
-
 #if VULKAN_VALIDATION_LAYERS_ON
 	// NOTE: Enable Validation Layer
 	const bool enableValidationLayers = true;
@@ -583,12 +581,11 @@ static bool Win32InitializeVulkan(win32_window &window, wnd_dim dimensions)
 		"VK_LAYER_KHRONOS_validation"};
 
 	u32 layerCount;
-	result = vkEnumerateInstanceLayerProperties(&layerCount, 0);
-	ASSERT(result == VK_SUCCESS);
+	VK_FUNC_ASSERT(vkEnumerateInstanceLayerProperties(&layerCount, 0));
 
 	VkLayerProperties availableLayers[16];
 	ASSERT(layerCount <= ArrayCount(availableLayers));
-	vkEnumerateInstanceLayerProperties(&layerCount, availableLayers);
+	VK_FUNC_ASSERT(vkEnumerateInstanceLayerProperties(&layerCount, availableLayers));
 
 	for (const char *layerName : validationLayers)
 	{
@@ -633,9 +630,9 @@ static bool Win32InitializeVulkan(win32_window &window, wnd_dim dimensions)
 	// NOTE: Set application info (optionl but usefule)
 	VkApplicationInfo appInfo = {};
 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-	appInfo.pApplicationName = window.name;
+	appInfo.pApplicationName = name;
 	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-	appInfo.pEngineName = window.name;
+	appInfo.pEngineName = name;
 	appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
 	appInfo.apiVersion = VK_API_VERSION_1_0;
 
@@ -651,100 +648,97 @@ static bool Win32InitializeVulkan(win32_window &window, wnd_dim dimensions)
 	instanceInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT *)&debugMessengerInfo;
 #endif
 
-	result = vkCreateInstance(&instanceInfo, NULL, &window.vulkan.instance);
-	ASSERT(result == VK_SUCCESS);
+	VK_FUNC_ASSERT(vkCreateInstance(&instanceInfo, NULL, &vulkan.instance));
 
 #if VULKAN_VALIDATION_LAYERS_ON
 	PFN_vkCreateDebugUtilsMessengerEXT createDebugMessengerFunc =
-		(PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(window.vulkan.instance, "vkCreateDebugUtilsMessengerEXT");
-	ASSERT(createDebugMessengerFunc != nullptr)
-	{
-		result = createDebugMessengerFunc(window.vulkan.instance, &debugMessengerInfo, 0, &window.vulkan.debugMessenger);
-		ASSERT(result == VK_SUCCESS);
-	}
+		(PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(vulkan.instance, "vkCreateDebugUtilsMessengerEXT");
+	ASSERT(createDebugMessengerFunc != nullptr);
+	VK_FUNC_ASSERT(createDebugMessengerFunc(vulkan.instance, &debugMessengerInfo, 0, &vulkan.debugMessenger));
 #endif
 
 	// NOTE: Select a gpu to use
 	u32 gpuCount = 0;
-	result = vkEnumeratePhysicalDevices(window.vulkan.instance, &gpuCount, 0);
+	VK_FUNC_ASSERT(vkEnumeratePhysicalDevices(vulkan.instance, &gpuCount, 0));
+
 	VkPhysicalDevice gpuBuffer[16] = {};
 	ASSERT(gpuCount > 0 && gpuCount <= ArrayCount(gpuBuffer));
-	result = vkEnumeratePhysicalDevices(window.vulkan.instance, &gpuCount, gpuBuffer);
-	ASSERT(result == VK_SUCCESS);
-	window.vulkan.gpu = gpuBuffer[0];
+	VK_FUNC_ASSERT(vkEnumeratePhysicalDevices(vulkan.instance, &gpuCount, gpuBuffer));
+	vulkan.gpu = gpuBuffer[0];
 	// TODO: ACTUALY CHECK WHICH GPU IS BEST TO USE BY CHECKING THEIR QUEUES
 	//For now it's ok since I only have 1 gpu.
 
 	// NOTE: Get the queue families available for the gpu we selected
-	u32 qFamilyCount;
-	vkGetPhysicalDeviceQueueFamilyProperties(window.vulkan.gpu, &qFamilyCount, 0);
+	u32 queueFamilyCount;
+	vkGetPhysicalDeviceQueueFamilyProperties(vulkan.gpu, &queueFamilyCount, 0);
 
-	VkQueueFamilyProperties qFamilyBuffer[16] = {};
-	ASSERT(qFamilyCount <= ArrayCount(qFamilyBuffer));
-	vkGetPhysicalDeviceQueueFamilyProperties(window.vulkan.gpu, &qFamilyCount, qFamilyBuffer);
+	VkQueueFamilyProperties availableQueueFamilies[16] = {};
+	ASSERT(queueFamilyCount <= ArrayCount(availableQueueFamilies));
+	vkGetPhysicalDeviceQueueFamilyProperties(vulkan.gpu, &queueFamilyCount, availableQueueFamilies);
 
 	// NOTE: Create a surface
 	VkWin32SurfaceCreateInfoKHR surfaceInfo = {};
 	surfaceInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-	surfaceInfo.hinstance = window.instance;
-	surfaceInfo.hwnd = window.handle;
-	result = vkCreateWin32SurfaceKHR(window.vulkan.instance, &surfaceInfo, 0, &window.vulkan.surface);
-	ASSERT(result == VK_SUCCESS);
+	surfaceInfo.hinstance = wndInstance;
+	surfaceInfo.hwnd = wndHandle;
+	VK_FUNC_ASSERT(vkCreateWin32SurfaceKHR(vulkan.instance, &surfaceInfo, 0, &vulkan.surface));
 
 	// NOTE: Find which queue family supports present and graphics operations
 	VkBool32 supportsPresent[16] = {};
-	for (u32 i = 0; i < qFamilyCount; i++)
+	for (u32 i = 0; i < queueFamilyCount; i++)
 	{
-		result = vkGetPhysicalDeviceSurfaceSupportKHR(window.vulkan.gpu, i, window.vulkan.surface, &supportsPresent[i]);
-		ASSERT(result == VK_SUCCESS);
+		VK_FUNC_ASSERT(vkGetPhysicalDeviceSurfaceSupportKHR(vulkan.gpu, i, vulkan.surface, &supportsPresent[i]));
 	}
 
-	window.vulkan.graphicsQueueFamilyIndex = UINT32_MAX;
-	window.vulkan.presentQueueFamilyIndex = UINT32_MAX;
-	for (u32 i = 0; i < qFamilyCount; ++i)
+	u32 graphicsQueueFamilyIndex = UINT32_MAX;
+	u32 presentQueueFamilyIndex = UINT32_MAX;
+	for (u32 i = 0; i < queueFamilyCount; ++i)
 	{
-		if ((qFamilyBuffer[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0)
+		if ((availableQueueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0)
 		{
-			if (window.vulkan.graphicsQueueFamilyIndex == UINT32_MAX)
-				window.vulkan.graphicsQueueFamilyIndex = i;
+			if (graphicsQueueFamilyIndex == UINT32_MAX)
+				graphicsQueueFamilyIndex = i;
 
 			if (supportsPresent[i] == VK_TRUE)
 			{
-				window.vulkan.graphicsQueueFamilyIndex = i;
-				window.vulkan.presentQueueFamilyIndex = i;
+				graphicsQueueFamilyIndex = i;
+				presentQueueFamilyIndex = i;
 				break;
 			}
 		}
 	}
 
-	if (window.vulkan.presentQueueFamilyIndex == UINT32_MAX)
+	if (presentQueueFamilyIndex == UINT32_MAX)
 	{
 		// If didn't find a queue that supports both graphics and present, then
 		// find a separate present queue.
-		for (u32 i = 0; i < qFamilyCount; ++i)
+		for (u32 i = 0; i < queueFamilyCount; ++i)
 			if (supportsPresent[i] == VK_TRUE)
 			{
-				window.vulkan.presentQueueFamilyIndex = i;
+				presentQueueFamilyIndex = i;
 				break;
 			}
 	}
 
-	if (window.vulkan.graphicsQueueFamilyIndex == UINT32_MAX)
+	if (graphicsQueueFamilyIndex == UINT32_MAX)
 	{
 		HYV_DEBUG_PRINT("ERROR: No graphics queue found.\n");
 		return false;
 	}
-	if (window.vulkan.presentQueueFamilyIndex == UINT32_MAX)
+	if (presentQueueFamilyIndex == UINT32_MAX)
 	{
 		HYV_DEBUG_PRINT("ERROR: No present queue found.\n");
 		return false;
 	}
 
+	// TODO: figure this out
+	ASSERT(graphicsQueueFamilyIndex == presentQueueFamilyIndex);
+
 	// NOTE: Create a device
 	VkDeviceQueueCreateInfo queueInfo = {};
 	float queuePriorities[1] = {0.0}; // must be array of size queueCount
 	queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	queueInfo.queueFamilyIndex = window.vulkan.graphicsQueueFamilyIndex;
+	queueInfo.queueFamilyIndex = graphicsQueueFamilyIndex;
 	queueInfo.queueCount = 1;
 	queueInfo.pQueuePriorities = queuePriorities;
 
@@ -758,84 +752,69 @@ static bool Win32InitializeVulkan(win32_window &window, wnd_dim dimensions)
 	deviceInfo.enabledExtensionCount = ArrayCount(deviceExtensions);
 	deviceInfo.ppEnabledExtensionNames = deviceExtensions;
 
-	result = vkCreateDevice(window.vulkan.gpu, &deviceInfo, 0, &window.vulkan.device);
-	ASSERT(result == VK_SUCCESS);
+	VK_FUNC_ASSERT(vkCreateDevice(vulkan.gpu, &deviceInfo, 0, &vulkan.device));
+
+	// NOTE: Get the queue and save it into our vulkan object
+	vkGetDeviceQueue(vulkan.device, queueInfo.queueFamilyIndex, 0, &vulkan.queue);
 
 	// NOTE: Create a command buffer
 	VkCommandPoolCreateInfo cmdPoolInfo = {};
 	cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	cmdPoolInfo.queueFamilyIndex = queueInfo.queueFamilyIndex;
-	result = vkCreateCommandPool(window.vulkan.device, &cmdPoolInfo, 0, &window.vulkan.cmdPool);
-	ASSERT(result == VK_SUCCESS);
+	VK_FUNC_ASSERT(vkCreateCommandPool(vulkan.device, &cmdPoolInfo, 0, &vulkan.cmdPool));
 
 	VkCommandBufferAllocateInfo cmdBufferAllocInfo = {};
 	cmdBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	cmdBufferAllocInfo.commandPool = window.vulkan.cmdPool;
+	cmdBufferAllocInfo.commandPool = vulkan.cmdPool;
 	cmdBufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	cmdBufferAllocInfo.commandBufferCount = 1;
 
-	result = vkAllocateCommandBuffers(window.vulkan.device, &cmdBufferAllocInfo, &window.vulkan.cmdBuffer);
-	ASSERT(result == VK_SUCCESS);
+	VK_FUNC_ASSERT(vkAllocateCommandBuffers(vulkan.device, &cmdBufferAllocInfo, &vulkan.cmdBuffer));
 
 	// NOTE: Create a swapchain
 	// NOTE: 1.set a proper surface format
-	window.vulkan.surfaceFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-	window.vulkan.surfaceFormat.format = VK_FORMAT_B8G8R8A8_UNORM;
+	vulkan.surfaceFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+	vulkan.surfaceFormat.format = VK_FORMAT_B8G8R8A8_UNORM;
 
 	u32 formatCount = 0;
-	result = vkGetPhysicalDeviceSurfaceFormatsKHR(window.vulkan.gpu, window.vulkan.surface, &formatCount, nullptr);
-	ASSERT(result == VK_SUCCESS);
+	VK_FUNC_ASSERT(vkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.gpu, vulkan.surface, &formatCount, 0));
 
 	VkSurfaceFormatKHR availableFormats[16] = {};
 	ASSERT(formatCount <= ArrayCount(availableFormats));
 	for (u32 i = 0; i < formatCount; ++i)
-	{
-		result = vkGetPhysicalDeviceSurfaceFormatsKHR(window.vulkan.gpu, window.vulkan.surface, &formatCount, &availableFormats[i]);
-		ASSERT(result == VK_SUCCESS);
-	}
+		VK_FUNC_ASSERT(vkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.gpu, vulkan.surface, &formatCount, &availableFormats[i]));
 
 	bool desiredSurfaceFormatSupported = false;
 	for (u32 i = 0; i < formatCount; ++i)
 	{
-		if (window.vulkan.surfaceFormat.format == availableFormats[i].format &&
-			window.vulkan.surfaceFormat.colorSpace == availableFormats[i].colorSpace)
-		{
+		if (vulkan.surfaceFormat.format == availableFormats[i].format &&
+			vulkan.surfaceFormat.colorSpace == availableFormats[i].colorSpace)
 			desiredSurfaceFormatSupported = true;
-		}
 	}
 	ASSERT(desiredSurfaceFormatSupported);
 
 	// NOTE: Get Surface capabilities
 	VkSurfaceCapabilitiesKHR surfCapabilities = {};
-	result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(window.vulkan.gpu, window.vulkan.surface, &surfCapabilities);
-	ASSERT(result == VK_SUCCESS);
+	VK_FUNC_ASSERT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vulkan.gpu, vulkan.surface, &surfCapabilities));
 
 	VkExtent2D swapchainExtent = {};
 	if (surfCapabilities.currentExtent.width == UINT32_MAX)
 	{
 		swapchainExtent.width = dimensions.width;
 		swapchainExtent.height = dimensions.height;
+
 		if (swapchainExtent.width < surfCapabilities.minImageExtent.width)
-		{
 			swapchainExtent.width = surfCapabilities.minImageExtent.width;
-		}
 		else if (swapchainExtent.width > surfCapabilities.maxImageExtent.width)
-		{
 			swapchainExtent.width = surfCapabilities.maxImageExtent.width;
-		}
 
 		if (swapchainExtent.height < surfCapabilities.minImageExtent.height)
-		{
 			swapchainExtent.height = surfCapabilities.minImageExtent.height;
-		}
 		else if (swapchainExtent.height > surfCapabilities.maxImageExtent.height)
-		{
 			swapchainExtent.height = surfCapabilities.maxImageExtent.height;
-		}
 	}
 	else
-	{
-		// If the surface size is defined, the swap chain size must match
+	{ // If the surface size is defined, the swap chain size must match
 		swapchainExtent = surfCapabilities.currentExtent;
 	}
 
@@ -846,38 +825,28 @@ static bool Win32InitializeVulkan(win32_window &window, wnd_dim dimensions)
 	// to acquire another.
 	uint32_t desiredNumberOfSwapChainImages = 2;
 	if (surfCapabilities.maxImageCount < desiredNumberOfSwapChainImages)
-	{
 		desiredNumberOfSwapChainImages = surfCapabilities.minImageCount;
-	}
 
 	// NOTE: Determine the pre-transform
 	VkSurfaceTransformFlagBitsKHR preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR; //do nothing
 	if (surfCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
-	{
 		preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-	}
 	else
-	{
 		preTransform = surfCapabilities.currentTransform;
-	}
 
 	// NOTE: Set the present mode
 	VkPresentModeKHR presentMode = VK_PRESENT_MODE_FIFO_KHR; //The FIFO present mode is guaranteed by the spec to be supported
 															 /*
 	uint32_t presentModeCount;
-	result = vkGetPhysicalDeviceSurfacePresentModesKHR(window.vulkan.gpu, window.vulkan.surface, &presentModeCount, NULL);
-	ASSERT(result == VK_SUCCESS);
+	VK_FUNC_ASSERT(vkGetPhysicalDeviceSurfacePresentModesKHR(vulkan.gpu, vulkan.surface, &presentModeCount, NULL));
 	VkPresentModeKHR presentModes[16];
 	ASSERT(presentModeCount <= ArrayCount(presentModes));
-	result = vkGetPhysicalDeviceSurfacePresentModesKHR(window.vulkan.gpu, window.vulkan.surface, &presentModeCount, presentModes);
-	ASSERT(result == VK_SUCCESS);
+	VK_FUNC_ASSERT(vkGetPhysicalDeviceSurfacePresentModesKHR(vulkan.gpu, vulkan.surface, &presentModeCount, presentModes));
 	bool desiredPresentModeSupported = false;
 	for (u32 i = 0; i < presentModeCount; i++)
 	{
 		if (presentMode == presentModes[i])
-		{
 			desiredPresentModeSupported = true;
-		}
 	}
 	ASSERT(desiredPresentModeSupported);
 	*/
@@ -901,20 +870,20 @@ static bool Win32InitializeVulkan(win32_window &window, wnd_dim dimensions)
 
 	VkSwapchainCreateInfoKHR swapchainInfo = {};
 	swapchainInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-	swapchainInfo.surface = window.vulkan.surface;
+	swapchainInfo.surface = vulkan.surface;
 	swapchainInfo.minImageCount = desiredNumberOfSwapChainImages;
-	swapchainInfo.imageFormat = window.vulkan.surfaceFormat.format;
+	swapchainInfo.imageFormat = vulkan.surfaceFormat.format;
 	swapchainInfo.imageExtent = swapchainExtent;
 	swapchainInfo.preTransform = preTransform;
 	swapchainInfo.compositeAlpha = compositeAlpha;
 	swapchainInfo.imageArrayLayers = 1;
 	swapchainInfo.presentMode = presentMode;
 	swapchainInfo.clipped = true;
-	swapchainInfo.imageColorSpace = window.vulkan.surfaceFormat.colorSpace;
+	swapchainInfo.imageColorSpace = vulkan.surfaceFormat.colorSpace;
 	swapchainInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-	u32 queueFamilyIndices[2] = {window.vulkan.graphicsQueueFamilyIndex, window.vulkan.presentQueueFamilyIndex};
-	if (window.vulkan.graphicsQueueFamilyIndex != window.vulkan.presentQueueFamilyIndex)
+	u32 queueFamilyIndices[2] = {graphicsQueueFamilyIndex, presentQueueFamilyIndex};
+	if (graphicsQueueFamilyIndex != presentQueueFamilyIndex)
 	{
 		// If the graphics and present queues are from different queue families,
 		// we either have to explicitly transfer ownership of images between
@@ -929,21 +898,16 @@ static bool Win32InitializeVulkan(win32_window &window, wnd_dim dimensions)
 		swapchainInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	}
 
-	result = vkCreateSwapchainKHR(window.vulkan.device, &swapchainInfo, 0, &window.vulkan.swapchain);
-	ASSERT(result == VK_SUCCESS);
+	VK_FUNC_ASSERT(vkCreateSwapchainKHR(vulkan.device, &swapchainInfo, 0, &vulkan.swapchain));
 
-	result = vkGetSwapchainImagesKHR(window.vulkan.device, window.vulkan.swapchain, &window.vulkan.swapchainImageCount, 0);
-	ASSERT(result == VK_SUCCESS);
-
-	ASSERT(window.vulkan.swapchainImageCount == ArrayCount(window.vulkan.swapchainImages));
-
-	result = vkGetSwapchainImagesKHR(window.vulkan.device, window.vulkan.swapchain, &window.vulkan.swapchainImageCount, window.vulkan.swapchainImages);
-	ASSERT(result == VK_SUCCESS);
+	VK_FUNC_ASSERT(vkGetSwapchainImagesKHR(vulkan.device, vulkan.swapchain, &vulkan.swapchainImageCount, 0));
+	ASSERT(vulkan.swapchainImageCount == ArrayCount(vulkan.swapchainImages));
+	VK_FUNC_ASSERT(vkGetSwapchainImagesKHR(vulkan.device, vulkan.swapchain, &vulkan.swapchainImageCount, vulkan.swapchainImages));
 
 	VkImageViewCreateInfo imageViewInfo = {};
 	imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 	imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	imageViewInfo.format = window.vulkan.surfaceFormat.format;
+	imageViewInfo.format = vulkan.surfaceFormat.format;
 	imageViewInfo.components.r = VK_COMPONENT_SWIZZLE_R;
 	imageViewInfo.components.g = VK_COMPONENT_SWIZZLE_G;
 	imageViewInfo.components.b = VK_COMPONENT_SWIZZLE_B;
@@ -953,29 +917,24 @@ static bool Win32InitializeVulkan(win32_window &window, wnd_dim dimensions)
 	imageViewInfo.subresourceRange.levelCount = 1;
 	imageViewInfo.subresourceRange.baseArrayLayer = 0;
 	imageViewInfo.subresourceRange.layerCount = 1;
-	for (u32 i = 0; i < window.vulkan.swapchainImageCount; i++)
+	for (u32 i = 0; i < vulkan.swapchainImageCount; i++)
 	{
-		imageViewInfo.image = window.vulkan.swapchainImages[i];
-		result = vkCreateImageView(window.vulkan.device, &imageViewInfo, 0, &window.vulkan.imageViews[i]);
-		ASSERT(result == VK_SUCCESS);
+		imageViewInfo.image = vulkan.swapchainImages[i];
+		VK_FUNC_ASSERT(vkCreateImageView(vulkan.device, &imageViewInfo, 0, &vulkan.imageViews[i]));
 	}
 
 	// NOTE: Create a depth buffer
 	VkImageCreateInfo imageInfo = {};
 	VkFormat depth_format = VK_FORMAT_D16_UNORM;
 	VkFormatProperties props;
-	vkGetPhysicalDeviceFormatProperties(window.vulkan.gpu, depth_format, &props);
+	vkGetPhysicalDeviceFormatProperties(vulkan.gpu, depth_format, &props);
 	if (props.linearTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
-	{
 		imageInfo.tiling = VK_IMAGE_TILING_LINEAR;
-	}
 	else if (props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
-	{
 		imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-	}
 	else
 	{
-		ASSERT(0)
+		ASSERT(0);
 		return false;
 	}
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -991,7 +950,7 @@ static bool Win32InitializeVulkan(win32_window &window, wnd_dim dimensions)
 	imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-	vkCreateImage(window.vulkan.device, &imageInfo, 0, &window.vulkan.depthImage);
+	vkCreateImage(vulkan.device, &imageInfo, 0, &vulkan.depthImage);
 
 	return true;
 }
@@ -1028,7 +987,7 @@ int CALLBACK WinMain(
 		return 1;
 	}
 
-	if (!Win32InitializeVulkan(window, dim))
+	if (!Win32InitializeVulkan(window.vulkan, dim, window.instance, window.handle, window.name))
 	{
 		return 2;
 	}

@@ -12,7 +12,7 @@ static void InitializeMemoryArena(memory_arena *arena, u8 *base, size_t size)
 #define ReserveArrayMemory(arena, count, type) (type *)ReserveMemory(arena, (count) * sizeof(type))
 static void *ReserveMemory(memory_arena *arena, size_t size)
 {
-    ASSERT(arena->used + size <= arena->size)
+    ASSERT(arena->used + size <= arena->size);
     void *result = arena->base + arena->used;
     arena->used += size;
     return result;

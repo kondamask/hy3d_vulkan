@@ -3,14 +3,22 @@
 #include <math.h>
 
 // TODO: Make this an actual assetion
+#define ASSERT_BREAK() *(int *)0 = 0
+
 #if HYV_DEBUG
 #define ASSERT(Expression) \
     if (!(Expression))     \
-    {                      \
-        *(int *)0 = 0;     \
-    }
+    ASSERT_BREAK()
 #else
 #define ASSERT(Expression)
+#endif
+
+#if HYV_DEBUG
+#define VK_FUNC_ASSERT(FuncResult) \
+    if (FuncResult != VK_SUCCESS)  \
+    ASSERT_BREAK()
+#else
+#define VK_FUNC_ASSERT(FuncResult)
 #endif
 
 #if HYV_DEBUG
