@@ -13,6 +13,7 @@ struct vulkan_state
     VkInstance instance;
     VkPhysicalDevice gpu;
     VkDevice device;
+    VkPhysicalDeviceMemoryProperties memoryProperties;
 
     VkSurfaceKHR surface;
     VkSurfaceFormatKHR surfaceFormat;
@@ -29,7 +30,10 @@ struct vulkan_state
     VkImage swapchainImages[NUM_SWAPCHAIN_IMAGES];
     VkImageView imageViews[NUM_SWAPCHAIN_IMAGES];
 
+    VkFormat depthFormat;
     VkImage depthImage;
+    VkImageView depthImageView;
+    VkDeviceMemory depthMemory;
 
     HMODULE dll;
 
@@ -62,6 +66,7 @@ VK_DECLARE_FUNCTION(vkGetPhysicalDeviceSurfaceSupportKHR);
 VK_DECLARE_FUNCTION(vkGetPhysicalDeviceSurfaceFormatsKHR);
 VK_DECLARE_FUNCTION(vkGetPhysicalDeviceSurfaceCapabilitiesKHR);
 VK_DECLARE_FUNCTION(vkGetPhysicalDeviceFormatProperties);
+VK_DECLARE_FUNCTION(vkGetPhysicalDeviceMemoryProperties);
 VK_DECLARE_FUNCTION(vkCreateDevice);
 VK_DECLARE_FUNCTION(vkGetDeviceProcAddr);
 VK_DECLARE_FUNCTION(vkDestroyInstance);
@@ -80,3 +85,7 @@ VK_DECLARE_FUNCTION(vkDestroySwapchainKHR);
 VK_DECLARE_FUNCTION(vkDestroyCommandPool);
 VK_DECLARE_FUNCTION(vkDeviceWaitIdle);
 VK_DECLARE_FUNCTION(vkDestroyDevice);
+VK_DECLARE_FUNCTION(vkGetImageMemoryRequirements);
+VK_DECLARE_FUNCTION(vkAllocateMemory);
+VK_DECLARE_FUNCTION(vkFreeMemory);
+VK_DECLARE_FUNCTION(vkBindImageMemory);

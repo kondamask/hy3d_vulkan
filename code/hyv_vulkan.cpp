@@ -40,11 +40,14 @@ static bool VkLoadInstanceFunctions(VkInstance instance)
     VK_LOAD_INSTANCE_FUNCTION(instance, vkGetPhysicalDeviceSurfaceFormatsKHR)
     VK_LOAD_INSTANCE_FUNCTION(instance, vkGetPhysicalDeviceSurfaceCapabilitiesKHR)
     VK_LOAD_INSTANCE_FUNCTION(instance, vkGetPhysicalDeviceFormatProperties)
+    VK_LOAD_INSTANCE_FUNCTION(instance, vkGetPhysicalDeviceMemoryProperties)
     VK_LOAD_INSTANCE_FUNCTION(instance, vkCreateDevice)
     VK_LOAD_INSTANCE_FUNCTION(instance, vkGetDeviceProcAddr)
     VK_LOAD_INSTANCE_FUNCTION(instance, vkCreateDebugUtilsMessengerEXT)
     VK_LOAD_INSTANCE_FUNCTION(instance, vkDestroyInstance)
     VK_LOAD_INSTANCE_FUNCTION(instance, vkDestroyDebugUtilsMessengerEXT)
+    VK_LOAD_INSTANCE_FUNCTION(instance, vkGetImageMemoryRequirements)
+
     return true;
 }
 
@@ -69,7 +72,30 @@ static bool VkLoadDeviceFunctions(VkDevice device)
     VK_LOAD_DEVICE_FUNCTION(device, vkDestroyCommandPool)
     VK_LOAD_DEVICE_FUNCTION(device, vkDeviceWaitIdle)
     VK_LOAD_DEVICE_FUNCTION(device, vkDestroyDevice)
+    VK_LOAD_DEVICE_FUNCTION(device, vkGetImageMemoryRequirements)
+    VK_LOAD_DEVICE_FUNCTION(device, vkAllocateMemory)
+    VK_LOAD_DEVICE_FUNCTION(device, vkBindImageMemory)
+    VK_LOAD_DEVICE_FUNCTION(device, vkFreeMemory)
     return true;
+}
+
+static bool FindMemoryProperties(VkPhysicalDeviceMemoryProperties &memoryProperties,
+                                 uint32_t memoryTypeBitsRequirement,
+                                 VkMemoryPropertyFlags requiredProperties,
+                                 u32 &memoryIndex)
+{
+    u32 memoryCount = memoryProperties.memoryTypeCount;
+    for (memoryIndex = 0; memoryIndex < memoryCount; ++memoryIndex)
+    {
+        uint32_t memoryTypeBits = (1 << memoryIndex);
+        bool isRequiredMemoryType = memoryTypeBitsRequirement & memoryTypeBits;
+        VkMemoryPropertyFlags properties = memoryProperties.memoryTypes[memoryIndex].propertyFlags;
+        bool hasRequiredProperties = ((properties & requiredProperties) == requiredProperties);
+
+        if (isRequiredMemoryType && hasRequiredProperties)
+            return true;
+    }
+    return false;
 }
 
 #if VULKAN_VALIDATION_LAYERS_ON
@@ -252,6 +278,8 @@ static bool Win32InitializeVulkan(vulkan_state &vulkan, HINSTANCE &wndInstance, 
         vulkan.gpu = gpuBuffer[0];
         // TODO: ACTUALY CHECK WHICH GPU IS BEST TO USE BY CHECKING THEIR QUEUES
         //For now it's ok since I only have 1 gpu.
+
+        vkGetPhysicalDeviceMemoryProperties(vulkan.gpu, &vulkan.memoryProperties);
     }
 
     // NOTE: Pick a queue family the supports both present and graphics operations
@@ -499,10 +527,10 @@ static bool Win32InitializeVulkan(vulkan_state &vulkan, HINSTANCE &wndInstance, 
         imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
         imageViewInfo.format = vulkan.surfaceFormat.format;
-        imageViewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY; //VK_COMPONENT_SWIZZLE_R;
-        imageViewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY; //VK_COMPONENT_SWIZZLE_G;
-        imageViewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY; //VK_COMPONENT_SWIZZLE_B;
-        imageViewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY; //VK_COMPONENT_SWIZZLE_A;
+        imageViewInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+        imageViewInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+        imageViewInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+        imageViewInfo.components.a = VK_COMPONENT_SWIZZLE_A;
         imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         imageViewInfo.subresourceRange.baseMipLevel = 0;
         imageViewInfo.subresourceRange.levelCount = 1;
@@ -517,9 +545,9 @@ static bool Win32InitializeVulkan(vulkan_state &vulkan, HINSTANCE &wndInstance, 
 
     // NOTE: Create a depth buffer
     VkImageCreateInfo imageInfo = {};
-    VkFormat depthFormat = VK_FORMAT_D16_UNORM;
+    vulkan.depthFormat = VK_FORMAT_D16_UNORM;
     VkFormatProperties props;
-    vkGetPhysicalDeviceFormatProperties(vulkan.gpu, depthFormat, &props);
+    vkGetPhysicalDeviceFormatProperties(vulkan.gpu, vulkan.depthFormat, &props);
     if (props.linearTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
         imageInfo.tiling = VK_IMAGE_TILING_LINEAR;
     else if (props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
@@ -542,20 +570,47 @@ static bool Win32InitializeVulkan(vulkan_state &vulkan, HINSTANCE &wndInstance, 
     imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    vkCreateImage(vulkan.device, &imageInfo, 0, &vulkan.depthImage);
+    VkMemoryRequirements depthMemoryReq = {};
+    VK_FUNC_ASSERT(vkCreateImage(vulkan.device, &imageInfo, 0, &vulkan.depthImage));
+    vkGetImageMemoryRequirements(vulkan.device, vulkan.depthImage, &depthMemoryReq);
+
+    u32 memoryIndex = 0; // no use for now
+    ASSERT(FindMemoryProperties(vulkan.memoryProperties, depthMemoryReq.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memoryIndex));
+
+    VkMemoryAllocateInfo depthMemAllocInfo = {};
+    depthMemAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    depthMemAllocInfo.allocationSize = depthMemoryReq.size;
+
+    VK_FUNC_ASSERT(vkAllocateMemory(vulkan.device, &depthMemAllocInfo, 0, &vulkan.depthMemory));
+    VK_FUNC_ASSERT(vkBindImageMemory(vulkan.device, vulkan.depthImage, vulkan.depthMemory, 0));
+
+    VkImageViewCreateInfo depthImageViewInfo = {};
+    depthImageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    depthImageViewInfo.image = vulkan.depthImage;
+    depthImageViewInfo.format = vulkan.depthFormat;
+    depthImageViewInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+    depthImageViewInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+    depthImageViewInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+    depthImageViewInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+    depthImageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    depthImageViewInfo.subresourceRange.baseMipLevel = 0;
+    depthImageViewInfo.subresourceRange.levelCount = 1;
+    depthImageViewInfo.subresourceRange.baseArrayLayer = 0;
+    depthImageViewInfo.subresourceRange.layerCount = 1;
+    depthImageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    VK_FUNC_ASSERT(vkCreateImageView(vulkan.device, &depthImageViewInfo, 0, &vulkan.depthImageView));
 
     return true;
 }
 
 static void Win32DestroyVulkan(vulkan_state &vulkan)
 {
+    vkFreeMemory(vulkan.device, vulkan.depthMemory, 0);
+    vkDestroyImageView(vulkan.device, vulkan.depthImageView, 0);
     vkDestroyImage(vulkan.device, vulkan.depthImage, 0);
 
     for (u32 i = 0; i < vulkan.swapchainImageCount; i++)
-    {
         vkDestroyImageView(vulkan.device, vulkan.imageViews[i], 0);
-    }
-
     if (!vulkan.swapchain)
         vkDestroySwapchainKHR(vulkan.device, vulkan.swapchain, 0);
 
