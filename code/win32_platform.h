@@ -13,6 +13,7 @@ struct wnd_dim
 };
 
 #define NUM_SAMPLES VK_SAMPLE_COUNT_1_BIT
+#define NUM_SWAPCHAIN_IMAGES 2
 struct win32_vulkan_state
 {
 	VkInstance instance;
@@ -31,8 +32,8 @@ struct win32_vulkan_state
 
 	VkSwapchainKHR swapchain;
 	u32 swapchainImageCount;
-	VkImage swapchainImages[2];
-	VkImageView imageViews[2];
+	VkImage swapchainImages[NUM_SWAPCHAIN_IMAGES];
+	VkImageView imageViews[NUM_SWAPCHAIN_IMAGES];
 
 	VkImage depthImage;
 

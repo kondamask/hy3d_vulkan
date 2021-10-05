@@ -753,6 +753,9 @@ static bool Win32InitializeVulkan(win32_vulkan_state &vulkan, wnd_dim dimensions
 
 		char *deviceExtensions[] = {
 			VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+		// TODO: MUST check if swapchain is supported as an extention for this device
+		//with vkEnumerateDeviceExtensionProperties
+
 		VkDeviceCreateInfo deviceInfo = {};
 		deviceInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 		deviceInfo.queueCreateInfoCount = 1; // NOTE: Only if graphicsQueueFamilyIndex == presentQueueFamilyIndex
@@ -783,11 +786,11 @@ static bool Win32InitializeVulkan(win32_vulkan_state &vulkan, wnd_dim dimensions
 	}
 
 	// NOTE: Create a swapchain
-	// NOTE: 1.set a proper surface format
-	vulkan.surfaceFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-	vulkan.surfaceFormat.format = VK_FORMAT_B8G8R8A8_UNORM;
 
+	// NOTE: 1.set a proper surface format
 	{
+		vulkan.surfaceFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+		vulkan.surfaceFormat.format = VK_FORMAT_B8G8R8A8_UNORM;
 		u32 formatCount = 0;
 		VkSurfaceFormatKHR availableFormats[16] = {};
 		bool desiredSurfaceFormatSupported = false;
@@ -804,7 +807,7 @@ static bool Win32InitializeVulkan(win32_vulkan_state &vulkan, wnd_dim dimensions
 		ASSERT(desiredSurfaceFormatSupported);
 	}
 
-	// NOTE: Get Surface capabilities
+	// NOTE: 2. Get Surface capabilities
 	{
 		VkSurfaceCapabilitiesKHR surfCapabilities = {};
 		VK_FUNC_ASSERT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vulkan.gpu, vulkan.surface, &surfCapabilities));
@@ -828,25 +831,20 @@ static bool Win32InitializeVulkan(win32_vulkan_state &vulkan, wnd_dim dimensions
 		else
 		{ // If the surface size is defined, the swap chain size must match
 			swapchainExtent = surfCapabilities.currentExtent;
+			ASSERT(swapchainExtent.width == dimensions.width);
+			ASSERT(swapchainExtent.height == dimensions.height);
 		}
 
-		// NOTE: Determine the number of VkImage's to use in the swap chain.
-		// We need to acquire only 1 presentable image at at time.
-		// Asking for minImageCount images ensures that we can acquire
-		// 1 presentable image as long as we present it before attempting
-		// to acquire another.
-		uint32_t desiredNumberOfSwapChainImages = 2;
-		if (surfCapabilities.maxImageCount < desiredNumberOfSwapChainImages)
-			desiredNumberOfSwapChainImages = surfCapabilities.minImageCount;
+		// NOTE: 3. Determine the number of VkImage's to use in the swap chain.
+		//Constant at 2 for now: Double buffering
+		ASSERT(NUM_SWAPCHAIN_IMAGES <= surfCapabilities.maxImageCount)
 
-		// NOTE: Determine the pre-transform
+		// NOTE: 4. Determine the pre-transform
 		VkSurfaceTransformFlagBitsKHR preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR; //do nothing
-		if (surfCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
-			preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-		else
+		if (!(surfCapabilities.supportedTransforms & preTransform))
 			preTransform = surfCapabilities.currentTransform;
 
-		// NOTE: Set the present mode
+		// NOTE: 5. Set the present mode
 		VkPresentModeKHR presentMode = VK_PRESENT_MODE_FIFO_KHR; //The FIFO present mode is guaranteed by the spec to be supported
 		/*
 		uint32_t presentModeCount;
@@ -863,7 +861,7 @@ static bool Win32InitializeVulkan(win32_vulkan_state &vulkan, wnd_dim dimensions
 		ASSERT(desiredPresentModeSupported);
 		*/
 
-		// NOTE: Find a supported composite alpha mode - one of these is guaranteed to be set
+		// NOTE: 6. Find a supported composite alpha mode - one of these is guaranteed to be set
 		VkCompositeAlphaFlagBitsKHR compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 		VkCompositeAlphaFlagBitsKHR compositeAlphaFlags[4] = {
 			VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
@@ -880,10 +878,11 @@ static bool Win32InitializeVulkan(win32_vulkan_state &vulkan, wnd_dim dimensions
 			}
 		}
 
+		// NOTE: 7. Make the actual swapchain
 		VkSwapchainCreateInfoKHR swapchainInfo = {};
 		swapchainInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 		swapchainInfo.surface = vulkan.surface;
-		swapchainInfo.minImageCount = desiredNumberOfSwapChainImages;
+		swapchainInfo.minImageCount = NUM_SWAPCHAIN_IMAGES;
 		swapchainInfo.imageFormat = vulkan.surfaceFormat.format;
 		swapchainInfo.imageExtent = swapchainExtent;
 		swapchainInfo.preTransform = preTransform;
