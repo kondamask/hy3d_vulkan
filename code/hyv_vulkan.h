@@ -31,6 +31,8 @@ struct vulkan_state
 
     VkImage depthImage;
 
+    HMODULE dll;
+
 #if VULKAN_VALIDATION_LAYERS_ON
     VkDebugUtilsMessengerEXT debugMessenger;
 #endif
@@ -50,6 +52,8 @@ VK_DECLARE_FUNCTION(vkCreateInstance);
 VK_DECLARE_FUNCTION(vkEnumerateInstanceLayerProperties);
 
 // NOTE: Instance Functions
+VK_DECLARE_FUNCTION(vkCreateDebugUtilsMessengerEXT);
+VK_DECLARE_FUNCTION(vkDestroyDebugUtilsMessengerEXT);
 VK_DECLARE_FUNCTION(vkCreateWin32SurfaceKHR);
 VK_DECLARE_FUNCTION(vkDestroySurfaceKHR);
 VK_DECLARE_FUNCTION(vkEnumeratePhysicalDevices);
@@ -60,7 +64,6 @@ VK_DECLARE_FUNCTION(vkGetPhysicalDeviceSurfaceCapabilitiesKHR);
 VK_DECLARE_FUNCTION(vkGetPhysicalDeviceFormatProperties);
 VK_DECLARE_FUNCTION(vkCreateDevice);
 VK_DECLARE_FUNCTION(vkGetDeviceProcAddr);
-VK_DECLARE_FUNCTION(vkCreateDebugUtilsMessengerEXT);
 VK_DECLARE_FUNCTION(vkDestroyInstance);
 
 // NOTE: Device Functions
@@ -77,4 +80,3 @@ VK_DECLARE_FUNCTION(vkDestroySwapchainKHR);
 VK_DECLARE_FUNCTION(vkDestroyCommandPool);
 VK_DECLARE_FUNCTION(vkDeviceWaitIdle);
 VK_DECLARE_FUNCTION(vkDestroyDevice);
-

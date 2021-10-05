@@ -1,21 +1,21 @@
 #include "hyv_vulkan.h"
 
 // TODO: make this cross-platform
-static bool Win32LoadVulkan()
+static bool Win32LoadVulkanDLL(vulkan_state &vulkan)
 {
-    HMODULE vulkanDLL = LoadLibraryA("vulkan-1.dll");
-    if (!vulkanDLL)
+    vulkan.dll = LoadLibraryA("vulkan-1.dll");
+    if (!vulkan.dll)
         return false;
 
-    vkGetInstanceProcAddr = (vk_get_instance_proc_addr *)GetProcAddress(vulkanDLL, "vkGetInstanceProcAddr");
+    vkGetInstanceProcAddr = (vk_get_instance_proc_addr *)GetProcAddress(vulkan.dll, "vkGetInstanceProcAddr");
     return true;
 }
 
-#define VK_LOAD_GLOBAL_FUNCTION(func)                       \
+#define VK_LOAD_GLOBAL_FUNCTION(func)                         \
     func = (PFN_##func)vkGetInstanceProcAddr(nullptr, #func); \
-    if (!(func))                                            \
-    {                                                      \
-        return false;                                      \
+    if (!(func))                                              \
+    {                                                         \
+        return false;                                         \
     }
 static bool VkLoadGlobalFunctions()
 {
@@ -24,11 +24,11 @@ static bool VkLoadGlobalFunctions()
     return true;
 }
 
-#define VK_LOAD_INSTANCE_FUNCTION(instance, func)            \
+#define VK_LOAD_INSTANCE_FUNCTION(instance, func)              \
     func = (PFN_##func)vkGetInstanceProcAddr(instance, #func); \
-    if (!(func))                                             \
-    {                                                       \
-        return false;                                       \
+    if (!(func))                                               \
+    {                                                          \
+        return false;                                          \
     }
 static bool VkLoadInstanceFunctions(VkInstance instance)
 {
@@ -44,14 +44,15 @@ static bool VkLoadInstanceFunctions(VkInstance instance)
     VK_LOAD_INSTANCE_FUNCTION(instance, vkGetDeviceProcAddr)
     VK_LOAD_INSTANCE_FUNCTION(instance, vkCreateDebugUtilsMessengerEXT)
     VK_LOAD_INSTANCE_FUNCTION(instance, vkDestroyInstance)
+    VK_LOAD_INSTANCE_FUNCTION(instance, vkDestroyDebugUtilsMessengerEXT)
     return true;
 }
 
-#define VK_LOAD_DEVICE_FUNCTION(device, func)            \
+#define VK_LOAD_DEVICE_FUNCTION(device, func)              \
     func = (PFN_##func)vkGetDeviceProcAddr(device, #func); \
-    if (!(func))                                         \
-    {                                                   \
-        return false;                                   \
+    if (!(func))                                           \
+    {                                                      \
+        return false;                                      \
     }
 static bool VkLoadDeviceFunctions(VkDevice device)
 {
@@ -148,7 +149,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugCallback(
 }
 #endif
 
-static bool Win32InitializeVulkan(vulkan_state &vulkan, HINSTANCE &wndInstance, HWND &wndHandle, const char *name, u32 width, u32 height)
+static bool Win32InitializeVulkan(vulkan_state &vulkan, HINSTANCE &wndInstance, HWND &wndHandle, const char *name, u16 width, u16 height)
 {
     ASSERT(VkLoadGlobalFunctions());
 
@@ -549,25 +550,32 @@ static bool Win32InitializeVulkan(vulkan_state &vulkan, HINSTANCE &wndInstance, 
 static void Win32DestroyVulkan(vulkan_state &vulkan)
 {
     vkDestroyImage(vulkan.device, vulkan.depthImage, 0);
+
     for (u32 i = 0; i < vulkan.swapchainImageCount; i++)
     {
         vkDestroyImageView(vulkan.device, vulkan.imageViews[i], 0);
     }
-    vkDestroySwapchainKHR(vulkan.device, vulkan.swapchain, 0);
+
+    if (!vulkan.swapchain)
+        vkDestroySwapchainKHR(vulkan.device, vulkan.swapchain, 0);
+
     vkDestroyCommandPool(vulkan.device, vulkan.cmdPool, 0);
-    vkDeviceWaitIdle(vulkan.device);
+
+    if (!vulkan.device)
+        vkDeviceWaitIdle(vulkan.device);
     vkDestroyDevice(vulkan.device, 0);
+
     vkDestroySurfaceKHR(vulkan.instance, vulkan.surface, 0);
 
 #if VULKAN_VALIDATION_LAYERS_ON
-    PFN_vkDestroyDebugUtilsMessengerEXT destroyDebugMessenger =
-        (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(vulkan.instance, "vkDestroyDebugUtilsMessengerEXT");
-    if (destroyDebugMessenger != nullptr)
-    {
-        destroyDebugMessenger(vulkan.instance, vulkan.debugMessenger, 0);
-    }
+    if (!vulkan.debugMessenger)
+        vkDestroyDebugUtilsMessengerEXT(vulkan.instance, vulkan.debugMessenger, 0);
 #endif
 
-    vkDestroyInstance(vulkan.instance, 0);
+    if (!vulkan.instance)
+        vkDestroyInstance(vulkan.instance, 0);
+
+    if (vulkan.dll)
+        FreeLibrary(vulkan.dll);
     return;
 }

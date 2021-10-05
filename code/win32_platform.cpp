@@ -398,7 +398,7 @@ static void Win32UnloadEngineCode(win32_engine_code *engineCode)
 	engineCode->UpdateAndRender = UpdateAndRenderStub;
 }
 
-static bool Win32InitializeWindow(win32_window &window, i16 width, i16 height, LPCSTR windowTitle)
+static bool Win32InitializeWindow(win32_window &window, u16 width, u16 height, LPCSTR windowTitle)
 {
 #if HYV_DEBUG
 	AllocConsole();
@@ -492,22 +492,21 @@ int CALLBACK WinMain(
 	LPSTR lpCmdLine,
 	int nShowCmd)
 {
-	wnd_dim dim = {};
-	dim.width = 512;
-	dim.height = 512;
+	u16 width = 640;
+	u16 height = 480;
 	win32_window window;
-	if (!Win32InitializeWindow(window, dim.width, dim.height, window.name))
+	if (!Win32InitializeWindow(window, width, height, window.name))
 	{
 		return 1;
 	}
 
-	if (!Win32LoadVulkan())
+	if (!Win32LoadVulkanDLL(window.vulkan))
     {
         MessageBoxA(window.handle, "Missing vulkan-1.dll", "Error", MB_OK);
         return 2;
     }
 
-	if (!Win32InitializeVulkan(window.vulkan, window.instance, window.handle, window.name, dim.width, dim.height))
+	if (!Win32InitializeVulkan(window.vulkan, window.instance, window.handle, window.name, width, height))
 	{
 		return 3;
 	}
