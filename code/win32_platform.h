@@ -23,6 +23,8 @@ struct win32_vulkan_state
 	VkSurfaceFormatKHR surfaceFormat;
 
 	VkQueue queue;
+	//VkQueue graphicsQueue;
+	//VkQueue presentQueue;
 
 	VkCommandPool cmdPool;
 	VkCommandBuffer cmdBuffer;

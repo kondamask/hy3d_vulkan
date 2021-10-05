@@ -725,23 +725,37 @@ static bool Win32InitializeVulkan(win32_vulkan_state &vulkan, wnd_dim dimensions
 		}
 	}
 
-	// TODO: figure this out
 	ASSERT(graphicsQueueFamilyIndex == presentQueueFamilyIndex);
+	// TODO: Neet to do some stuff if they are different like:
+	/*
+	VkDeviceQueueCreateInfo queueInfo[2] = {};
+	float queuePriority = 1.0; // must be array of size queueCount
+
+	queueInfo[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	queueInfo[0].queueFamilyIndex = graphicsQueueFamilyIndex;
+	queueInfo[0].queueCount = 1;
+	queueInfo[0].pQueuePriorities = &queuePriority;
+
+	queueInfo[1].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	queueInfo[1].queueFamilyIndex = presentQueueFamilyIndex;
+	queueInfo[1].queueCount = 1;
+	queueInfo[1].pQueuePriorities = &queuePriority;
+	*/
 
 	// NOTE: Create a device
 	VkDeviceQueueCreateInfo queueInfo = {};
 	{
-		float queuePriorities[1] = {0.0}; // must be array of size queueCount
+		float queuePriority = 1.0; // must be array of size queueCount
 		queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
 		queueInfo.queueFamilyIndex = graphicsQueueFamilyIndex;
 		queueInfo.queueCount = 1;
-		queueInfo.pQueuePriorities = queuePriorities;
+		queueInfo.pQueuePriorities = &queuePriority;
 
 		char *deviceExtensions[] = {
 			VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 		VkDeviceCreateInfo deviceInfo = {};
 		deviceInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-		deviceInfo.queueCreateInfoCount = 1;
+		deviceInfo.queueCreateInfoCount = 1; // NOTE: Only if graphicsQueueFamilyIndex == presentQueueFamilyIndex
 		deviceInfo.pQueueCreateInfos = &queueInfo;
 		deviceInfo.enabledExtensionCount = ArrayCount(deviceExtensions);
 		deviceInfo.ppEnabledExtensionNames = deviceExtensions;
@@ -753,6 +767,7 @@ static bool Win32InitializeVulkan(win32_vulkan_state &vulkan, wnd_dim dimensions
 
 	// NOTE: Create a command buffer
 	{
+
 		VkCommandPoolCreateInfo cmdPoolInfo = {};
 		cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 		cmdPoolInfo.queueFamilyIndex = queueInfo.queueFamilyIndex;
