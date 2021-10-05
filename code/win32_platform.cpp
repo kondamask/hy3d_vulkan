@@ -441,20 +441,26 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugCallback(
 		type = "Potentially non-optimal use of Vulkan.";
 
 	if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
-		std::cerr << "WARNING: " << type << "\n"
-				  << pCallbackData->pMessageIdName << std::endl;
+	{
+		HYV_DEBUG_PRINT("WARNING: ");
+	}
 	else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT)
-		std::cerr << "DIAGNOSTIC: " << type << "\n"
-				  << pCallbackData->pMessageIdName << std::endl;
+	{
+		HYV_DEBUG_PRINT("DIAGNOSTIC: ");
+	}
 	else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
-		std::cerr << "INFO: " << type << "\n"
-				  << pCallbackData->pMessageIdName << std::endl;
+	{
+		HYV_DEBUG_PRINT("INFO: ");
+	}
 	else
 	{
-		std::cerr << "ERROR: " << type << "\n"
-				  << pCallbackData->pMessageIdName << std::endl;
+		HYV_DEBUG_PRINT("ERROR: ");
 		isError = true;
 	}
+	HYV_DEBUG_PRINT(type);
+	HYV_DEBUG_PRINT('\n');
+	HYV_DEBUG_PRINT(pCallbackData->pMessageIdName);
+	HYV_DEBUG_PRINT('\n');
 
 	char c;
 	u32 i = 0;
@@ -469,12 +475,12 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugCallback(
 		c = pCallbackData->pMessage[i];
 		if (c != ';' && c != '|')
 		{
-			std::cerr << c;
+			HYV_DEBUG_PRINT(c);
 			i++;
 		}
 		else
 		{
-			std::cerr << std::endl;
+			HYV_DEBUG_PRINT('\n');
 			i++;
 			do
 			{
@@ -484,21 +490,24 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugCallback(
 			i--;
 		}
 	} while (c != '\0');
-	std::cerr << std::endl;
+	HYV_DEBUG_PRINT('\n');
 	if (isError)
-		ASSERT(0);
+	{
+		ASSERT(0)
+		return VK_FALSE;
+	}
 	return VK_FALSE;
 }
 #endif
 
 static bool Win32InitializeWindow(win32_window &window, i16 width, i16 height, LPCSTR windowTitle)
 {
-#if VULKAN_VALIDATION_LAYERS_ON
+#if HYV_DEBUG
 	AllocConsole();
 	AttachConsole(GetCurrentProcessId());
 	freopen("CON", "w", stdout);
 	freopen("CON", "w", stderr);
-	SetConsoleTitle("Vulkan Debug");
+	SetConsoleTitle("Warnings / Errors");
 #endif
 
 	window.instance = GetModuleHandleW(nullptr);
@@ -514,7 +523,7 @@ static bool Win32InitializeWindow(win32_window &window, i16 width, i16 height, L
 
 	if (!RegisterClassA(&windowClass))
 	{
-		OutputDebugStringA("ERROR: Window class wasn't registered.\n");
+		HYV_DEBUG_PRINT("ERROR: Window class wasn't registered.\n");
 		return false;
 	}
 
@@ -549,7 +558,7 @@ static bool Win32InitializeWindow(win32_window &window, i16 width, i16 height, L
 
 	if (!window.handle)
 	{
-		OutputDebugStringA("ERROR: Failed to create window.\n");
+		HYV_DEBUG_PRINT("ERROR: Failed to create window.\n");
 		return false;
 	}
 
@@ -722,12 +731,12 @@ static bool Win32InitializeVulkan(win32_window &window, wnd_dim dimensions)
 
 	if (window.vulkan.graphicsQueueFamilyIndex == UINT32_MAX)
 	{
-		OutputDebugStringA("ERROR: No graphics queue found.\n");
+		HYV_DEBUG_PRINT("ERROR: No graphics queue found.\n");
 		return false;
 	}
 	if (window.vulkan.presentQueueFamilyIndex == UINT32_MAX)
 	{
-		OutputDebugStringA("ERROR: No present queue found.\n");
+		HYV_DEBUG_PRINT("ERROR: No present queue found.\n");
 		return false;
 	}
 
@@ -757,11 +766,7 @@ static bool Win32InitializeVulkan(win32_window &window, wnd_dim dimensions)
 	cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	cmdPoolInfo.queueFamilyIndex = queueInfo.queueFamilyIndex;
 	result = vkCreateCommandPool(window.vulkan.device, &cmdPoolInfo, 0, &window.vulkan.cmdPool);
-	if (result != VK_SUCCESS)
-	{
-		OutputDebugStringA("ERROR: Failed to create vulkan command pool.\n");
-		return false;
-	}
+	ASSERT(result == VK_SUCCESS);
 
 	VkCommandBufferAllocateInfo cmdBufferAllocInfo = {};
 	cmdBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -970,7 +975,7 @@ static bool Win32InitializeVulkan(win32_window &window, wnd_dim dimensions)
 	}
 	else
 	{
-		ASSERT(depth_format != VK_FORMAT_D16_UNORM)
+		ASSERT(0)
 		return false;
 	}
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -1022,7 +1027,6 @@ int CALLBACK WinMain(
 	{
 		return 1;
 	}
-	OutputDebugString("Test");
 
 	if (!Win32InitializeVulkan(window, dim))
 	{

@@ -1,6 +1,7 @@
 #pragma once
 #include "hyv_windows.h"
 #include "hyv_engine.h"
+#include "hyv_base.h"
 
 #include <vulkan/vulkan.h>
 
@@ -17,19 +18,24 @@ struct win32_vulkan_state
 	VkInstance instance;
 	VkPhysicalDevice gpu;
 	VkDevice device;
+
 	VkSurfaceKHR surface;
 	VkSurfaceFormatKHR surfaceFormat;
+
 	u32 graphicsQueueFamilyIndex;
 	u32 presentQueueFamilyIndex;
+
 	VkCommandPool cmdPool;
 	VkCommandBuffer cmdBuffer;
+
 	VkSwapchainKHR swapchain;
 	u32 swapchainImageCount;
 	VkImage swapchainImages[2];
 	VkImageView imageViews[2];
+
 	VkImage depthImage;
 
-#if HYV_DEBUG
+#if VULKAN_VALIDATION_LAYERS_ON
 	VkDebugUtilsMessengerEXT debugMessenger;
 #endif
 };
