@@ -18,17 +18,18 @@ struct vulkan_state
     VkSurfaceKHR surface;
     VkSurfaceFormatKHR surfaceFormat;
 
+    u32 queueFamilyIndex;
     VkQueue queue;
     //VkQueue graphicsQueue;
     //VkQueue presentQueue;
-
-    VkCommandPool cmdPool;
-    VkCommandBuffer cmdBuffer;
 
     VkSwapchainKHR swapchain;
     u32 swapchainImageCount;
     VkImage swapchainImages[NUM_SWAPCHAIN_IMAGES];
     VkImageView imageViews[NUM_SWAPCHAIN_IMAGES];
+
+    VkCommandPool cmdPool;
+    VkCommandBuffer cmdBuffers[NUM_SWAPCHAIN_IMAGES];
 
     VkFormat depthFormat;
     VkImage depthImage;
@@ -67,6 +68,7 @@ VK_DECLARE_FUNCTION(vkGetPhysicalDeviceSurfaceFormatsKHR);
 VK_DECLARE_FUNCTION(vkGetPhysicalDeviceSurfaceCapabilitiesKHR);
 VK_DECLARE_FUNCTION(vkGetPhysicalDeviceFormatProperties);
 VK_DECLARE_FUNCTION(vkGetPhysicalDeviceMemoryProperties);
+VK_DECLARE_FUNCTION(vkEnumerateDeviceExtensionProperties);
 VK_DECLARE_FUNCTION(vkCreateDevice);
 VK_DECLARE_FUNCTION(vkGetDeviceProcAddr);
 VK_DECLARE_FUNCTION(vkDestroyInstance);

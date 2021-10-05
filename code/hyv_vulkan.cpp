@@ -41,6 +41,7 @@ static bool VkLoadInstanceFunctions(VkInstance instance)
     VK_LOAD_INSTANCE_FUNCTION(instance, vkGetPhysicalDeviceSurfaceCapabilitiesKHR)
     VK_LOAD_INSTANCE_FUNCTION(instance, vkGetPhysicalDeviceFormatProperties)
     VK_LOAD_INSTANCE_FUNCTION(instance, vkGetPhysicalDeviceMemoryProperties)
+    VK_LOAD_INSTANCE_FUNCTION(instance, vkEnumerateDeviceExtensionProperties)
     VK_LOAD_INSTANCE_FUNCTION(instance, vkCreateDevice)
     VK_LOAD_INSTANCE_FUNCTION(instance, vkGetDeviceProcAddr)
     VK_LOAD_INSTANCE_FUNCTION(instance, vkCreateDebugUtilsMessengerEXT)
@@ -193,10 +194,10 @@ static bool Win32InitializeVulkan(vulkan_state &vulkan, HINSTANCE &wndInstance, 
     ASSERT(layerCount <= ArrayCount(availableLayers));
     VK_FUNC_ASSERT(vkEnumerateInstanceLayerProperties(&layerCount, availableLayers));
 
-    for (const char *layerName : validationLayers)
+    for (char *layerName : validationLayers)
     {
         bool layerFound = false;
-        for (const auto &layerProperties : availableLayers)
+        for (VkLayerProperties &layerProperties : availableLayers)
         {
             if (strcmp(layerName, layerProperties.layerName) == 0)
             {
@@ -204,7 +205,11 @@ static bool Win32InitializeVulkan(vulkan_state &vulkan, HINSTANCE &wndInstance, 
                 break;
             }
         }
-        ASSERT(layerFound);
+        if (!layerFound)
+        {
+            ASSERT("ERROR: Validation Layer not found");
+            return false;
+        }
     }
 
     VkDebugUtilsMessengerCreateInfoEXT debugMessengerInfo = {};
@@ -332,6 +337,7 @@ static bool Win32InitializeVulkan(vulkan_state &vulkan, HINSTANCE &wndInstance, 
     }
 
     ASSERT(graphicsQueueFamilyIndex == presentQueueFamilyIndex);
+    vulkan.queueFamilyIndex = presentQueueFamilyIndex;
     // TODO: Neet to do some stuff if they are different like:
 
     //VkDeviceQueueCreateInfo queueInfo[2] = {};
@@ -356,40 +362,45 @@ static bool Win32InitializeVulkan(vulkan_state &vulkan, HINSTANCE &wndInstance, 
         queueInfo.queueCount = 1;
         queueInfo.pQueuePriorities = &queuePriority;
 
-        char *deviceExtensions[] = {
+        char *desiredDeviceExtensions[] = {
             VK_KHR_SWAPCHAIN_EXTENSION_NAME};
-        // TODO: MUST check if swapchain is supported as an extention for this device
-        //with vkEnumerateDeviceExtensionProperties
+
+        u32 deviceExtensionsCount;
+        VkExtensionProperties availableDeviceExtensions[255];
+        VK_FUNC_ASSERT(vkEnumerateDeviceExtensionProperties(vulkan.gpu, 0, &deviceExtensionsCount, 0));
+        ASSERT(deviceExtensionsCount <= ArrayCount(availableDeviceExtensions));
+        VK_FUNC_ASSERT(vkEnumerateDeviceExtensionProperties(vulkan.gpu, 0, &deviceExtensionsCount, availableDeviceExtensions));
+        for (char *desiredExtension : desiredDeviceExtensions)
+        {
+            bool found = false;
+            for (VkExtensionProperties &availableExtension : availableDeviceExtensions)
+            {
+                if (strcmp(desiredExtension, availableExtension.extensionName) == 0)
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+            {
+                ASSERT("ERROR: Requested device extension not supported");
+                return false;
+            }
+        }
 
         VkDeviceCreateInfo deviceInfo = {};
         deviceInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
         deviceInfo.queueCreateInfoCount = 1; // NOTE: Only if graphicsQueueFamilyIndex == presentQueueFamilyIndex
         deviceInfo.pQueueCreateInfos = &queueInfo;
-        deviceInfo.enabledExtensionCount = ArrayCount(deviceExtensions);
-        deviceInfo.ppEnabledExtensionNames = deviceExtensions;
+        deviceInfo.enabledExtensionCount = ArrayCount(desiredDeviceExtensions);
+        deviceInfo.ppEnabledExtensionNames = desiredDeviceExtensions;
         VK_FUNC_ASSERT(vkCreateDevice(vulkan.gpu, &deviceInfo, 0, &vulkan.device));
     }
 
     ASSERT(VkLoadDeviceFunctions(vulkan.device));
 
     // NOTE: Get the queue and save it into our vulkan object
-    vkGetDeviceQueue(vulkan.device, queueInfo.queueFamilyIndex, 0, &vulkan.queue);
-
-    // NOTE: Create a command buffer
-    {
-        VkCommandPoolCreateInfo cmdPoolInfo = {};
-        cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-        cmdPoolInfo.queueFamilyIndex = queueInfo.queueFamilyIndex;
-        VK_FUNC_ASSERT(vkCreateCommandPool(vulkan.device, &cmdPoolInfo, 0, &vulkan.cmdPool));
-
-        VkCommandBufferAllocateInfo cmdBufferAllocInfo = {};
-        cmdBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        cmdBufferAllocInfo.commandPool = vulkan.cmdPool;
-        cmdBufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        cmdBufferAllocInfo.commandBufferCount = 1;
-
-        VK_FUNC_ASSERT(vkAllocateCommandBuffers(vulkan.device, &cmdBufferAllocInfo, &vulkan.cmdBuffer));
-    }
+    vkGetDeviceQueue(vulkan.device, vulkan.queueFamilyIndex, 0, &vulkan.queue);
 
     // NOTE: Create a swapchain
 
@@ -443,6 +454,7 @@ static bool Win32InitializeVulkan(vulkan_state &vulkan, HINSTANCE &wndInstance, 
 
         // NOTE: 3. Determine the number of VkImage's to use in the swap chain.
         //Constant at 2 for now: Double buffering
+        ASSERT(NUM_SWAPCHAIN_IMAGES >= surfCapabilities.minImageCount);
         ASSERT(NUM_SWAPCHAIN_IMAGES <= surfCapabilities.maxImageCount);
 
         // NOTE: 4. Determine the pre-transform
@@ -491,7 +503,7 @@ static bool Win32InitializeVulkan(vulkan_state &vulkan, HINSTANCE &wndInstance, 
         swapchainInfo.imageFormat = vulkan.surfaceFormat.format;
         swapchainInfo.imageColorSpace = vulkan.surfaceFormat.colorSpace;
         swapchainInfo.imageArrayLayers = 1;
-        swapchainInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        swapchainInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT; // TODO: Properly check if supported
         swapchainInfo.minImageCount = NUM_SWAPCHAIN_IMAGES;
         swapchainInfo.preTransform = preTransform;
         swapchainInfo.compositeAlpha = compositeAlpha;
@@ -515,6 +527,22 @@ static bool Win32InitializeVulkan(vulkan_state &vulkan, HINSTANCE &wndInstance, 
         }
 
         VK_FUNC_ASSERT(vkCreateSwapchainKHR(vulkan.device, &swapchainInfo, 0, &vulkan.swapchain));
+    }
+
+    // NOTE: Create the command buffers
+    {
+        VkCommandPoolCreateInfo cmdPoolInfo = {};
+        cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        cmdPoolInfo.queueFamilyIndex = vulkan.queueFamilyIndex;
+        VK_FUNC_ASSERT(vkCreateCommandPool(vulkan.device, &cmdPoolInfo, 0, &vulkan.cmdPool));
+
+        VkCommandBufferAllocateInfo cmdBufferAllocInfo = {};
+        cmdBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        cmdBufferAllocInfo.commandPool = vulkan.cmdPool;
+        cmdBufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        cmdBufferAllocInfo.commandBufferCount = NUM_SWAPCHAIN_IMAGES;
+
+        VK_FUNC_ASSERT(vkAllocateCommandBuffers(vulkan.device, &cmdBufferAllocInfo, vulkan.cmdBuffers));
     }
 
     // NOTE: Create the Image views
@@ -544,62 +572,63 @@ static bool Win32InitializeVulkan(vulkan_state &vulkan, HINSTANCE &wndInstance, 
     }
 
     // NOTE: Create a depth buffer
-    VkImageCreateInfo imageInfo = {};
-    vulkan.depthFormat = VK_FORMAT_D16_UNORM;
-    VkFormatProperties props;
-    vkGetPhysicalDeviceFormatProperties(vulkan.gpu, vulkan.depthFormat, &props);
-    if (props.linearTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
-        imageInfo.tiling = VK_IMAGE_TILING_LINEAR;
-    else if (props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
-        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-    else
     {
-        ASSERT(0);
-        return false;
+        VkImageCreateInfo imageInfo = {};
+        vulkan.depthFormat = VK_FORMAT_D16_UNORM;
+        VkFormatProperties props;
+        vkGetPhysicalDeviceFormatProperties(vulkan.gpu, vulkan.depthFormat, &props);
+        if (props.linearTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
+            imageInfo.tiling = VK_IMAGE_TILING_LINEAR;
+        else if (props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
+            imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        else
+        {
+            ASSERT(0);
+            return false;
+        }
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.format = VK_FORMAT_D16_UNORM;
+        imageInfo.extent.width = width;
+        imageInfo.extent.height = height;
+        imageInfo.extent.depth = 1;
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = 1;
+        imageInfo.samples = NUM_SAMPLES;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        VkMemoryRequirements depthMemoryReq = {};
+        VK_FUNC_ASSERT(vkCreateImage(vulkan.device, &imageInfo, 0, &vulkan.depthImage));
+        vkGetImageMemoryRequirements(vulkan.device, vulkan.depthImage, &depthMemoryReq);
+
+        u32 memoryIndex = 0; // no use for now
+        ASSERT(FindMemoryProperties(vulkan.memoryProperties, depthMemoryReq.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memoryIndex));
+
+        VkMemoryAllocateInfo depthMemAllocInfo = {};
+        depthMemAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        depthMemAllocInfo.allocationSize = depthMemoryReq.size;
+
+        VK_FUNC_ASSERT(vkAllocateMemory(vulkan.device, &depthMemAllocInfo, 0, &vulkan.depthMemory));
+        VK_FUNC_ASSERT(vkBindImageMemory(vulkan.device, vulkan.depthImage, vulkan.depthMemory, 0));
+
+        VkImageViewCreateInfo depthImageViewInfo = {};
+        depthImageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        depthImageViewInfo.image = vulkan.depthImage;
+        depthImageViewInfo.format = vulkan.depthFormat;
+        depthImageViewInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+        depthImageViewInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+        depthImageViewInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+        depthImageViewInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+        depthImageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        depthImageViewInfo.subresourceRange.baseMipLevel = 0;
+        depthImageViewInfo.subresourceRange.levelCount = 1;
+        depthImageViewInfo.subresourceRange.baseArrayLayer = 0;
+        depthImageViewInfo.subresourceRange.layerCount = 1;
+        depthImageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        VK_FUNC_ASSERT(vkCreateImageView(vulkan.device, &depthImageViewInfo, 0, &vulkan.depthImageView));
     }
-    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    imageInfo.imageType = VK_IMAGE_TYPE_2D;
-    imageInfo.format = VK_FORMAT_D16_UNORM;
-    imageInfo.extent.width = width;
-    imageInfo.extent.height = height;
-    imageInfo.extent.depth = 1;
-    imageInfo.mipLevels = 1;
-    imageInfo.arrayLayers = 1;
-    imageInfo.samples = NUM_SAMPLES;
-    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-    VkMemoryRequirements depthMemoryReq = {};
-    VK_FUNC_ASSERT(vkCreateImage(vulkan.device, &imageInfo, 0, &vulkan.depthImage));
-    vkGetImageMemoryRequirements(vulkan.device, vulkan.depthImage, &depthMemoryReq);
-
-    u32 memoryIndex = 0; // no use for now
-    ASSERT(FindMemoryProperties(vulkan.memoryProperties, depthMemoryReq.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memoryIndex));
-
-    VkMemoryAllocateInfo depthMemAllocInfo = {};
-    depthMemAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    depthMemAllocInfo.allocationSize = depthMemoryReq.size;
-
-    VK_FUNC_ASSERT(vkAllocateMemory(vulkan.device, &depthMemAllocInfo, 0, &vulkan.depthMemory));
-    VK_FUNC_ASSERT(vkBindImageMemory(vulkan.device, vulkan.depthImage, vulkan.depthMemory, 0));
-
-    VkImageViewCreateInfo depthImageViewInfo = {};
-    depthImageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    depthImageViewInfo.image = vulkan.depthImage;
-    depthImageViewInfo.format = vulkan.depthFormat;
-    depthImageViewInfo.components.r = VK_COMPONENT_SWIZZLE_R;
-    depthImageViewInfo.components.g = VK_COMPONENT_SWIZZLE_G;
-    depthImageViewInfo.components.b = VK_COMPONENT_SWIZZLE_B;
-    depthImageViewInfo.components.a = VK_COMPONENT_SWIZZLE_A;
-    depthImageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-    depthImageViewInfo.subresourceRange.baseMipLevel = 0;
-    depthImageViewInfo.subresourceRange.levelCount = 1;
-    depthImageViewInfo.subresourceRange.baseArrayLayer = 0;
-    depthImageViewInfo.subresourceRange.layerCount = 1;
-    depthImageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    VK_FUNC_ASSERT(vkCreateImageView(vulkan.device, &depthImageViewInfo, 0, &vulkan.depthImageView));
-
     return true;
 }
 
