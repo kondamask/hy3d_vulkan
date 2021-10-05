@@ -598,10 +598,7 @@ static bool Win32InitializeVulkan(win32_vulkan_state &vulkan, wnd_dim dimensions
 				break;
 			}
 		}
-		if (!layerFound)
-		{
-			return false;
-		}
+		ASSERT(layerFound);
 	}
 
 	VkDebugUtilsMessengerCreateInfoEXT debugMessengerInfo = {};
@@ -657,78 +654,75 @@ static bool Win32InitializeVulkan(win32_vulkan_state &vulkan, wnd_dim dimensions
 	VK_FUNC_ASSERT(createDebugMessengerFunc(vulkan.instance, &debugMessengerInfo, 0, &vulkan.debugMessenger));
 #endif
 
-	// NOTE: Select a gpu to use
-	u32 gpuCount = 0;
-	VK_FUNC_ASSERT(vkEnumeratePhysicalDevices(vulkan.instance, &gpuCount, 0));
-
-	VkPhysicalDevice gpuBuffer[16] = {};
-	ASSERT(gpuCount > 0 && gpuCount <= ArrayCount(gpuBuffer));
-	VK_FUNC_ASSERT(vkEnumeratePhysicalDevices(vulkan.instance, &gpuCount, gpuBuffer));
-	vulkan.gpu = gpuBuffer[0];
-	// TODO: ACTUALY CHECK WHICH GPU IS BEST TO USE BY CHECKING THEIR QUEUES
-	//For now it's ok since I only have 1 gpu.
-
-	// NOTE: Get the queue families available for the gpu we selected
-	u32 queueFamilyCount;
-	vkGetPhysicalDeviceQueueFamilyProperties(vulkan.gpu, &queueFamilyCount, 0);
-
-	VkQueueFamilyProperties availableQueueFamilies[16] = {};
-	ASSERT(queueFamilyCount <= ArrayCount(availableQueueFamilies));
-	vkGetPhysicalDeviceQueueFamilyProperties(vulkan.gpu, &queueFamilyCount, availableQueueFamilies);
-
 	// NOTE: Create a surface
-	VkWin32SurfaceCreateInfoKHR surfaceInfo = {};
-	surfaceInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-	surfaceInfo.hinstance = wndInstance;
-	surfaceInfo.hwnd = wndHandle;
-	VK_FUNC_ASSERT(vkCreateWin32SurfaceKHR(vulkan.instance, &surfaceInfo, 0, &vulkan.surface));
-
-	// NOTE: Find which queue family supports present and graphics operations
-	VkBool32 supportsPresent[16] = {};
-	for (u32 i = 0; i < queueFamilyCount; i++)
 	{
-		VK_FUNC_ASSERT(vkGetPhysicalDeviceSurfaceSupportKHR(vulkan.gpu, i, vulkan.surface, &supportsPresent[i]));
+		VkWin32SurfaceCreateInfoKHR surfaceInfo = {};
+		surfaceInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+		surfaceInfo.hinstance = wndInstance;
+		surfaceInfo.hwnd = wndHandle;
+		VK_FUNC_ASSERT(vkCreateWin32SurfaceKHR(vulkan.instance, &surfaceInfo, 0, &vulkan.surface));
 	}
 
+	// NOTE: Select a gpu to use
+	{
+		u32 gpuCount = 0;
+		VK_FUNC_ASSERT(vkEnumeratePhysicalDevices(vulkan.instance, &gpuCount, 0));
+
+		VkPhysicalDevice gpuBuffer[16] = {};
+		ASSERT(gpuCount > 0 && gpuCount <= ArrayCount(gpuBuffer));
+		VK_FUNC_ASSERT(vkEnumeratePhysicalDevices(vulkan.instance, &gpuCount, gpuBuffer));
+		vulkan.gpu = gpuBuffer[0];
+		// TODO: ACTUALY CHECK WHICH GPU IS BEST TO USE BY CHECKING THEIR QUEUES
+		//For now it's ok since I only have 1 gpu.
+	}
+
+	// NOTE: Pick a queue family the supports both present and graphics operations
 	u32 graphicsQueueFamilyIndex = UINT32_MAX;
 	u32 presentQueueFamilyIndex = UINT32_MAX;
-	for (u32 i = 0; i < queueFamilyCount; ++i)
 	{
-		if ((availableQueueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0)
-		{
-			if (graphicsQueueFamilyIndex == UINT32_MAX)
-				graphicsQueueFamilyIndex = i;
+		u32 queueFamilyCount;
+		VkQueueFamilyProperties availableQueueFamilies[16] = {};
+		VkBool32 supportsPresent[16] = {};
+		vkGetPhysicalDeviceQueueFamilyProperties(vulkan.gpu, &queueFamilyCount, 0);
+		ASSERT(queueFamilyCount <= ArrayCount(availableQueueFamilies));
+		vkGetPhysicalDeviceQueueFamilyProperties(vulkan.gpu, &queueFamilyCount, availableQueueFamilies);
 
-			if (supportsPresent[i] == VK_TRUE)
+		for (u32 i = 0; i < queueFamilyCount; i++)
+			VK_FUNC_ASSERT(vkGetPhysicalDeviceSurfaceSupportKHR(vulkan.gpu, i, vulkan.surface, &supportsPresent[i]));
+
+		for (u32 i = 0; i < queueFamilyCount; ++i)
+		{
+			if ((availableQueueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0)
 			{
-				graphicsQueueFamilyIndex = i;
-				presentQueueFamilyIndex = i;
-				break;
+				if (graphicsQueueFamilyIndex == UINT32_MAX)
+					graphicsQueueFamilyIndex = i;
+				if (supportsPresent[i] == VK_TRUE)
+				{
+					graphicsQueueFamilyIndex = i;
+					presentQueueFamilyIndex = i;
+					break;
+				}
 			}
 		}
-	}
-
-	if (presentQueueFamilyIndex == UINT32_MAX)
-	{
-		// If didn't find a queue that supports both graphics and present, then
-		// find a separate present queue.
-		for (u32 i = 0; i < queueFamilyCount; ++i)
-			if (supportsPresent[i] == VK_TRUE)
-			{
-				presentQueueFamilyIndex = i;
-				break;
-			}
-	}
-
-	if (graphicsQueueFamilyIndex == UINT32_MAX)
-	{
-		HYV_DEBUG_PRINT("ERROR: No graphics queue found.\n");
-		return false;
-	}
-	if (presentQueueFamilyIndex == UINT32_MAX)
-	{
-		HYV_DEBUG_PRINT("ERROR: No present queue found.\n");
-		return false;
+		if (presentQueueFamilyIndex == UINT32_MAX) //didn't find a queue that supports both graphics and present
+		{
+			for (u32 i = 0; i < queueFamilyCount; ++i)
+				if (supportsPresent[i] == VK_TRUE)
+				{
+					presentQueueFamilyIndex = i;
+					break;
+				}
+		}
+		if (graphicsQueueFamilyIndex == UINT32_MAX)
+		{
+			ASSERT("ERROR: No graphics queue found.\n");
+			return false;
+		}
+		if (presentQueueFamilyIndex == UINT32_MAX)
+		{
+			ASSERT("ERROR: No present queue found.\n");
+			return false;
+		}
 	}
 
 	// TODO: figure this out
@@ -736,198 +730,205 @@ static bool Win32InitializeVulkan(win32_vulkan_state &vulkan, wnd_dim dimensions
 
 	// NOTE: Create a device
 	VkDeviceQueueCreateInfo queueInfo = {};
-	float queuePriorities[1] = {0.0}; // must be array of size queueCount
-	queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	queueInfo.queueFamilyIndex = graphicsQueueFamilyIndex;
-	queueInfo.queueCount = 1;
-	queueInfo.pQueuePriorities = queuePriorities;
+	{
+		float queuePriorities[1] = {0.0}; // must be array of size queueCount
+		queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		queueInfo.queueFamilyIndex = graphicsQueueFamilyIndex;
+		queueInfo.queueCount = 1;
+		queueInfo.pQueuePriorities = queuePriorities;
 
-	char *deviceExtensions[] = {
-		VK_KHR_SWAPCHAIN_EXTENSION_NAME};
-
-	VkDeviceCreateInfo deviceInfo = {};
-	deviceInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	deviceInfo.queueCreateInfoCount = 1;
-	deviceInfo.pQueueCreateInfos = &queueInfo;
-	deviceInfo.enabledExtensionCount = ArrayCount(deviceExtensions);
-	deviceInfo.ppEnabledExtensionNames = deviceExtensions;
-
-	VK_FUNC_ASSERT(vkCreateDevice(vulkan.gpu, &deviceInfo, 0, &vulkan.device));
+		char *deviceExtensions[] = {
+			VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+		VkDeviceCreateInfo deviceInfo = {};
+		deviceInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+		deviceInfo.queueCreateInfoCount = 1;
+		deviceInfo.pQueueCreateInfos = &queueInfo;
+		deviceInfo.enabledExtensionCount = ArrayCount(deviceExtensions);
+		deviceInfo.ppEnabledExtensionNames = deviceExtensions;
+		VK_FUNC_ASSERT(vkCreateDevice(vulkan.gpu, &deviceInfo, 0, &vulkan.device));
+	}
 
 	// NOTE: Get the queue and save it into our vulkan object
 	vkGetDeviceQueue(vulkan.device, queueInfo.queueFamilyIndex, 0, &vulkan.queue);
 
 	// NOTE: Create a command buffer
-	VkCommandPoolCreateInfo cmdPoolInfo = {};
-	cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	cmdPoolInfo.queueFamilyIndex = queueInfo.queueFamilyIndex;
-	VK_FUNC_ASSERT(vkCreateCommandPool(vulkan.device, &cmdPoolInfo, 0, &vulkan.cmdPool));
+	{
+		VkCommandPoolCreateInfo cmdPoolInfo = {};
+		cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+		cmdPoolInfo.queueFamilyIndex = queueInfo.queueFamilyIndex;
+		VK_FUNC_ASSERT(vkCreateCommandPool(vulkan.device, &cmdPoolInfo, 0, &vulkan.cmdPool));
 
-	VkCommandBufferAllocateInfo cmdBufferAllocInfo = {};
-	cmdBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	cmdBufferAllocInfo.commandPool = vulkan.cmdPool;
-	cmdBufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	cmdBufferAllocInfo.commandBufferCount = 1;
+		VkCommandBufferAllocateInfo cmdBufferAllocInfo = {};
+		cmdBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		cmdBufferAllocInfo.commandPool = vulkan.cmdPool;
+		cmdBufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		cmdBufferAllocInfo.commandBufferCount = 1;
 
-	VK_FUNC_ASSERT(vkAllocateCommandBuffers(vulkan.device, &cmdBufferAllocInfo, &vulkan.cmdBuffer));
+		VK_FUNC_ASSERT(vkAllocateCommandBuffers(vulkan.device, &cmdBufferAllocInfo, &vulkan.cmdBuffer));
+	}
 
 	// NOTE: Create a swapchain
 	// NOTE: 1.set a proper surface format
 	vulkan.surfaceFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 	vulkan.surfaceFormat.format = VK_FORMAT_B8G8R8A8_UNORM;
 
-	u32 formatCount = 0;
-	VK_FUNC_ASSERT(vkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.gpu, vulkan.surface, &formatCount, 0));
-
-	VkSurfaceFormatKHR availableFormats[16] = {};
-	ASSERT(formatCount <= ArrayCount(availableFormats));
-	for (u32 i = 0; i < formatCount; ++i)
-		VK_FUNC_ASSERT(vkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.gpu, vulkan.surface, &formatCount, &availableFormats[i]));
-
-	bool desiredSurfaceFormatSupported = false;
-	for (u32 i = 0; i < formatCount; ++i)
 	{
-		if (vulkan.surfaceFormat.format == availableFormats[i].format &&
-			vulkan.surfaceFormat.colorSpace == availableFormats[i].colorSpace)
-			desiredSurfaceFormatSupported = true;
+		u32 formatCount = 0;
+		VkSurfaceFormatKHR availableFormats[16] = {};
+		bool desiredSurfaceFormatSupported = false;
+		VK_FUNC_ASSERT(vkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.gpu, vulkan.surface, &formatCount, 0));
+		ASSERT(formatCount <= ArrayCount(availableFormats));
+		for (u32 i = 0; i < formatCount; ++i)
+			VK_FUNC_ASSERT(vkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.gpu, vulkan.surface, &formatCount, &availableFormats[i]));
+		for (u32 i = 0; i < formatCount; ++i)
+		{
+			if (vulkan.surfaceFormat.format == availableFormats[i].format &&
+				vulkan.surfaceFormat.colorSpace == availableFormats[i].colorSpace)
+				desiredSurfaceFormatSupported = true;
+		}
+		ASSERT(desiredSurfaceFormatSupported);
 	}
-	ASSERT(desiredSurfaceFormatSupported);
 
 	// NOTE: Get Surface capabilities
-	VkSurfaceCapabilitiesKHR surfCapabilities = {};
-	VK_FUNC_ASSERT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vulkan.gpu, vulkan.surface, &surfCapabilities));
-
-	VkExtent2D swapchainExtent = {};
-	if (surfCapabilities.currentExtent.width == UINT32_MAX)
 	{
-		swapchainExtent.width = dimensions.width;
-		swapchainExtent.height = dimensions.height;
+		VkSurfaceCapabilitiesKHR surfCapabilities = {};
+		VK_FUNC_ASSERT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vulkan.gpu, vulkan.surface, &surfCapabilities));
 
-		if (swapchainExtent.width < surfCapabilities.minImageExtent.width)
-			swapchainExtent.width = surfCapabilities.minImageExtent.width;
-		else if (swapchainExtent.width > surfCapabilities.maxImageExtent.width)
-			swapchainExtent.width = surfCapabilities.maxImageExtent.width;
-
-		if (swapchainExtent.height < surfCapabilities.minImageExtent.height)
-			swapchainExtent.height = surfCapabilities.minImageExtent.height;
-		else if (swapchainExtent.height > surfCapabilities.maxImageExtent.height)
-			swapchainExtent.height = surfCapabilities.maxImageExtent.height;
-	}
-	else
-	{ // If the surface size is defined, the swap chain size must match
-		swapchainExtent = surfCapabilities.currentExtent;
-	}
-
-	// NOTE: Determine the number of VkImage's to use in the swap chain.
-	// We need to acquire only 1 presentable image at at time.
-	// Asking for minImageCount images ensures that we can acquire
-	// 1 presentable image as long as we present it before attempting
-	// to acquire another.
-	uint32_t desiredNumberOfSwapChainImages = 2;
-	if (surfCapabilities.maxImageCount < desiredNumberOfSwapChainImages)
-		desiredNumberOfSwapChainImages = surfCapabilities.minImageCount;
-
-	// NOTE: Determine the pre-transform
-	VkSurfaceTransformFlagBitsKHR preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR; //do nothing
-	if (surfCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
-		preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-	else
-		preTransform = surfCapabilities.currentTransform;
-
-	// NOTE: Set the present mode
-	VkPresentModeKHR presentMode = VK_PRESENT_MODE_FIFO_KHR; //The FIFO present mode is guaranteed by the spec to be supported
-															 /*
-	uint32_t presentModeCount;
-	VK_FUNC_ASSERT(vkGetPhysicalDeviceSurfacePresentModesKHR(vulkan.gpu, vulkan.surface, &presentModeCount, NULL));
-	VkPresentModeKHR presentModes[16];
-	ASSERT(presentModeCount <= ArrayCount(presentModes));
-	VK_FUNC_ASSERT(vkGetPhysicalDeviceSurfacePresentModesKHR(vulkan.gpu, vulkan.surface, &presentModeCount, presentModes));
-	bool desiredPresentModeSupported = false;
-	for (u32 i = 0; i < presentModeCount; i++)
-	{
-		if (presentMode == presentModes[i])
-			desiredPresentModeSupported = true;
-	}
-	ASSERT(desiredPresentModeSupported);
-	*/
-
-	// NOTE: Find a supported composite alpha mode - one of these is guaranteed to be set
-	VkCompositeAlphaFlagBitsKHR compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-	VkCompositeAlphaFlagBitsKHR compositeAlphaFlags[4] = {
-		VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-		VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR,
-		VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR,
-		VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR,
-	};
-	for (uint32_t i = 0; i < ArrayCount(compositeAlphaFlags); i++)
-	{
-		if (surfCapabilities.supportedCompositeAlpha & compositeAlphaFlags[i])
+		VkExtent2D swapchainExtent = {};
+		if (surfCapabilities.currentExtent.width == UINT32_MAX)
 		{
-			compositeAlpha = compositeAlphaFlags[i];
-			break;
+			swapchainExtent.width = dimensions.width;
+			swapchainExtent.height = dimensions.height;
+
+			if (swapchainExtent.width < surfCapabilities.minImageExtent.width)
+				swapchainExtent.width = surfCapabilities.minImageExtent.width;
+			else if (swapchainExtent.width > surfCapabilities.maxImageExtent.width)
+				swapchainExtent.width = surfCapabilities.maxImageExtent.width;
+
+			if (swapchainExtent.height < surfCapabilities.minImageExtent.height)
+				swapchainExtent.height = surfCapabilities.minImageExtent.height;
+			else if (swapchainExtent.height > surfCapabilities.maxImageExtent.height)
+				swapchainExtent.height = surfCapabilities.maxImageExtent.height;
 		}
+		else
+		{ // If the surface size is defined, the swap chain size must match
+			swapchainExtent = surfCapabilities.currentExtent;
+		}
+
+		// NOTE: Determine the number of VkImage's to use in the swap chain.
+		// We need to acquire only 1 presentable image at at time.
+		// Asking for minImageCount images ensures that we can acquire
+		// 1 presentable image as long as we present it before attempting
+		// to acquire another.
+		uint32_t desiredNumberOfSwapChainImages = 2;
+		if (surfCapabilities.maxImageCount < desiredNumberOfSwapChainImages)
+			desiredNumberOfSwapChainImages = surfCapabilities.minImageCount;
+
+		// NOTE: Determine the pre-transform
+		VkSurfaceTransformFlagBitsKHR preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR; //do nothing
+		if (surfCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
+			preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+		else
+			preTransform = surfCapabilities.currentTransform;
+
+		// NOTE: Set the present mode
+		VkPresentModeKHR presentMode = VK_PRESENT_MODE_FIFO_KHR; //The FIFO present mode is guaranteed by the spec to be supported
+		/*
+		uint32_t presentModeCount;
+		VK_FUNC_ASSERT(vkGetPhysicalDeviceSurfacePresentModesKHR(vulkan.gpu, vulkan.surface, &presentModeCount, NULL));
+		VkPresentModeKHR presentModes[16];
+		ASSERT(presentModeCount <= ArrayCount(presentModes));
+		VK_FUNC_ASSERT(vkGetPhysicalDeviceSurfacePresentModesKHR(vulkan.gpu, vulkan.surface, &presentModeCount, presentModes));
+		bool desiredPresentModeSupported = false;
+		for (u32 i = 0; i < presentModeCount; i++)
+		{
+			if (presentMode == presentModes[i])
+				desiredPresentModeSupported = true;
+		}
+		ASSERT(desiredPresentModeSupported);
+		*/
+
+		// NOTE: Find a supported composite alpha mode - one of these is guaranteed to be set
+		VkCompositeAlphaFlagBitsKHR compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+		VkCompositeAlphaFlagBitsKHR compositeAlphaFlags[4] = {
+			VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+			VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR,
+			VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR,
+			VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR,
+		};
+		for (uint32_t i = 0; i < ArrayCount(compositeAlphaFlags); i++)
+		{
+			if (surfCapabilities.supportedCompositeAlpha & compositeAlphaFlags[i])
+			{
+				compositeAlpha = compositeAlphaFlags[i];
+				break;
+			}
+		}
+
+		VkSwapchainCreateInfoKHR swapchainInfo = {};
+		swapchainInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+		swapchainInfo.surface = vulkan.surface;
+		swapchainInfo.minImageCount = desiredNumberOfSwapChainImages;
+		swapchainInfo.imageFormat = vulkan.surfaceFormat.format;
+		swapchainInfo.imageExtent = swapchainExtent;
+		swapchainInfo.preTransform = preTransform;
+		swapchainInfo.compositeAlpha = compositeAlpha;
+		swapchainInfo.imageArrayLayers = 1;
+		swapchainInfo.presentMode = presentMode;
+		swapchainInfo.clipped = true;
+		swapchainInfo.imageColorSpace = vulkan.surfaceFormat.colorSpace;
+		swapchainInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+		u32 queueFamilyIndices[2] = {graphicsQueueFamilyIndex, presentQueueFamilyIndex};
+		if (graphicsQueueFamilyIndex != presentQueueFamilyIndex)
+		{
+			// If the graphics and present queues are from different queue families,
+			// we either have to explicitly transfer ownership of images between
+			// the queues, or we have to create the swapchain with imageSharingMode
+			// as VK_SHARING_MODE_CONCURRENT
+			swapchainInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+			swapchainInfo.queueFamilyIndexCount = 2;
+			swapchainInfo.pQueueFamilyIndices = queueFamilyIndices;
+		}
+		else
+		{
+			swapchainInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		}
+
+		VK_FUNC_ASSERT(vkCreateSwapchainKHR(vulkan.device, &swapchainInfo, 0, &vulkan.swapchain));
 	}
 
-	VkSwapchainCreateInfoKHR swapchainInfo = {};
-	swapchainInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-	swapchainInfo.surface = vulkan.surface;
-	swapchainInfo.minImageCount = desiredNumberOfSwapChainImages;
-	swapchainInfo.imageFormat = vulkan.surfaceFormat.format;
-	swapchainInfo.imageExtent = swapchainExtent;
-	swapchainInfo.preTransform = preTransform;
-	swapchainInfo.compositeAlpha = compositeAlpha;
-	swapchainInfo.imageArrayLayers = 1;
-	swapchainInfo.presentMode = presentMode;
-	swapchainInfo.clipped = true;
-	swapchainInfo.imageColorSpace = vulkan.surfaceFormat.colorSpace;
-	swapchainInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-
-	u32 queueFamilyIndices[2] = {graphicsQueueFamilyIndex, presentQueueFamilyIndex};
-	if (graphicsQueueFamilyIndex != presentQueueFamilyIndex)
+	// NOTE: Create the Image views
 	{
-		// If the graphics and present queues are from different queue families,
-		// we either have to explicitly transfer ownership of images between
-		// the queues, or we have to create the swapchain with imageSharingMode
-		// as VK_SHARING_MODE_CONCURRENT
-		swapchainInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-		swapchainInfo.queueFamilyIndexCount = 2;
-		swapchainInfo.pQueueFamilyIndices = queueFamilyIndices;
-	}
-	else
-	{
-		swapchainInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	}
+		VK_FUNC_ASSERT(vkGetSwapchainImagesKHR(vulkan.device, vulkan.swapchain, &vulkan.swapchainImageCount, 0));
+		ASSERT(vulkan.swapchainImageCount == ArrayCount(vulkan.swapchainImages));
+		VK_FUNC_ASSERT(vkGetSwapchainImagesKHR(vulkan.device, vulkan.swapchain, &vulkan.swapchainImageCount, vulkan.swapchainImages));
 
-	VK_FUNC_ASSERT(vkCreateSwapchainKHR(vulkan.device, &swapchainInfo, 0, &vulkan.swapchain));
-
-	VK_FUNC_ASSERT(vkGetSwapchainImagesKHR(vulkan.device, vulkan.swapchain, &vulkan.swapchainImageCount, 0));
-	ASSERT(vulkan.swapchainImageCount == ArrayCount(vulkan.swapchainImages));
-	VK_FUNC_ASSERT(vkGetSwapchainImagesKHR(vulkan.device, vulkan.swapchain, &vulkan.swapchainImageCount, vulkan.swapchainImages));
-
-	VkImageViewCreateInfo imageViewInfo = {};
-	imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	imageViewInfo.format = vulkan.surfaceFormat.format;
-	imageViewInfo.components.r = VK_COMPONENT_SWIZZLE_R;
-	imageViewInfo.components.g = VK_COMPONENT_SWIZZLE_G;
-	imageViewInfo.components.b = VK_COMPONENT_SWIZZLE_B;
-	imageViewInfo.components.a = VK_COMPONENT_SWIZZLE_A;
-	imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	imageViewInfo.subresourceRange.baseMipLevel = 0;
-	imageViewInfo.subresourceRange.levelCount = 1;
-	imageViewInfo.subresourceRange.baseArrayLayer = 0;
-	imageViewInfo.subresourceRange.layerCount = 1;
-	for (u32 i = 0; i < vulkan.swapchainImageCount; i++)
-	{
-		imageViewInfo.image = vulkan.swapchainImages[i];
-		VK_FUNC_ASSERT(vkCreateImageView(vulkan.device, &imageViewInfo, 0, &vulkan.imageViews[i]));
+		VkImageViewCreateInfo imageViewInfo = {};
+		imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		imageViewInfo.format = vulkan.surfaceFormat.format;
+		imageViewInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+		imageViewInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+		imageViewInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+		imageViewInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+		imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		imageViewInfo.subresourceRange.baseMipLevel = 0;
+		imageViewInfo.subresourceRange.levelCount = 1;
+		imageViewInfo.subresourceRange.baseArrayLayer = 0;
+		imageViewInfo.subresourceRange.layerCount = 1;
+		for (u32 i = 0; i < vulkan.swapchainImageCount; i++)
+		{
+			imageViewInfo.image = vulkan.swapchainImages[i];
+			VK_FUNC_ASSERT(vkCreateImageView(vulkan.device, &imageViewInfo, 0, &vulkan.imageViews[i]));
+		}
 	}
 
 	// NOTE: Create a depth buffer
 	VkImageCreateInfo imageInfo = {};
-	VkFormat depth_format = VK_FORMAT_D16_UNORM;
+	VkFormat depthFormat = VK_FORMAT_D16_UNORM;
 	VkFormatProperties props;
-	vkGetPhysicalDeviceFormatProperties(vulkan.gpu, depth_format, &props);
+	vkGetPhysicalDeviceFormatProperties(vulkan.gpu, depthFormat, &props);
 	if (props.linearTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
 		imageInfo.tiling = VK_IMAGE_TILING_LINEAR;
 	else if (props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
