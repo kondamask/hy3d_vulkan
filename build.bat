@@ -11,5 +11,5 @@ pushd .\build
 
 del *.pdb > NUL 2> NUL
 cl  %COMPILER_FLAGS% ..\code\hyv_engine.cpp -Fmhyv_engine.map -LD -link -incremental:no -opt:ref  -PDB:hyv_engine_%RANDOM%.pdb -EXPORT:UpdateAndRender
-cl  %COMPILER_FLAGS% /I %VULKAN_SDK%\Include ..\code\win32_platform.cpp -Fmwin32_platform.map -Fe%EXE_NAME% -link %LINKER_FLAGS%
+cl  %COMPILER_FLAGS% /I %VULKAN_SDK%\Include ..\code\hyv.cpp -Fmhyv.map -Fe%EXE_NAME% -link %LINKER_FLAGS%
 popd
