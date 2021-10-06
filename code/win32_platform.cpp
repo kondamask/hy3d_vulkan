@@ -19,7 +19,7 @@ DEBUG_READ_FILE(DEBUGReadFile)
 		if (GetFileSizeEx(fileHandle, &fileSize))
 		{
 			// Truncate 64 bit value to 32 bit because VirtualAlloc only takes 32bit value
-			ASSERT(fileSize.QuadPart <= 0xFFFFFFFF);
+			Assert(fileSize.QuadPart <= 0xFFFFFFFF);
 			result.size = (uint32_t)fileSize.QuadPart;
 
 			result.content = VirtualAlloc(0, result.size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
@@ -83,7 +83,7 @@ static LRESULT Win32MainWindowProc(HWND handle, UINT message, WPARAM wParam, LPA
 	case WM_CLOSE:
 	{
 		UnregisterClassA(window->name, window->instance);
-		Win32DestroyVulkan(window->vulkan);
+		VulkanDestroy(window->vulkan);
 		DestroyWindow(handle);
 		break;
 	}
@@ -118,7 +118,7 @@ static LRESULT Win32MainWindowProc(HWND handle, UINT message, WPARAM wParam, LPA
 	case WM_MOUSELEAVE:
 	case WM_KILLFOCUS:
 	{
-		ASSERT("We got an input message from somewhere else and we did not handle it properly");
+		Assert("We got an input message from somewhere else and we did not handle it properly");
 	}
 
 	default:

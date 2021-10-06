@@ -3,22 +3,22 @@
 #include <math.h>
 
 // TODO: Make this an actual assetion
-#define ASSERT_BREAK() *(int *)0 = 0
+#define AssertBreak() *(int *)0 = 0
 
 #if HYV_DEBUG
-#define ASSERT(Expression) \
+#define Assert(Expression) \
     if (!(Expression))     \
-    ASSERT_BREAK()
+    AssertBreak()
 #else
-#define ASSERT(Expression)
+#define Assert(Expression)
 #endif
 
 #if HYV_DEBUG
-#define VK_FUNC_ASSERT(FuncResult) \
+#define ASSERT_VK_SUCCESS(FuncResult) \
     if (FuncResult != VK_SUCCESS)  \
-    ASSERT_BREAK()
+    AssertBreak()
 #else
-#define VK_FUNC_ASSERT(FuncResult)
+#define ASSERT_VK_SUCCESS(FuncResult)
 #endif
 
 #if HYV_DEBUG

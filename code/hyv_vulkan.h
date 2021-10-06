@@ -43,51 +43,69 @@ struct vulkan_state
 #endif
 };
 
+//=====================================================================
+// NOTE: Macros
+#define VulkanFuncPtr(func) PFN_##func
+#define VulkanDeclareFunction(func) VulkanFuncPtr(func) func
+
+//=====================================================================
+// NOTE: Global Functions
 #define VK_GET_INSTANCE_PROC_ADDR(name) PFN_vkVoidFunction name(VkInstance instance, const char *pName)
 typedef VK_GET_INSTANCE_PROC_ADDR(vk_get_instance_proc_addr);
 VK_GET_INSTANCE_PROC_ADDR(vkGetInstanceProcAddrStub) { return 0; }
 static vk_get_instance_proc_addr *vkGetInstanceProcAddr_ = vkGetInstanceProcAddrStub;
 #define vkGetInstanceProcAddr vkGetInstanceProcAddr_
 
-#define VK_DECLARE_FUNCTION(fun) \
-    PFN_##fun fun
+VulkanDeclareFunction(vkCreateInstance);
+VulkanDeclareFunction(vkEnumerateInstanceLayerProperties);
 
-// NOTE: Global Functions
-VK_DECLARE_FUNCTION(vkCreateInstance);
-VK_DECLARE_FUNCTION(vkEnumerateInstanceLayerProperties);
-
+//=====================================================================
 // NOTE: Instance Functions
-VK_DECLARE_FUNCTION(vkCreateDebugUtilsMessengerEXT);
-VK_DECLARE_FUNCTION(vkDestroyDebugUtilsMessengerEXT);
-VK_DECLARE_FUNCTION(vkCreateWin32SurfaceKHR);
-VK_DECLARE_FUNCTION(vkDestroySurfaceKHR);
-VK_DECLARE_FUNCTION(vkEnumeratePhysicalDevices);
-VK_DECLARE_FUNCTION(vkGetPhysicalDeviceQueueFamilyProperties);
-VK_DECLARE_FUNCTION(vkGetPhysicalDeviceSurfaceSupportKHR);
-VK_DECLARE_FUNCTION(vkGetPhysicalDeviceSurfaceFormatsKHR);
-VK_DECLARE_FUNCTION(vkGetPhysicalDeviceSurfaceCapabilitiesKHR);
-VK_DECLARE_FUNCTION(vkGetPhysicalDeviceFormatProperties);
-VK_DECLARE_FUNCTION(vkGetPhysicalDeviceMemoryProperties);
-VK_DECLARE_FUNCTION(vkEnumerateDeviceExtensionProperties);
-VK_DECLARE_FUNCTION(vkCreateDevice);
-VK_DECLARE_FUNCTION(vkGetDeviceProcAddr);
-VK_DECLARE_FUNCTION(vkDestroyInstance);
+VulkanDeclareFunction(vkDestroyInstance);
 
+VulkanDeclareFunction(vkCreateDebugUtilsMessengerEXT);
+VulkanDeclareFunction(vkDestroyDebugUtilsMessengerEXT);
+
+VulkanDeclareFunction(vkCreateWin32SurfaceKHR); // NOTE: Windows ONLY
+VulkanDeclareFunction(vkDestroySurfaceKHR);
+
+VulkanDeclareFunction(vkEnumeratePhysicalDevices);
+VulkanDeclareFunction(vkGetPhysicalDeviceQueueFamilyProperties);
+VulkanDeclareFunction(vkGetPhysicalDeviceSurfaceSupportKHR);
+VulkanDeclareFunction(vkGetPhysicalDeviceSurfaceFormatsKHR);
+VulkanDeclareFunction(vkGetPhysicalDeviceSurfaceCapabilitiesKHR);
+VulkanDeclareFunction(vkGetPhysicalDeviceFormatProperties);
+VulkanDeclareFunction(vkGetPhysicalDeviceMemoryProperties);
+
+VulkanDeclareFunction(vkEnumerateDeviceExtensionProperties);
+VulkanDeclareFunction(vkCreateDevice);
+VulkanDeclareFunction(vkGetDeviceProcAddr);
+
+//=====================================================================
 // NOTE: Device Functions
-VK_DECLARE_FUNCTION(vkGetDeviceQueue);
-VK_DECLARE_FUNCTION(vkCreateCommandPool);
-VK_DECLARE_FUNCTION(vkAllocateCommandBuffers);
-VK_DECLARE_FUNCTION(vkCreateSwapchainKHR);
-VK_DECLARE_FUNCTION(vkGetSwapchainImagesKHR);
-VK_DECLARE_FUNCTION(vkCreateImageView);
-VK_DECLARE_FUNCTION(vkCreateImage);
-VK_DECLARE_FUNCTION(vkDestroyImage);
-VK_DECLARE_FUNCTION(vkDestroyImageView);
-VK_DECLARE_FUNCTION(vkDestroySwapchainKHR);
-VK_DECLARE_FUNCTION(vkDestroyCommandPool);
-VK_DECLARE_FUNCTION(vkDeviceWaitIdle);
-VK_DECLARE_FUNCTION(vkDestroyDevice);
-VK_DECLARE_FUNCTION(vkGetImageMemoryRequirements);
-VK_DECLARE_FUNCTION(vkAllocateMemory);
-VK_DECLARE_FUNCTION(vkFreeMemory);
-VK_DECLARE_FUNCTION(vkBindImageMemory);
+VulkanDeclareFunction(vkDeviceWaitIdle);
+VulkanDeclareFunction(vkDestroyDevice);
+VulkanDeclareFunction(vkGetDeviceQueue);
+
+VulkanDeclareFunction(vkCreateSwapchainKHR);
+VulkanDeclareFunction(vkDestroySwapchainKHR);
+VulkanDeclareFunction(vkGetSwapchainImagesKHR);
+
+VulkanDeclareFunction(vkCreateCommandPool);
+VulkanDeclareFunction(vkDestroyCommandPool);
+VulkanDeclareFunction(vkAllocateCommandBuffers);
+VulkanDeclareFunction(vkBeginCommandBuffer);
+VulkanDeclareFunction(vkEndCommandBuffer);
+VulkanDeclareFunction(vkCmdPipelineBarrier);
+VulkanDeclareFunction(vkCmdClearColorImage);
+
+VulkanDeclareFunction(vkCreateImage);
+VulkanDeclareFunction(vkDestroyImage);
+VulkanDeclareFunction(vkCreateImageView);
+VulkanDeclareFunction(vkDestroyImageView);
+VulkanDeclareFunction(vkGetImageMemoryRequirements);
+VulkanDeclareFunction(vkBindImageMemory);
+
+VulkanDeclareFunction(vkAllocateMemory);
+VulkanDeclareFunction(vkFreeMemory);
+
