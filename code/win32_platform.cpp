@@ -532,7 +532,6 @@ int CALLBACK WinMain(
 	{
 		return 3;
 	}
-	Vulkan::ClearScreen(window.vulkan);
 
 	engine_memory engineMemory;
 	if (!Win32InitializeMemory(engineMemory))
@@ -549,6 +548,11 @@ int CALLBACK WinMain(
 
 	hyv_engine engine = {};
 	i32 quitMessage = -1;
+
+	// TEST:
+	f32 r = 0.0;
+	f32 change = 0.005;
+
 	while (Win32ProcessMessages(window, engine.input, quitMessage))
 	{
 		FILETIME newWriteTime = Win32GetWriteTime(sourceDLLPath);
@@ -570,6 +574,13 @@ int CALLBACK WinMain(
 		// Draw
 		if (Vulkan::CanRender(window.vulkan))
 		{
+			if (r <= 0.5f && change < 0)
+				change *= -1;
+			else if (r >= 1.0f && change > 0)
+				change *= -1;
+			r += change;
+
+			Vulkan::ClearScreen(window.vulkan, r);
 			if (!Vulkan::Draw(window.vulkan))
 				return -2;
 		}

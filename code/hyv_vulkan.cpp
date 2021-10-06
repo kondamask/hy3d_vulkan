@@ -15,7 +15,7 @@ namespace Vulkan
     static void ClearCommands(vulkan_state &vulkan);
     static void ClearSwapchainImages(vulkan_state &vulkan);
     static void Destroy(vulkan_state &vulkan);
-    static bool ClearScreen(vulkan_state &vulkan);
+    static bool ClearScreen(vulkan_state &vulkan, float r = 0.8f);
     static bool OnWindowSizeChange(vulkan_state &vulkan);
     static bool Draw(vulkan_state &vulkan);
     static bool CanRender(vulkan_state &vulkan);
@@ -222,7 +222,7 @@ static bool Vulkan::CreateCommandBuffers(vulkan_state &vulkan)
     VkCommandPoolCreateInfo cmdPoolInfo = {};
     cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     cmdPoolInfo.queueFamilyIndex = vulkan.presentQueueFamilyIndex;
-    //cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     ASSERT_VK_SUCCESS(vkCreateCommandPool(vulkan.device, &cmdPoolInfo, 0, &vulkan.cmdPool));
 
     VkCommandBufferAllocateInfo cmdBufferAllocInfo = {};
@@ -865,13 +865,13 @@ static void Vulkan::Destroy(vulkan_state &vulkan)
     return;
 }
 
-static bool Vulkan::ClearScreen(vulkan_state &vulkan)
+static bool Vulkan::ClearScreen(vulkan_state &vulkan, float r)
 {
     VkCommandBufferBeginInfo commandBufferBeginInfo = {};
     commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 
-    VkClearColorValue clearColor = VulkanClearColor(1.0f, 0.8f, 0.4f, 0.0f);
+    VkClearColorValue clearColor = VulkanClearColor(r, 0.8f, 0.4f, 0.0f);
 
     VkImageSubresourceRange imageSubresourceRange = {};
     imageSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
