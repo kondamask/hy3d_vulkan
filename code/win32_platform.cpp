@@ -88,7 +88,6 @@ static LRESULT Win32MainWindowProc(HWND handle, UINT message, WPARAM wParam, LPA
 	case WM_CLOSE:
 	{
 		UnregisterClassA(window->name, window->instance);
-		Vulkan::Destroy(window->vulkan);
 		DestroyWindow(handle);
 		break;
 	}
@@ -400,11 +399,13 @@ static void Win32LoadEngineCode(win32_engine_code *engineCode, char *sourceFilen
 	if (engineCode->dll)
 	{
 		engineCode->UpdateAndRender = (update_and_render *)GetProcAddress(engineCode->dll, "UpdateAndRender");
+		engineCode->InitializeVulkan = (init_vulkan *)GetProcAddress(engineCode->dll, "InitializeVulkan");
 		engineCode->isValid = engineCode->UpdateAndRender;
 	}
 	if (!engineCode->isValid)
 	{
 		engineCode->UpdateAndRender = UpdateAndRenderStub;
+		engineCode->InitializeVulkan = InitializeVulkanStub;
 	}
 }
 
@@ -522,36 +523,26 @@ int CALLBACK WinMain(
 		return 1;
 	}
 
-	if (!Vulkan::Win32LoadDLL(window.vulkan))
-	{
-		MessageBoxA(window.handle, "Missing vulkan-1.dll", "Error", MB_OK);
-		return 2;
-	}
-
-	if (!Vulkan::Win32Initialize(window.vulkan, window.instance, window.handle, window.name))
+	engine_memory engineMemory;
+	if (!Win32InitializeMemory(engineMemory))
 	{
 		return 3;
 	}
 
-	engine_memory engineMemory;
-	if (!Win32InitializeMemory(engineMemory))
-	{
-		return 4;
-	}
-
 	win32_engine_code engineCode = {};
-
 	// TODO: make this less explicit
 	char *sourceDLLPath = "W:\\heyoVulkan\\build\\hyv_engine.dll";
 	char *sourceDLLCopyPath = "W:\\heyoVulkan\\build\\hyv_engine_copy.dll";
 	Win32LoadEngineCode(&engineCode, sourceDLLPath, sourceDLLCopyPath);
+	if (!engineCode.InitializeVulkan(window.instance, window.handle, window.name, &engineMemory))
+	{
+		Assert("Didn't initialize Vulkan.");
+		return 4;
+	}
 
 	hyv_engine engine = {};
-	i32 quitMessage = -1;
 
-	// TEST:
-	f32 r = 0.0;
-	f32 change = 0.005;
+	i32 quitMessage = -1;
 
 	while (Win32ProcessMessages(window, engine.input, quitMessage))
 	{
@@ -564,32 +555,11 @@ int CALLBACK WinMain(
 
 		if (window.onResize)
 		{
-			window.onResize = false;
-			if (!Vulkan::OnWindowSizeChange(window.vulkan))
-			{
-				DebugPrint("Failed To Resize Window.\n");
-				return -1;
-			}
-		}
-		// Draw
-		if (Vulkan::CanRender(window.vulkan))
-		{
-			if (r <= 0.5f && change < 0)
-				change *= -1;
-			else if (r >= 1.0f && change > 0)
-				change *= -1;
-			r += change;
-
-			Vulkan::ClearScreen(window.vulkan, r);
-			if (!Vulkan::Draw(window.vulkan))
-				return -2;
-		}
-		else
-		{
-			Sleep(100);
+			engine.onResize = true;
 		}
 		engineCode.UpdateAndRender(engine, &engineMemory);
 		Win32Update(window);
 	}
+	// TODO: Destroy Vulkan
 	return quitMessage;
 }

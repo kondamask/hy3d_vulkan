@@ -1,5 +1,6 @@
 #pragma once
 #include "hyv_base.h"
+#include "hyv_vulkan.h"
 
 #include <chrono>
 
@@ -170,14 +171,22 @@ struct engine_input
 struct engine_state
 {
     memory_arena memoryArena;
+    vulkan_state vulkan;
+    f32 r;
+    f32 change;
 };
 
 struct hyv_engine
 {
     engine_input input;
     std::chrono::steady_clock::time_point frameStart;
+    bool onResize;
 };
 
 #define UPDATE_AND_RENDER(name) void name(hyv_engine &e, engine_memory *memory)
 typedef UPDATE_AND_RENDER(update_and_render);
 UPDATE_AND_RENDER(UpdateAndRenderStub) {}
+
+#define INIT_VULKAN(name) bool name(HINSTANCE &wndInstance, HWND &wndHandle, const char *wndName, engine_memory *memory)
+typedef INIT_VULKAN(init_vulkan);
+INIT_VULKAN(InitializeVulkanStub) { return false; }

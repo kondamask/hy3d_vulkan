@@ -1,26 +1,5 @@
 #include "hyv_vulkan.h"
 
-namespace Vulkan
-{
-    static bool Win32LoadDLL(vulkan_state &vulkan);
-    static bool Win32Initialize(vulkan_state &vulkan, HINSTANCE &wndInstance, HWND &wndHandle, const char *name);
-    static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData);
-
-    static bool LoadGlobalFunctions();
-    static bool LoadInstanceFunctions(VkInstance instance);
-    static bool LoadDeviceFunctions(VkDevice device);
-    static bool FindMemoryProperties(VkPhysicalDeviceMemoryProperties &memoryProperties, uint32_t memoryTypeBitsRequirement, VkMemoryPropertyFlags requiredProperties, u32 &memoryIndex);
-    static bool CreateCommandBuffers(vulkan_state &vulkan);
-    static bool CreateSwapchain(vulkan_state &vulkan);
-    static void ClearCommands(vulkan_state &vulkan);
-    static void ClearSwapchainImages(vulkan_state &vulkan);
-    static void Destroy(vulkan_state &vulkan);
-    static bool ClearScreen(vulkan_state &vulkan, float r = 0.8f);
-    static bool OnWindowSizeChange(vulkan_state &vulkan);
-    static bool Draw(vulkan_state &vulkan);
-    static bool CanRender(vulkan_state &vulkan);
-}
-
 // TODO: make this cross-platform
 static bool Vulkan::Win32LoadDLL(vulkan_state &vulkan)
 {
@@ -783,6 +762,8 @@ static bool Vulkan::Win32Initialize(vulkan_state &vulkan, HINSTANCE &wndInstance
         return false;
     }
 
+    vulkan.canRender = true;
+
     return true;
 }
 
@@ -923,9 +904,6 @@ static bool Vulkan::OnWindowSizeChange(vulkan_state &vulkan)
         return false;
     if (!Vulkan::CreateCommandBuffers(vulkan))
         return false;
-
-    Vulkan::ClearScreen(vulkan);
-
     return true;
 }
 

@@ -3,7 +3,7 @@
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #define VK_NO_PROTOTYPES
-#include <vulkan/vulkan.h>
+#include <D:/.DEV/VulkanSDK/1.2.189.2/Include/vulkan/vulkan.h>
 
 #define NUM_SAMPLES VK_SAMPLE_COUNT_1_BIT
 #define NUM_SWAPCHAIN_IMAGES 2
@@ -46,6 +46,27 @@ struct vulkan_state
     VkDebugUtilsMessengerEXT debugMessenger;
 #endif
 };
+
+namespace Vulkan
+{
+    static bool Win32LoadDLL(vulkan_state &vulkan);
+    static bool Win32Initialize(vulkan_state &vulkan, HINSTANCE &wndInstance, HWND &wndHandle, const char *name);
+    static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData);
+
+    static bool LoadGlobalFunctions();
+    static bool LoadInstanceFunctions(VkInstance instance);
+    static bool LoadDeviceFunctions(VkDevice device);
+    static bool FindMemoryProperties(VkPhysicalDeviceMemoryProperties &memoryProperties, uint32_t memoryTypeBitsRequirement, VkMemoryPropertyFlags requiredProperties, u32 &memoryIndex);
+    static bool CreateCommandBuffers(vulkan_state &vulkan);
+    static bool CreateSwapchain(vulkan_state &vulkan);
+    static void ClearCommands(vulkan_state &vulkan);
+    static void ClearSwapchainImages(vulkan_state &vulkan);
+    static void Destroy(vulkan_state &vulkan);
+    static bool ClearScreen(vulkan_state &vulkan, float r = 0.8f);
+    static bool OnWindowSizeChange(vulkan_state &vulkan);
+    static bool Draw(vulkan_state &vulkan);
+    static bool CanRender(vulkan_state &vulkan);
+}
 
 //=====================================================================
 // NOTE: Macros

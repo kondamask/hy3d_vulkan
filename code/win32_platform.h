@@ -2,7 +2,6 @@
 #include "hyv_base.h"
 #include "hyv_windows.h"
 #include "hyv_engine.h"
-#include "hyv_vulkan.h"
 
 #define VK_CODE unsigned char
 
@@ -17,7 +16,6 @@ struct win32_window
 	HWND handle;
 	HINSTANCE instance;
 	const char *name = "HYV_ENGINE";
-	vulkan_state vulkan;
 	bool onResize;
 };
 
@@ -27,6 +25,7 @@ struct win32_engine_code
 	FILETIME writeTime;
 
 	update_and_render *UpdateAndRender;
+	init_vulkan *InitializeVulkan;
 
 	bool isValid;
 };
