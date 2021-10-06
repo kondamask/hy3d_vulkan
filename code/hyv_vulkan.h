@@ -18,15 +18,17 @@ struct vulkan_state
     VkSurfaceKHR surface;
     VkSurfaceFormatKHR surfaceFormat;
 
-    u32 queueFamilyIndex;
-    VkQueue queue;
-    //VkQueue graphicsQueue;
-    //VkQueue presentQueue;
+    u32 graphicsQueueFamilyIndex;
+    u32 presentQueueFamilyIndex;
+    VkQueue graphicsQueue;
+    VkQueue presentQueue;
+    VkSemaphore imageAvailableSem;
+    VkSemaphore renderFinishedSem;
 
     VkSwapchainKHR swapchain;
     u32 swapchainImageCount;
     VkImage swapchainImages[NUM_SWAPCHAIN_IMAGES];
-    VkImageView imageViews[NUM_SWAPCHAIN_IMAGES];
+    VkImageView swapchainImageViews[NUM_SWAPCHAIN_IMAGES];
 
     VkCommandPool cmdPool;
     VkCommandBuffer cmdBuffers[NUM_SWAPCHAIN_IMAGES];
@@ -35,6 +37,8 @@ struct vulkan_state
     VkImage depthImage;
     VkImageView depthImageView;
     VkDeviceMemory depthMemory;
+
+    bool canRender;
 
     HMODULE dll;
 
@@ -46,7 +50,9 @@ struct vulkan_state
 //=====================================================================
 // NOTE: Macros
 #define VulkanFuncPtr(func) PFN_##func
-#define VulkanDeclareFunction(func) VulkanFuncPtr(func) func
+#define VulkanDeclareFunction(func) static VulkanFuncPtr(func) func
+#define VulkanClearColor(r, g, b, a) {r, g, b, a}
+#define VulkanValidHandle(obj) obj != VK_NULL_HANDLE
 
 //=====================================================================
 // NOTE: Global Functions
@@ -58,13 +64,16 @@ static vk_get_instance_proc_addr *vkGetInstanceProcAddr_ = vkGetInstanceProcAddr
 
 VulkanDeclareFunction(vkCreateInstance);
 VulkanDeclareFunction(vkEnumerateInstanceLayerProperties);
+VulkanDeclareFunction(vkEnumerateInstanceExtensionProperties);
 
 //=====================================================================
 // NOTE: Instance Functions
 VulkanDeclareFunction(vkDestroyInstance);
 
+#if VULKAN_VALIDATION_LAYERS_ON
 VulkanDeclareFunction(vkCreateDebugUtilsMessengerEXT);
 VulkanDeclareFunction(vkDestroyDebugUtilsMessengerEXT);
+#endif
 
 VulkanDeclareFunction(vkCreateWin32SurfaceKHR); // NOTE: Windows ONLY
 VulkanDeclareFunction(vkDestroySurfaceKHR);
@@ -91,11 +100,19 @@ VulkanDeclareFunction(vkCreateSwapchainKHR);
 VulkanDeclareFunction(vkDestroySwapchainKHR);
 VulkanDeclareFunction(vkGetSwapchainImagesKHR);
 
+VulkanDeclareFunction(vkCreateSemaphore);
+VulkanDeclareFunction(vkDestroySemaphore);
+VulkanDeclareFunction(vkAcquireNextImageKHR);
+VulkanDeclareFunction(vkQueueSubmit);
+VulkanDeclareFunction(vkQueuePresentKHR);
+
 VulkanDeclareFunction(vkCreateCommandPool);
 VulkanDeclareFunction(vkDestroyCommandPool);
 VulkanDeclareFunction(vkAllocateCommandBuffers);
+VulkanDeclareFunction(vkFreeCommandBuffers);
 VulkanDeclareFunction(vkBeginCommandBuffer);
 VulkanDeclareFunction(vkEndCommandBuffer);
+
 VulkanDeclareFunction(vkCmdPipelineBarrier);
 VulkanDeclareFunction(vkCmdClearColorImage);
 

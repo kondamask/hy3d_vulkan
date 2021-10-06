@@ -80,10 +80,15 @@ static LRESULT Win32MainWindowProc(HWND handle, UINT message, WPARAM wParam, LPA
 		break;
 	}
 
+	case WM_SIZE:
+	case WM_EXITSIZEMOVE:
+		PostMessage(handle, WM_USER + 1, wParam, lParam);
+		break;
+
 	case WM_CLOSE:
 	{
 		UnregisterClassA(window->name, window->instance);
-		VulkanDestroy(window->vulkan);
+		Vulkan::Destroy(window->vulkan);
 		DestroyWindow(handle);
 		break;
 	}
@@ -251,6 +256,16 @@ static KEYBOARD_BUTTON Win32TranslateKeyInput(VK_CODE code)
 	}
 }
 
+static wnd_dim Win32GetWindowDim(HWND handle)
+{
+	wnd_dim result = {};
+	RECT rect = {};
+	GetWindowRect(handle, &rect);
+	result.width = (i16)(rect.right - rect.left);
+	result.height = (i16)(rect.bottom - rect.top);
+	return result;
+}
+
 static bool Win32ProcessMessages(win32_window &window, engine_input &input, i32 &quitMessage)
 {
 	MSG message;
@@ -264,6 +279,12 @@ static bool Win32ProcessMessages(win32_window &window, engine_input &input, i32 
 			return false;
 			break;
 
+		case WM_USER + 1: //WM_SIZE OR WM_EXITSIZEMOVE
+		{
+			window.onResize = true;
+			window.dimensions = Win32GetWindowDim(window.handle);
+			break;
+		}
 		/***************** KEYBOARD EVENTS ****************/
 		case WM_SYSKEYDOWN:
 		case WM_KEYDOWN:
@@ -421,14 +442,14 @@ static bool Win32InitializeWindow(win32_window &window, u16 width, u16 height, L
 
 	if (!RegisterClassA(&windowClass))
 	{
-		HYV_DEBUG_PRINT("ERROR: Window class wasn't registered.\n");
+		DebugPrint("ERROR: Window class wasn't registered.\n");
 		return false;
 	}
 
 	window.dimensions.width = width;
 	window.dimensions.height = height;
 	// Declare the window client size
-	RECT rect = {0};
+	RECT rect = {};
 	rect.left = 100;
 	rect.top = 100;
 	rect.right = rect.left + window.dimensions.width;
@@ -456,7 +477,7 @@ static bool Win32InitializeWindow(win32_window &window, u16 width, u16 height, L
 
 	if (!window.handle)
 	{
-		HYV_DEBUG_PRINT("ERROR: Failed to create window.\n");
+		DebugPrint("ERROR: Failed to create window.\n");
 		return false;
 	}
 
@@ -494,22 +515,24 @@ int CALLBACK WinMain(
 {
 	u16 width = 640;
 	u16 height = 480;
-	win32_window window;
+	win32_window window = {};
+
 	if (!Win32InitializeWindow(window, width, height, window.name))
 	{
 		return 1;
 	}
 
-	if (!Win32LoadVulkanDLL(window.vulkan))
-    {
-        MessageBoxA(window.handle, "Missing vulkan-1.dll", "Error", MB_OK);
-        return 2;
-    }
+	if (!Vulkan::Win32LoadDLL(window.vulkan))
+	{
+		MessageBoxA(window.handle, "Missing vulkan-1.dll", "Error", MB_OK);
+		return 2;
+	}
 
-	if (!Win32InitializeVulkan(window.vulkan, window.instance, window.handle, window.name, width, height))
+	if (!Vulkan::Win32Initialize(window.vulkan, window.instance, window.handle, window.name))
 	{
 		return 3;
 	}
+	Vulkan::ClearScreen(window.vulkan);
 
 	engine_memory engineMemory;
 	if (!Win32InitializeMemory(engineMemory))
@@ -533,6 +556,26 @@ int CALLBACK WinMain(
 		{
 			Win32UnloadEngineCode(&engineCode);
 			Win32LoadEngineCode(&engineCode, sourceDLLPath, sourceDLLCopyPath);
+		}
+
+		if (window.onResize)
+		{
+			window.onResize = false;
+			if (!Vulkan::OnWindowSizeChange(window.vulkan))
+			{
+				DebugPrint("Failed To Resize Window.\n");
+				return -1;
+			}
+		}
+		// Draw
+		if (Vulkan::CanRender(window.vulkan))
+		{
+			if (!Vulkan::Draw(window.vulkan))
+				return -2;
+		}
+		else
+		{
+			Sleep(100);
 		}
 		engineCode.UpdateAndRender(engine, &engineMemory);
 		Win32Update(window);

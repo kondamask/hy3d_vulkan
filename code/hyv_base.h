@@ -1,6 +1,10 @@
 #pragma once
 #include <cstdint>
 #include <math.h>
+#include <iostream>
+
+#define WINDOW_WIDTH 640
+#define WINDOW_HEIGHT 480
 
 // TODO: Make this an actual assetion
 #define AssertBreak() *(int *)0 = 0
@@ -15,16 +19,18 @@
 
 #if HYV_DEBUG
 #define ASSERT_VK_SUCCESS(FuncResult) \
-    if (FuncResult != VK_SUCCESS)  \
+    if (FuncResult != VK_SUCCESS)     \
     AssertBreak()
 #else
-#define ASSERT_VK_SUCCESS(FuncResult)
+#define ASSERT_VK_SUCCESS(FuncResult) \
+    if (FuncResult != VK_SUCCESS)     \
+    return false
 #endif
 
 #if HYV_DEBUG
-#define HYV_DEBUG_PRINT(Expression) std::cerr << Expression
+#define DebugPrint(Expression) std::cerr << Expression
 #else
-#define HYV_DEBUG_PRINT(Expression)
+#define DebugPrint(Expression)
 #endif
 
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))

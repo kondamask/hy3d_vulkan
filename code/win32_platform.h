@@ -18,6 +18,7 @@ struct win32_window
 	HINSTANCE instance;
 	const char *name = "HYV_ENGINE";
 	vulkan_state vulkan;
+	bool onResize;
 };
 
 struct win32_engine_code
