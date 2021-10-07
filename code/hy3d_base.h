@@ -6,8 +6,10 @@
 #include <iostream>
 #endif
 
-#define WINDOW_WIDTH 640
-#define WINDOW_HEIGHT 480
+#define KILOBYTES(val) (val * 1024LL)
+#define MEGABYTES(val) (KILOBYTES(val) * 1024LL)
+#define GIGABYTES(val) (MEGABYTES(val) * 1024LL)
+#define TERABYTES(val) (GIGABYTES(val) * 1024LL)
 
 // TODO: Make this an actual assetion
 #define AssertBreak() *(int *)0 = 0

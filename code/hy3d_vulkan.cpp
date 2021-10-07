@@ -86,6 +86,8 @@ static bool Vulkan::LoadDeviceFunctions(VkDevice device)
     VulkanLoadDeviceFunc(vkFreeCommandBuffers);
     VulkanLoadDeviceFunc(vkBeginCommandBuffer);
     VulkanLoadDeviceFunc(vkEndCommandBuffer);
+    VulkanLoadDeviceFunc(vkResetCommandBuffer);
+
     VulkanLoadDeviceFunc(vkCmdPipelineBarrier);
     VulkanLoadDeviceFunc(vkCmdClearColorImage);
 
@@ -216,7 +218,7 @@ static bool Vulkan::CreateCommandBuffers(vulkan_state &vulkan)
 
 static bool Vulkan::CreateSwapchain(vulkan_state &vulkan)
 {
-    if (VulkanValidHandle(vulkan.device))
+    if (VulkanIsValidHandle(vulkan.device))
         vkDeviceWaitIdle(vulkan.device);
     else
         return false;
@@ -360,7 +362,7 @@ static bool Vulkan::CreateSwapchain(vulkan_state &vulkan)
         VkSwapchainKHR oldSwapchain = vulkan.swapchain;
         swapchainInfo.oldSwapchain = oldSwapchain;
         ASSERT_VK_SUCCESS(vkCreateSwapchainKHR(vulkan.device, &swapchainInfo, 0, &vulkan.swapchain));
-        if (VulkanValidHandle(oldSwapchain)) //old swapchain
+        if (VulkanIsValidHandle(oldSwapchain)) //old swapchain
             vkDestroySwapchainKHR(vulkan.device, oldSwapchain, 0);
     }
 
@@ -398,6 +400,11 @@ static bool Vulkan::CreateSwapchain(vulkan_state &vulkan)
 // TODO: Make it cross-platform
 static bool Vulkan::Win32Initialize(vulkan_state &vulkan, HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
 {
+    if (!Vulkan::Win32LoadDLL(vulkan))
+    {
+        return false;
+    }
+
     if (!Vulkan::LoadGlobalFunctions())
     {
         return false;
@@ -769,17 +776,17 @@ static bool Vulkan::Win32Initialize(vulkan_state &vulkan, HINSTANCE &wndInstance
 
 static void Vulkan::ClearCommands(vulkan_state &vulkan)
 {
-    if (VulkanValidHandle(vulkan.device))
+    if (VulkanIsValidHandle(vulkan.device))
     {
         vkDeviceWaitIdle(vulkan.device);
 
-        if (VulkanValidHandle(vulkan.cmdBuffers[0]) && VulkanValidHandle(vulkan.cmdBuffers[1])) // TODO: For now we only support double buffering
+        if (VulkanIsValidHandle(vulkan.cmdBuffers[0]) && VulkanIsValidHandle(vulkan.cmdBuffers[1])) // TODO: For now we only support double buffering
         {
             vkFreeCommandBuffers(vulkan.device, vulkan.cmdPool, ArrayCount(vulkan.cmdBuffers), vulkan.cmdBuffers);
             vulkan.cmdBuffers[0] = 0;
             vulkan.cmdBuffers[1] = 0;
         }
-        if (VulkanValidHandle(vulkan.cmdPool))
+        if (VulkanIsValidHandle(vulkan.cmdPool))
         {
             vkDestroyCommandPool(vulkan.device, vulkan.cmdPool, 0);
             vulkan.cmdPool = 0;
@@ -789,11 +796,11 @@ static void Vulkan::ClearCommands(vulkan_state &vulkan)
 
 static void Vulkan::ClearSwapchainImages(vulkan_state &vulkan)
 {
-    if (VulkanValidHandle(vulkan.device))
+    if (VulkanIsValidHandle(vulkan.device))
     {
         for (u32 i = 0; i < vulkan.swapchainImageCount; i++)
         {
-            if (VulkanValidHandle(vulkan.swapchainImageViews[i]))
+            if (VulkanIsValidHandle(vulkan.swapchainImageViews[i]))
                 vkDestroyImageView(vulkan.device, vulkan.swapchainImageViews[i], 0);
         }
     }
@@ -801,26 +808,26 @@ static void Vulkan::ClearSwapchainImages(vulkan_state &vulkan)
 
 static void Vulkan::Destroy(vulkan_state &vulkan)
 {
-    if (VulkanValidHandle(vulkan.device))
+    if (VulkanIsValidHandle(vulkan.device))
     {
         vkDeviceWaitIdle(vulkan.device);
 
-        if (VulkanValidHandle(vulkan.depthMemory))
+        if (VulkanIsValidHandle(vulkan.depthMemory))
             vkFreeMemory(vulkan.device, vulkan.depthMemory, 0);
 
-        if (VulkanValidHandle(vulkan.depthImageView))
+        if (VulkanIsValidHandle(vulkan.depthImageView))
             vkDestroyImageView(vulkan.device, vulkan.depthImageView, 0);
 
-        if (VulkanValidHandle(vulkan.depthImage))
+        if (VulkanIsValidHandle(vulkan.depthImage))
             vkDestroyImage(vulkan.device, vulkan.depthImage, 0);
 
         Vulkan::ClearSwapchainImages(vulkan);
-        if (VulkanValidHandle(vulkan.swapchain))
+        if (VulkanIsValidHandle(vulkan.swapchain))
             vkDestroySwapchainKHR(vulkan.device, vulkan.swapchain, 0);
 
-        if (VulkanValidHandle(vulkan.imageAvailableSem))
+        if (VulkanIsValidHandle(vulkan.imageAvailableSem))
             vkDestroySemaphore(vulkan.device, vulkan.imageAvailableSem, 0);
-        if (VulkanValidHandle(vulkan.renderFinishedSem))
+        if (VulkanIsValidHandle(vulkan.renderFinishedSem))
             vkDestroySemaphore(vulkan.device, vulkan.renderFinishedSem, 0);
 
         Vulkan::ClearCommands(vulkan);
@@ -828,13 +835,13 @@ static void Vulkan::Destroy(vulkan_state &vulkan)
         vkDestroyDevice(vulkan.device, 0);
     }
 
-    if (VulkanValidHandle(vulkan.instance))
+    if (VulkanIsValidHandle(vulkan.instance))
     {
-        if (VulkanValidHandle(vulkan.surface))
+        if (VulkanIsValidHandle(vulkan.surface))
             vkDestroySurfaceKHR(vulkan.instance, vulkan.surface, 0);
 
 #if VULKAN_VALIDATION_LAYERS_ON
-        if (VulkanValidHandle(vulkan.debugMessenger))
+        if (VulkanIsValidHandle(vulkan.debugMessenger))
             vkDestroyDebugUtilsMessengerEXT(vulkan.instance, vulkan.debugMessenger, 0);
 #endif
 
@@ -846,13 +853,18 @@ static void Vulkan::Destroy(vulkan_state &vulkan)
     return;
 }
 
-static bool Vulkan::ClearScreen(vulkan_state &vulkan, float r)
+static bool Vulkan::ClearScreenToSolid(vulkan_state &vulkan, float color[3])
 {
+    // TODO: THIS IS VERY WASTEFULL
+    Vulkan::ClearCommands(vulkan);
+    if (!Vulkan::CreateCommandBuffers(vulkan))
+        return false;
+
     VkCommandBufferBeginInfo commandBufferBeginInfo = {};
     commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+    commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-    VkClearColorValue clearColor = VulkanClearColor(r, 0.8f, 0.4f, 0.0f);
+    VkClearColorValue clearColor = VulkanClearColor(color[0], color[1], color[2], 0.0f);
 
     VkImageSubresourceRange imageSubresourceRange = {};
     imageSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -885,6 +897,7 @@ static bool Vulkan::ClearScreen(vulkan_state &vulkan, float r)
         barrierFromClearToPresent.image = vulkan.swapchainImages[i];
         barrierFromClearToPresent.subresourceRange = imageSubresourceRange;
 
+        //ASSERT_VK_SUCCESS(vkResetCommandBuffer(vulkan.cmdBuffers[i], VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
         ASSERT_VK_SUCCESS(vkBeginCommandBuffer(vulkan.cmdBuffers[i], &commandBufferBeginInfo));
         vkCmdPipelineBarrier(vulkan.cmdBuffers[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
                              0, 0, 0, 0, 0, 1, &barrierFromPresentToClear);

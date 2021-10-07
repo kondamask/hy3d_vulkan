@@ -62,7 +62,7 @@ namespace Vulkan
     static void ClearCommands(vulkan_state &vulkan);
     static void ClearSwapchainImages(vulkan_state &vulkan);
     static void Destroy(vulkan_state &vulkan);
-    static bool ClearScreen(vulkan_state &vulkan, float r = 0.8f);
+    static bool ClearScreenToSolid(vulkan_state &vulkan, f32 color[3]);
     static bool OnWindowSizeChange(vulkan_state &vulkan);
     static bool Draw(vulkan_state &vulkan);
     static bool CanRender(vulkan_state &vulkan);
@@ -73,7 +73,7 @@ namespace Vulkan
 #define VulkanFuncPtr(func) PFN_##func
 #define VulkanDeclareFunction(func) static VulkanFuncPtr(func) func
 #define VulkanClearColor(r, g, b, a) {r, g, b, a}
-#define VulkanValidHandle(obj) obj != VK_NULL_HANDLE
+#define VulkanIsValidHandle(obj) obj != VK_NULL_HANDLE
 
 //=====================================================================
 // NOTE: Global Functions
@@ -133,6 +133,7 @@ VulkanDeclareFunction(vkAllocateCommandBuffers);
 VulkanDeclareFunction(vkFreeCommandBuffers);
 VulkanDeclareFunction(vkBeginCommandBuffer);
 VulkanDeclareFunction(vkEndCommandBuffer);
+VulkanDeclareFunction(vkResetCommandBuffer);
 
 VulkanDeclareFunction(vkCmdPipelineBarrier);
 VulkanDeclareFunction(vkCmdClearColorImage);

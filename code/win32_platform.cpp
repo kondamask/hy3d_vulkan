@@ -1,4 +1,5 @@
 #include "win32_platform.h"
+#include "hy3d_vulkan.cpp"
 
 // NOTE: These file I/O functions should only be used for DEBUG purposes.
 DEBUG_FREE_FILE(DEBUGFreeFileMemory)
@@ -399,13 +400,11 @@ static void Win32LoadEngineCode(win32_engine_code *engineCode, char *sourceFilen
 	if (engineCode->dll)
 	{
 		engineCode->UpdateAndRender = (update_and_render *)GetProcAddress(engineCode->dll, "UpdateAndRender");
-		engineCode->InitializeVulkan = (init_vulkan *)GetProcAddress(engineCode->dll, "InitializeVulkan");
 		engineCode->isValid = engineCode->UpdateAndRender;
 	}
 	if (!engineCode->isValid)
 	{
 		engineCode->UpdateAndRender = UpdateAndRenderStub;
-		engineCode->InitializeVulkan = InitializeVulkanStub;
 	}
 }
 
@@ -501,9 +500,14 @@ static bool Win32InitializeMemory(engine_memory &memory)
 	memory.transientMemory = (u8 *)memory.permanentMemory + memory.permanentMemorySize;
 	memory.isInitialized = false;
 
-	memory.DEBUGFreeFileMemory = DEBUGFreeFileMemory;
-	memory.DEBUGReadFile = DEBUGReadFile;
-	memory.DEBUGWriteFile = DEBUGWriteFile;
+	memory.platformAPI.Draw = Vulkan::Draw;
+	memory.platformAPI.Update = Vulkan::ClearScreenToSolid;
+
+#if HY3D_DEBUG
+	memory.platformAPI.DEBUGFreeFileMemory = DEBUGFreeFileMemory;
+	memory.platformAPI.DEBUGReadFile = DEBUGReadFile;
+	memory.platformAPI.DEBUGWriteFile = DEBUGWriteFile;
+#endif
 
 	return (memory.permanentMemory && memory.transientMemory);
 }
@@ -514,16 +518,14 @@ int CALLBACK WinMain(
 	LPSTR lpCmdLine,
 	int nShowCmd)
 {
-	u16 width = 640;
-	u16 height = 480;
 	win32_window window = {};
 
-	if (!Win32InitializeWindow(window, width, height, window.name))
+	if (!Win32InitializeWindow(window, WINDOW_WIDTH, WINDOW_HEIGHT, window.name))
 	{
 		return 1;
 	}
 
-	engine_memory engineMemory;
+	engine_memory engineMemory = {};
 	if (!Win32InitializeMemory(engineMemory))
 	{
 		return 3;
@@ -531,16 +533,15 @@ int CALLBACK WinMain(
 
 	win32_engine_code engineCode = {};
 	// TODO: make this less explicit
-	char *sourceDLLPath = "W:\\heyoVulkan\\build\\hy3d_engine.dll";
-	char *sourceDLLCopyPath = "W:\\heyoVulkan\\build\\hy3d_engine_copy.dll";
+	char *sourceDLLPath = "W:\\hy3d_vulkan\\build\\hy3d_engine.dll";
+	char *sourceDLLCopyPath = "W:\\hy3d_vulkan\\build\\hy3d_engine_copy.dll";
 	Win32LoadEngineCode(&engineCode, sourceDLLPath, sourceDLLCopyPath);
-	if (!engineCode.InitializeVulkan(window.instance, window.handle, window.name, &engineMemory))
-	{
-		Assert("Didn't initialize Vulkan.");
-		return 4;
-	}
 
 	hy3d_engine engine = {};
+	if (!Vulkan::Win32Initialize(engine.vulkan, window.instance, window.handle, window.name))
+	{
+		return 4;
+	}
 
 	i32 quitMessage = -1;
 
@@ -555,9 +556,15 @@ int CALLBACK WinMain(
 
 		if (window.onResize)
 		{
-			engine.onResize = true;
+			if (!Vulkan::OnWindowSizeChange(engine.vulkan))
+			{
+				Assert("Failed To Resize Window.");
+				return -1;
+			}
+			window.onResize = false;
 		}
-		engineCode.UpdateAndRender(engine, &engineMemory);
+		if (engine.vulkan.canRender)
+			engineCode.UpdateAndRender(engine, &engineMemory);
 		Win32Update(window);
 	}
 	// TODO: Destroy Vulkan

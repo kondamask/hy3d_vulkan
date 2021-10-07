@@ -1,5 +1,4 @@
 #include "hy3d_engine.h"
-#include "hy3d_vulkan.cpp"
 #include <intrin.h>
 
 static void InitializeMemoryArena(memory_arena *arena, u8 *base, size_t size)
@@ -28,25 +27,17 @@ static void Initialize(hy3d_engine *e, engine_state *state, engine_memory *memor
                           memory->permanentMemorySize - sizeof(engine_state));
 
     // NOTE: Everything is initialized here
-    state->r = 0.0f;
-    state->change = 0.5f;
+    state->color[0] = 0.1f;
+    state->color[1] = 0.3f;
+    state->color[2] = 0.6f;
+    state->change[0] = 1.0f;
+    state->change[1] = 1.5f;
+    state->change[2] = 2.0f;
+
+    //--------------------------------------
 
     memory->isInitialized = true;
     e->frameStart = std::chrono::steady_clock::now();
-}
-
-// NOTE: MUST CALL AFTER MEMORY ALLOCATION FROM WINDOWS
-extern "C" INIT_VULKAN(InitializeVulkan)
-{
-    engine_state *state = (engine_state *)memory->permanentMemory;
-    if (Vulkan::Win32LoadDLL(state->vulkan))
-    {
-        return Vulkan::Win32Initialize(state->vulkan, wndInstance, wndHandle, wndName);
-    }
-    else
-    {
-        return false;
-    }
 }
 
 extern "C" UPDATE_AND_RENDER(UpdateAndRender)
@@ -55,37 +46,34 @@ extern "C" UPDATE_AND_RENDER(UpdateAndRender)
     if (!memory->isInitialized)
         Initialize(&e, state, memory);
 
-    if (e.onResize)
-    {
-        if (!Vulkan::OnWindowSizeChange(state->vulkan))
-        {
-            Assert("Failed To Resize Window.");
-            return;
-        }
-        e.onResize = false;
-    }
-
     std::chrono::steady_clock::time_point frameEnd = std::chrono::steady_clock::now();
     std::chrono::duration<f32> frameTime = frameEnd - e.frameStart;
     f32 dt = frameTime.count();
     e.frameStart = frameEnd;
-
-    if (Vulkan::CanRender(state->vulkan))
+ 
+    // NOTE: UPDATE
+    /*int i = 2;
+    if (state->color[i] >= 1.0)
     {
-        // NOTE: UPDATE
-        if (state->r <= 0.0f && state->change < 0.0f)
-            state->change *= -1.0f;
-        else if (state->r >= 0.4f && state->change > 0.0f)
-            state->change *= -1.0f;
-        state->r += state->change * dt;
-
-        Vulkan::ClearScreen(state->vulkan, state->r);
-
-        // NOTE: RENDER
-        Vulkan::Draw(state->vulkan);
+        state->change[i] *= -1.0f;
+        state->color[i] = 1.0;
     }
-    else
+    if (state->color[i] <= 0.0)
     {
-        Sleep(100);
+        state->change[i] *= -1.0f;
+        state->color[i] = 0.0;
     }
+    state->color[i] += state->change[i] * dt;*/
+
+    state->color[0] = 0.3;
+    state->color[1] = 0.3;
+    state->color[2] = 0.3;
+
+    memory->platformAPI.Update(e.vulkan, state->color);
+
+    // NOTE: RENDER
+    memory->platformAPI.Draw(e.vulkan);
+
+    //if we cant render
+    //Sleep(100);
 }

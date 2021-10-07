@@ -5,7 +5,7 @@
             "name": "launch",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}\\build\\HY3D VULKAN.exe",
+            "program": "${workspaceFolder}\\build\\hy3d_vulkan.exe",
             "cwd": "${workspaceFolder}\\data",
             "symbolSearchPath": "${workspaceFolder}\\build",
             "logging": {

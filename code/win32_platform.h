@@ -25,7 +25,6 @@ struct win32_engine_code
 	FILETIME writeTime;
 
 	update_and_render *UpdateAndRender;
-	init_vulkan *InitializeVulkan;
 
 	bool isValid;
 };

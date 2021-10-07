@@ -4,10 +4,8 @@
 
 #include <chrono>
 
-#define KILOBYTES(val) (val * 1024LL)
-#define MEGABYTES(val) (KILOBYTES(val) * 1024LL)
-#define GIGABYTES(val) (MEGABYTES(val) * 1024LL)
-#define TERABYTES(val) (GIGABYTES(val) * 1024LL)
+#define WINDOW_WIDTH 640
+#define WINDOW_HEIGHT 480
 
 struct debug_read_file_result
 {
@@ -24,31 +22,23 @@ typedef DEBUG_WRITE_FILE(debug_write_file);
 #define DEBUG_FREE_FILE(name) void name(void *memory)
 typedef DEBUG_FREE_FILE(debug_free_file);
 
-#pragma pack(push, 1)
-struct bitmap_header
-{
-    u16 fileType;
-    u32 fileSize;
-    u16 reserved1;
-    u16 reserved2;
-    u32 bitmapOffset;
-    u32 size;
-    i32 width;
-    i32 height;
-    u16 planes;
-    u16 bitsPerPixel;
-    u32 compression;
-    u32 sizeOfBitmap;
-    i32 horzResolution;
-    i32 vertResolution;
-    u32 colorsUsed;
-    u32 colorsImportant;
+#define VULKAN_DRAW_FUNC(name) bool name(vulkan_state &vulkan)
+typedef VULKAN_DRAW_FUNC(vulkan_draw_func);
 
-    u32 redMask;
-    u32 greenMask;
-    u32 blueMask;
+#define VULKAN_UPDATE_FUNC(name) bool name(vulkan_state &vulkan, f32 color[3])
+typedef VULKAN_UPDATE_FUNC(vulkan_udate_func);
+
+struct platform_api
+{
+    vulkan_draw_func *Draw;
+    vulkan_udate_func *Update;
+
+#if HY3D_DEBUG
+    debug_read_file *DEBUGReadFile;
+    debug_write_file *DEBUGWriteFile;
+    debug_free_file *DEBUGFreeFileMemory;
+#endif
 };
-#pragma pack(pop)
 
 struct engine_memory
 {
@@ -58,9 +48,7 @@ struct engine_memory
     u64 transientMemorySize;
     void *transientMemory;
 
-    debug_read_file *DEBUGReadFile;
-    debug_write_file *DEBUGWriteFile;
-    debug_free_file *DEBUGFreeFileMemory;
+    platform_api platformAPI;
 };
 
 struct memory_arena
@@ -171,14 +159,13 @@ struct engine_input
 struct engine_state
 {
     memory_arena memoryArena;
-    vulkan_state vulkan;
-    f32 r;
-    f32 change;
+    float color[3];
+    float change[3];
 };
-
 struct hy3d_engine
 {
     engine_input input;
+    vulkan_state vulkan;
     std::chrono::steady_clock::time_point frameStart;
     bool onResize;
 };
@@ -186,7 +173,3 @@ struct hy3d_engine
 #define UPDATE_AND_RENDER(name) void name(hy3d_engine &e, engine_memory *memory)
 typedef UPDATE_AND_RENDER(update_and_render);
 UPDATE_AND_RENDER(UpdateAndRenderStub) {}
-
-#define INIT_VULKAN(name) bool name(HINSTANCE &wndInstance, HWND &wndHandle, const char *wndName, engine_memory *memory)
-typedef INIT_VULKAN(init_vulkan);
-INIT_VULKAN(InitializeVulkanStub) { return false; }
