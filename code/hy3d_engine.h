@@ -1,6 +1,6 @@
 #pragma once
-#include "hyv_base.h"
-#include "hyv_vulkan.h"
+#include "hy3d_base.h"
+#include "hy3d_vulkan.h"
 
 #include <chrono>
 
@@ -176,14 +176,14 @@ struct engine_state
     f32 change;
 };
 
-struct hyv_engine
+struct hy3d_engine
 {
     engine_input input;
     std::chrono::steady_clock::time_point frameStart;
     bool onResize;
 };
 
-#define UPDATE_AND_RENDER(name) void name(hyv_engine &e, engine_memory *memory)
+#define UPDATE_AND_RENDER(name) void name(hy3d_engine &e, engine_memory *memory)
 typedef UPDATE_AND_RENDER(update_and_render);
 UPDATE_AND_RENDER(UpdateAndRenderStub) {}
 

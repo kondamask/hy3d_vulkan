@@ -1,7 +1,7 @@
 #pragma once
-#include "hyv_base.h"
-#include "hyv_windows.h"
-#include "hyv_engine.h"
+#include "hy3d_base.h"
+#include "hy3d_windows.h"
+#include "hy3d_engine.h"
 
 #define VK_CODE unsigned char
 
@@ -15,7 +15,7 @@ struct win32_window
 	wnd_dim dimensions;
 	HWND handle;
 	HINSTANCE instance;
-	const char *name = "HYV_ENGINE";
+	const char *name = "HY3D_ENGINE";
 	bool onResize;
 };
 

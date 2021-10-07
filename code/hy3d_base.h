@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <math.h>
 
-#if HYV_DEBUG
+#if HY3D_DEBUG
 #include <iostream>
 #endif
 
@@ -12,7 +12,7 @@
 // TODO: Make this an actual assetion
 #define AssertBreak() *(int *)0 = 0
 
-#if HYV_DEBUG
+#if HY3D_DEBUG
 #define Assert(Expression) \
     if (!(Expression))     \
     AssertBreak()
@@ -20,7 +20,7 @@
 #define Assert(Expression)
 #endif
 
-#if HYV_DEBUG
+#if HY3D_DEBUG
 #define ASSERT_VK_SUCCESS(FuncResult) \
     if (FuncResult != VK_SUCCESS)     \
     AssertBreak()
@@ -30,7 +30,7 @@
     return false
 #endif
 
-#if HYV_DEBUG
+#if HY3D_DEBUG
 #define DebugPrint(Expression) std::cerr << Expression
 #else
 #define DebugPrint(Expression)

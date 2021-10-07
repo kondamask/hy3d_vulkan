@@ -422,7 +422,7 @@ static void Win32UnloadEngineCode(win32_engine_code *engineCode)
 
 static bool Win32InitializeWindow(win32_window &window, u16 width, u16 height, LPCSTR windowTitle)
 {
-#if HYV_DEBUG
+#if HY3D_DEBUG
 	AllocConsole();
 	AttachConsole(GetCurrentProcessId());
 	freopen("CON", "w", stdout);
@@ -531,8 +531,8 @@ int CALLBACK WinMain(
 
 	win32_engine_code engineCode = {};
 	// TODO: make this less explicit
-	char *sourceDLLPath = "W:\\heyoVulkan\\build\\hyv_engine.dll";
-	char *sourceDLLCopyPath = "W:\\heyoVulkan\\build\\hyv_engine_copy.dll";
+	char *sourceDLLPath = "W:\\heyoVulkan\\build\\hy3d_engine.dll";
+	char *sourceDLLCopyPath = "W:\\heyoVulkan\\build\\hy3d_engine_copy.dll";
 	Win32LoadEngineCode(&engineCode, sourceDLLPath, sourceDLLCopyPath);
 	if (!engineCode.InitializeVulkan(window.instance, window.handle, window.name, &engineMemory))
 	{
@@ -540,7 +540,7 @@ int CALLBACK WinMain(
 		return 4;
 	}
 
-	hyv_engine engine = {};
+	hy3d_engine engine = {};
 
 	i32 quitMessage = -1;
 
