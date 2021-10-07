@@ -50,29 +50,33 @@ extern "C" UPDATE_AND_RENDER(UpdateAndRender)
     std::chrono::duration<f32> frameTime = frameEnd - e.frameStart;
     f32 dt = frameTime.count();
     e.frameStart = frameEnd;
- 
+
     // NOTE: UPDATE
-    /*int i = 2;
-    if (state->color[i] >= 1.0)
+    float min = 0.2f;
+    float max = 0.5f;
+    for (int i = 0; i < ArrayCount(state->color); i++)
     {
-        state->change[i] *= -1.0f;
-        state->color[i] = 1.0;
+        if (state->color[i] >= max)
+        {
+            state->change[i] *= -1.0f;
+            state->color[i] = max;
+        }
+        if (state->color[i] <= min)
+        {
+            state->change[i] *= -1.0f;
+            state->color[i] = min;
+        }
+        state->color[i] += state->change[i] * dt * 0.2;
     }
-    if (state->color[i] <= 0.0)
-    {
-        state->change[i] *= -1.0f;
-        state->color[i] = 0.0;
-    }
-    state->color[i] += state->change[i] * dt;*/
 
-    state->color[0] = 0.3;
-    state->color[1] = 0.3;
-    state->color[2] = 0.3;
+    //state->color[0] = 0.8;
+    //state->color[1] = 0.55;
+    //state->color[2] = 0.35;
 
-    memory->platformAPI.Update(e.vulkan, state->color);
+    memory->platformAPI.Update(state->color);
 
     // NOTE: RENDER
-    memory->platformAPI.Draw(e.vulkan);
+    memory->platformAPI.Draw();
 
     //if we cant render
     //Sleep(100);

@@ -25,11 +25,14 @@
 #if HY3D_DEBUG
 #define ASSERT_VK_SUCCESS(FuncResult) \
     if (FuncResult != VK_SUCCESS)     \
-    AssertBreak()
+    {                                 \
+        DebugPrint(#FuncResult);      \
+        AssertBreak();                \
+    }
 #else
 #define ASSERT_VK_SUCCESS(FuncResult) \
     if (FuncResult != VK_SUCCESS)     \
-    return false
+        return false;
 #endif
 
 #if HY3D_DEBUG

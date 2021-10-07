@@ -538,7 +538,7 @@ int CALLBACK WinMain(
 	Win32LoadEngineCode(&engineCode, sourceDLLPath, sourceDLLCopyPath);
 
 	hy3d_engine engine = {};
-	if (!Vulkan::Win32Initialize(engine.vulkan, window.instance, window.handle, window.name))
+	if (!Vulkan::Win32Initialize(window.instance, window.handle, window.name))
 	{
 		return 4;
 	}
@@ -556,14 +556,14 @@ int CALLBACK WinMain(
 
 		if (window.onResize)
 		{
-			if (!Vulkan::OnWindowSizeChange(engine.vulkan))
+			if (!Vulkan::OnWindowSizeChange())
 			{
 				Assert("Failed To Resize Window.");
 				return -1;
 			}
 			window.onResize = false;
 		}
-		if (engine.vulkan.canRender)
+		if (vulkan.canRender)
 			engineCode.UpdateAndRender(engine, &engineMemory);
 		Win32Update(window);
 	}

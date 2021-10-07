@@ -22,10 +22,10 @@ typedef DEBUG_WRITE_FILE(debug_write_file);
 #define DEBUG_FREE_FILE(name) void name(void *memory)
 typedef DEBUG_FREE_FILE(debug_free_file);
 
-#define VULKAN_DRAW_FUNC(name) bool name(vulkan_state &vulkan)
+#define VULKAN_DRAW_FUNC(name) bool name()
 typedef VULKAN_DRAW_FUNC(vulkan_draw_func);
 
-#define VULKAN_UPDATE_FUNC(name) bool name(vulkan_state &vulkan, f32 color[3])
+#define VULKAN_UPDATE_FUNC(name) bool name(f32 color[3])
 typedef VULKAN_UPDATE_FUNC(vulkan_udate_func);
 
 struct platform_api
@@ -165,7 +165,6 @@ struct engine_state
 struct hy3d_engine
 {
     engine_input input;
-    vulkan_state vulkan;
     std::chrono::steady_clock::time_point frameStart;
     bool onResize;
 };

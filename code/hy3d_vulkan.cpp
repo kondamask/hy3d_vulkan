@@ -1,105 +1,13 @@
 #include "hy3d_vulkan.h"
 
 // TODO: make this cross-platform
-static bool Vulkan::Win32LoadDLL(vulkan_state &vulkan)
+static bool Vulkan::Win32LoadDLL()
 {
     vulkan.dll = LoadLibraryA("vulkan-1.dll");
     if (!vulkan.dll)
         return false;
 
     vkGetInstanceProcAddr = (vk_get_instance_proc_addr *)GetProcAddress(vulkan.dll, "vkGetInstanceProcAddr");
-    return true;
-}
-
-#define VulkanLoadGlobalFunc(func)                                     \
-    func = (VulkanFuncPtr(func))vkGetInstanceProcAddr(nullptr, #func); \
-    if (!(func))                                                       \
-    {                                                                  \
-        return false;                                                  \
-    }
-static bool Vulkan::LoadGlobalFunctions()
-{
-    VulkanLoadGlobalFunc(vkCreateInstance);
-    VulkanLoadGlobalFunc(vkEnumerateInstanceLayerProperties);
-    VulkanLoadGlobalFunc(vkEnumerateInstanceExtensionProperties);
-    return true;
-}
-
-#define VulkanLoadInstanceFunc(func)                                    \
-    func = (VulkanFuncPtr(func))vkGetInstanceProcAddr(instance, #func); \
-    if (!(func))                                                        \
-    {                                                                   \
-        return false;                                                   \
-    }
-static bool Vulkan::LoadInstanceFunctions(VkInstance instance)
-{
-    VulkanLoadInstanceFunc(vkDestroyInstance);
-
-#if VULKAN_VALIDATION_LAYERS_ON
-    VulkanLoadInstanceFunc(vkCreateDebugUtilsMessengerEXT);
-    VulkanLoadInstanceFunc(vkDestroyDebugUtilsMessengerEXT);
-#endif
-
-    VulkanLoadInstanceFunc(vkCreateWin32SurfaceKHR); // NOTE: Windows ONLY
-    VulkanLoadInstanceFunc(vkDestroySurfaceKHR);
-
-    VulkanLoadInstanceFunc(vkEnumeratePhysicalDevices);
-    VulkanLoadInstanceFunc(vkGetPhysicalDeviceQueueFamilyProperties);
-    VulkanLoadInstanceFunc(vkGetPhysicalDeviceSurfaceSupportKHR);
-    VulkanLoadInstanceFunc(vkGetPhysicalDeviceSurfaceFormatsKHR);
-    VulkanLoadInstanceFunc(vkGetPhysicalDeviceSurfaceCapabilitiesKHR);
-    VulkanLoadInstanceFunc(vkGetPhysicalDeviceFormatProperties);
-    VulkanLoadInstanceFunc(vkGetPhysicalDeviceMemoryProperties);
-
-    VulkanLoadInstanceFunc(vkEnumerateDeviceExtensionProperties);
-    VulkanLoadInstanceFunc(vkCreateDevice);
-    VulkanLoadInstanceFunc(vkGetDeviceProcAddr);
-
-    return true;
-}
-
-#define VulkanLoadDeviceFunc(func)                                  \
-    func = (VulkanFuncPtr(func))vkGetDeviceProcAddr(device, #func); \
-    if (!(func))                                                    \
-    {                                                               \
-        return false;                                               \
-    }
-static bool Vulkan::LoadDeviceFunctions(VkDevice device)
-{
-    VulkanLoadDeviceFunc(vkDeviceWaitIdle);
-    VulkanLoadDeviceFunc(vkDestroyDevice);
-    VulkanLoadDeviceFunc(vkGetDeviceQueue);
-
-    VulkanLoadDeviceFunc(vkCreateSwapchainKHR);
-    VulkanLoadDeviceFunc(vkDestroySwapchainKHR);
-    VulkanLoadDeviceFunc(vkGetSwapchainImagesKHR);
-
-    VulkanLoadDeviceFunc(vkCreateSemaphore);
-    VulkanLoadDeviceFunc(vkDestroySemaphore);
-    VulkanLoadDeviceFunc(vkAcquireNextImageKHR);
-    VulkanLoadDeviceFunc(vkQueueSubmit);
-    VulkanLoadDeviceFunc(vkQueuePresentKHR);
-
-    VulkanLoadDeviceFunc(vkCreateCommandPool);
-    VulkanLoadDeviceFunc(vkDestroyCommandPool);
-    VulkanLoadDeviceFunc(vkAllocateCommandBuffers);
-    VulkanLoadDeviceFunc(vkFreeCommandBuffers);
-    VulkanLoadDeviceFunc(vkBeginCommandBuffer);
-    VulkanLoadDeviceFunc(vkEndCommandBuffer);
-    VulkanLoadDeviceFunc(vkResetCommandBuffer);
-
-    VulkanLoadDeviceFunc(vkCmdPipelineBarrier);
-    VulkanLoadDeviceFunc(vkCmdClearColorImage);
-
-    VulkanLoadDeviceFunc(vkCreateImage);
-    VulkanLoadDeviceFunc(vkDestroyImage);
-    VulkanLoadDeviceFunc(vkCreateImageView);
-    VulkanLoadDeviceFunc(vkDestroyImageView);
-    VulkanLoadDeviceFunc(vkGetImageMemoryRequirements);
-    VulkanLoadDeviceFunc(vkBindImageMemory);
-
-    VulkanLoadDeviceFunc(vkAllocateMemory);
-    VulkanLoadDeviceFunc(vkFreeMemory);
     return true;
 }
 
@@ -122,88 +30,29 @@ static bool Vulkan::FindMemoryProperties(VkPhysicalDeviceMemoryProperties &memor
     return false;
 }
 
-#if VULKAN_VALIDATION_LAYERS_ON
-static VKAPI_ATTR VkBool32 VKAPI_CALL
-Vulkan::DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-                      VkDebugUtilsMessageTypeFlagsEXT messageType,
-                      const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
-                      void *pUserData)
+static bool Vulkan::CreateFrameBuffers()
 {
-    bool isError = false;
-    char *type;
-    if (messageType == VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT)
-        type = "Some general event has occurred";
-    else if (messageType == VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT)
-        type = "Something has occurred during validation against the Vulkan specification that may indicate invalid behavior.";
-    else
-        type = "Potentially non-optimal use of Vulkan.";
-
-    if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
+    VkFramebufferCreateInfo framebufferInfo = {};
+    framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    framebufferInfo.renderPass = vulkan.renderPass;
+    framebufferInfo.attachmentCount = 1;
+    framebufferInfo.width = vulkan.windowExtent.width;
+    framebufferInfo.height = vulkan.windowExtent.height;
+    framebufferInfo.layers = 1;
+    for (u32 i = 0; i < vulkan.swapchainImageCount; i++)
     {
-        DebugPrint("WARNING: ");
+        framebufferInfo.pAttachments = &vulkan.swapchainImageViews[i];
+        ASSERT_VK_SUCCESS(vkCreateFramebuffer(vulkan.device, &framebufferInfo, 0, &vulkan.framebuffers[i]));
     }
-    else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT)
-    {
-        DebugPrint("DIAGNOSTIC: ");
-    }
-    else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
-    {
-        DebugPrint("INFO: ");
-    }
-    else
-    {
-        DebugPrint("ERROR: ");
-        isError = true;
-    }
-    DebugPrint(type);
-    DebugPrint('\n');
-    DebugPrint(pCallbackData->pMessageIdName);
-    DebugPrint('\n');
-
-    char c;
-    u32 i = 0;
-    do
-    {
-        c = pCallbackData->pMessage[i];
-        i++;
-    } while (c != ']');
-    i++;
-    do
-    {
-        c = pCallbackData->pMessage[i];
-        if (c != ';' && c != '|')
-        {
-            DebugPrint(c);
-            i++;
-        }
-        else
-        {
-            DebugPrint('\n');
-            i++;
-            do
-            {
-                c = pCallbackData->pMessage[i];
-                i++;
-            } while (c == ' ' || c == '|');
-            i--;
-        }
-    } while (c != '\0');
-    DebugPrint('\n');
-    if (isError)
-    {
-        Assert(0);
-        return VK_FALSE;
-    }
-    return VK_FALSE;
+    return true;
 }
-#endif
 
-static bool Vulkan::CreateCommandBuffers(vulkan_state &vulkan)
+static bool Vulkan::CreateCommandBuffers()
 {
     VkCommandPoolCreateInfo cmdPoolInfo = {};
     cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     cmdPoolInfo.queueFamilyIndex = vulkan.presentQueueFamilyIndex;
-    cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT; //VK_COMMAND_POOL_CREATE_TRANSIENT_BIT
     ASSERT_VK_SUCCESS(vkCreateCommandPool(vulkan.device, &cmdPoolInfo, 0, &vulkan.cmdPool));
 
     VkCommandBufferAllocateInfo cmdBufferAllocInfo = {};
@@ -213,10 +62,12 @@ static bool Vulkan::CreateCommandBuffers(vulkan_state &vulkan)
     cmdBufferAllocInfo.commandBufferCount = vulkan.swapchainImageCount;
     ASSERT_VK_SUCCESS(vkAllocateCommandBuffers(vulkan.device, &cmdBufferAllocInfo, vulkan.cmdBuffers));
 
+    for (u32 i = 0; i < NUM_SWAPCHAIN_IMAGES; i++)
+        vulkan.recordCmdBuffer[i] = true;
     return true;
 }
 
-static bool Vulkan::CreateSwapchain(vulkan_state &vulkan)
+static bool Vulkan::CreateSwapchain()
 {
     if (VulkanIsValidHandle(vulkan.device))
         vkDeviceWaitIdle(vulkan.device);
@@ -250,27 +101,27 @@ static bool Vulkan::CreateSwapchain(vulkan_state &vulkan)
         VkSurfaceCapabilitiesKHR surfCapabilities = {};
         ASSERT_VK_SUCCESS(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vulkan.gpu, vulkan.surface, &surfCapabilities));
 
-        VkExtent2D desiredExtent = {};
+        vulkan.windowExtent = {};
         if (surfCapabilities.currentExtent.width == UINT32_MAX)
         {
-            desiredExtent.width = WINDOW_WIDTH;
-            desiredExtent.height = WINDOW_HEIGHT;
+            vulkan.windowExtent.width = WINDOW_WIDTH;
+            vulkan.windowExtent.height = WINDOW_HEIGHT;
 
-            if (desiredExtent.width < surfCapabilities.minImageExtent.width)
-                desiredExtent.width = surfCapabilities.minImageExtent.width;
-            else if (desiredExtent.width > surfCapabilities.maxImageExtent.width)
-                desiredExtent.width = surfCapabilities.maxImageExtent.width;
+            if (vulkan.windowExtent.width < surfCapabilities.minImageExtent.width)
+                vulkan.windowExtent.width = surfCapabilities.minImageExtent.width;
+            else if (vulkan.windowExtent.width > surfCapabilities.maxImageExtent.width)
+                vulkan.windowExtent.width = surfCapabilities.maxImageExtent.width;
 
-            if (desiredExtent.height < surfCapabilities.minImageExtent.height)
-                desiredExtent.height = surfCapabilities.minImageExtent.height;
-            else if (desiredExtent.height > surfCapabilities.maxImageExtent.height)
-                desiredExtent.height = surfCapabilities.maxImageExtent.height;
+            if (vulkan.windowExtent.height < surfCapabilities.minImageExtent.height)
+                vulkan.windowExtent.height = surfCapabilities.minImageExtent.height;
+            else if (vulkan.windowExtent.height > surfCapabilities.maxImageExtent.height)
+                vulkan.windowExtent.height = surfCapabilities.maxImageExtent.height;
         }
         else
         { // If the surface size is defined, the swap chain size must match
-            desiredExtent = surfCapabilities.currentExtent;
+            vulkan.windowExtent = surfCapabilities.currentExtent;
         }
-        if ((desiredExtent.width == 0) || (desiredExtent.height == 0))
+        if ((vulkan.windowExtent.width == 0) || (vulkan.windowExtent.height == 0))
         {
             // Current surface size is (0, 0) so we can't create a swap chain and render anything (CanRender == false)
             // But we don't wont to kill the application as this situation may occur i.e. when window gets minimized
@@ -332,7 +183,7 @@ static bool Vulkan::CreateSwapchain(vulkan_state &vulkan)
         VkSwapchainCreateInfoKHR swapchainInfo = {};
         swapchainInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
         swapchainInfo.surface = vulkan.surface;
-        swapchainInfo.imageExtent = desiredExtent;
+        swapchainInfo.imageExtent = vulkan.windowExtent;
         swapchainInfo.imageFormat = vulkan.surfaceFormat.format;
         swapchainInfo.imageColorSpace = vulkan.surfaceFormat.colorSpace;
         swapchainInfo.imageArrayLayers = 1;
@@ -368,7 +219,7 @@ static bool Vulkan::CreateSwapchain(vulkan_state &vulkan)
 
     // NOTE: Create the Image views
     {
-        Vulkan::ClearSwapchainImages(vulkan);
+        Vulkan::ClearSwapchainImages();
         ASSERT_VK_SUCCESS(vkGetSwapchainImagesKHR(vulkan.device, vulkan.swapchain, &vulkan.swapchainImageCount, 0));
         Assert(vulkan.swapchainImageCount == ArrayCount(vulkan.swapchainImages));
         ASSERT_VK_SUCCESS(vkGetSwapchainImagesKHR(vulkan.device, vulkan.swapchain, &vulkan.swapchainImageCount, vulkan.swapchainImages));
@@ -398,9 +249,9 @@ static bool Vulkan::CreateSwapchain(vulkan_state &vulkan)
 }
 
 // TODO: Make it cross-platform
-static bool Vulkan::Win32Initialize(vulkan_state &vulkan, HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
+static bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
 {
-    if (!Vulkan::Win32LoadDLL(vulkan))
+    if (!Vulkan::Win32LoadDLL())
     {
         return false;
     }
@@ -518,8 +369,9 @@ static bool Vulkan::Win32Initialize(vulkan_state &vulkan, HINSTANCE &wndInstance
 #endif
 
         ASSERT_VK_SUCCESS(vkCreateInstance(&instanceInfo, NULL, &vulkan.instance));
-        if (!Vulkan::LoadInstanceFunctions(vulkan.instance))
+        if (!Vulkan::LoadInstanceFunctions())
         {
+            Assert("ERROR: Instance Functions not loaded\n");
             return false;
         }
 
@@ -679,7 +531,7 @@ static bool Vulkan::Win32Initialize(vulkan_state &vulkan, HINSTANCE &wndInstance
         deviceInfo.enabledExtensionCount = ArrayCount(desiredDeviceExtensions);
         deviceInfo.ppEnabledExtensionNames = desiredDeviceExtensions;
         ASSERT_VK_SUCCESS(vkCreateDevice(vulkan.gpu, &deviceInfo, 0, &vulkan.device));
-        if (!Vulkan::LoadDeviceFunctions(vulkan.device))
+        if (!Vulkan::LoadDeviceFunctions())
         {
             Assert("ERROR: Device Functions not loaded\n");
             return false;
@@ -690,12 +542,17 @@ static bool Vulkan::Win32Initialize(vulkan_state &vulkan, HINSTANCE &wndInstance
     vkGetDeviceQueue(vulkan.device, vulkan.graphicsQueueFamilyIndex, 0, &vulkan.graphicsQueue);
     vkGetDeviceQueue(vulkan.device, vulkan.presentQueueFamilyIndex, 0, &vulkan.presentQueue);
 
-    // NOTE: Create semaphores
+    // NOTE: Create semaphores and fence
     {
         VkSemaphoreCreateInfo semaphoreInfo = {};
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
         ASSERT_VK_SUCCESS(vkCreateSemaphore(vulkan.device, &semaphoreInfo, 0, &vulkan.imageAvailableSem));
         ASSERT_VK_SUCCESS(vkCreateSemaphore(vulkan.device, &semaphoreInfo, 0, &vulkan.renderFinishedSem));
+
+        VkFenceCreateInfo fenceInfo = {};
+        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+        ASSERT_VK_SUCCESS(vkCreateFence(vulkan.device, &fenceInfo, 0, &vulkan.renderFence));
     }
 
     // NOTE: Create a depth buffer
@@ -760,21 +617,80 @@ static bool Vulkan::Win32Initialize(vulkan_state &vulkan, HINSTANCE &wndInstance
         ASSERT_VK_SUCCESS(vkCreateImageView(vulkan.device, &depthImageViewInfo, 0, &vulkan.depthImageView));
     }*/
 
-    if (!Vulkan::CreateSwapchain(vulkan))
+    if (!Vulkan::CreateSwapchain())
     {
+        Assert("Failed to create swapchain");
         return false;
     }
-    if (!Vulkan::CreateCommandBuffers(vulkan))
+
+    if (!Vulkan::CreateCommandBuffers())
     {
+        Assert("Failed to create command buffers");
+        return false;
+    }
+
+    // NOTE: Create a renderpass
+    {
+        //The follow structures are, in general, parallel arrays that describe a subpass.
+        //Here we only have one subpass for now.
+        VkAttachmentDescription attachmentDescriptions = {};
+        attachmentDescriptions.flags = 0;
+        attachmentDescriptions.format = vulkan.surfaceFormat.format;
+        attachmentDescriptions.samples = VK_SAMPLE_COUNT_1_BIT;
+        attachmentDescriptions.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        attachmentDescriptions.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        attachmentDescriptions.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        attachmentDescriptions.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        attachmentDescriptions.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        attachmentDescriptions.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+        VkAttachmentReference colorAttachmentReferences = {};
+        colorAttachmentReferences.attachment = 0;
+        colorAttachmentReferences.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        VkSubpassDescription subpassDescriptions = {};
+        subpassDescriptions.flags = 0;
+        subpassDescriptions.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpassDescriptions.inputAttachmentCount = 0;
+        subpassDescriptions.pInputAttachments = 0;
+        subpassDescriptions.colorAttachmentCount = 1;
+        subpassDescriptions.pColorAttachments = &colorAttachmentReferences;
+        subpassDescriptions.pResolveAttachments = 0;
+        subpassDescriptions.pDepthStencilAttachment = 0;
+        subpassDescriptions.preserveAttachmentCount = 0;
+        subpassDescriptions.pPreserveAttachments = 0;
+
+        VkRenderPassCreateInfo renderPassInfo = {};
+        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        renderPassInfo.attachmentCount = 1;
+        renderPassInfo.pAttachments = &attachmentDescriptions;
+        renderPassInfo.subpassCount = 1;
+        renderPassInfo.pSubpasses = &subpassDescriptions;
+        ASSERT_VK_SUCCESS(vkCreateRenderPass(vulkan.device, &renderPassInfo, 0, &vulkan.renderPass));
+    }
+
+    if (!CreateFrameBuffers())
+    {
+        Assert("Failed to create framebuffers");
         return false;
     }
 
     vulkan.canRender = true;
-
     return true;
 }
 
-static void Vulkan::ClearCommands(vulkan_state &vulkan)
+static void Vulkan::ClearFrameBuffers()
+{
+    if (VulkanIsValidHandle(vulkan.device))
+    {
+        for (u32 i = 0; i < vulkan.swapchainImageCount; i++)
+        {
+            vkDestroyFramebuffer(vulkan.device, vulkan.framebuffers[i], 0);
+        }
+    }
+}
+
+static void Vulkan::ClearCommands()
 {
     if (VulkanIsValidHandle(vulkan.device))
     {
@@ -794,7 +710,7 @@ static void Vulkan::ClearCommands(vulkan_state &vulkan)
     }
 }
 
-static void Vulkan::ClearSwapchainImages(vulkan_state &vulkan)
+static void Vulkan::ClearSwapchainImages()
 {
     if (VulkanIsValidHandle(vulkan.device))
     {
@@ -806,7 +722,7 @@ static void Vulkan::ClearSwapchainImages(vulkan_state &vulkan)
     }
 }
 
-static void Vulkan::Destroy(vulkan_state &vulkan)
+static void Vulkan::Destroy()
 {
     if (VulkanIsValidHandle(vulkan.device))
     {
@@ -821,16 +737,23 @@ static void Vulkan::Destroy(vulkan_state &vulkan)
         if (VulkanIsValidHandle(vulkan.depthImage))
             vkDestroyImage(vulkan.device, vulkan.depthImage, 0);
 
-        Vulkan::ClearSwapchainImages(vulkan);
+        Vulkan::ClearSwapchainImages();
+        Vulkan::ClearFrameBuffers();
+
         if (VulkanIsValidHandle(vulkan.swapchain))
             vkDestroySwapchainKHR(vulkan.device, vulkan.swapchain, 0);
+
+        if (VulkanIsValidHandle(vulkan.renderPass))
+            vkDestroyRenderPass(vulkan.device, vulkan.renderPass, 0);
 
         if (VulkanIsValidHandle(vulkan.imageAvailableSem))
             vkDestroySemaphore(vulkan.device, vulkan.imageAvailableSem, 0);
         if (VulkanIsValidHandle(vulkan.renderFinishedSem))
             vkDestroySemaphore(vulkan.device, vulkan.renderFinishedSem, 0);
+        if (VulkanIsValidHandle(vulkan.renderFence))
+            vkDestroyFence(vulkan.device, vulkan.renderFence, 0);
 
-        Vulkan::ClearCommands(vulkan);
+        Vulkan::ClearCommands();
 
         vkDestroyDevice(vulkan.device, 0);
     }
@@ -853,19 +776,41 @@ static void Vulkan::Destroy(vulkan_state &vulkan)
     return;
 }
 
-static bool Vulkan::ClearScreenToSolid(vulkan_state &vulkan, float color[3])
+static bool Vulkan::ClearScreenToSolid(float color[3])
 {
     // TODO: THIS IS VERY WASTEFULL
-    Vulkan::ClearCommands(vulkan);
-    if (!Vulkan::CreateCommandBuffers(vulkan))
-        return false;
+    //Vulkan::ClearCommands();
+    //if (!Vulkan::CreateCommandBuffers())
+    //    return false;
 
     VkCommandBufferBeginInfo commandBufferBeginInfo = {};
     commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-    VkClearColorValue clearColor = VulkanClearColor(color[0], color[1], color[2], 0.0f);
+    VkRenderPassBeginInfo rpInfo = {};
+    rpInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    rpInfo.renderPass = vulkan.renderPass;
+    rpInfo.renderArea.extent = vulkan.windowExtent;
+    rpInfo.clearValueCount = 1;
 
+    VkClearValue clearValue = {};
+    clearValue.color = VulkanClearColor(color[0], color[1], color[2], 0.0f);
+    rpInfo.pClearValues = &clearValue;
+
+    for (u32 i = 0; i < NUM_SWAPCHAIN_IMAGES; i++)
+    {
+        if (vulkan.recordCmdBuffer[i])
+        {
+            rpInfo.framebuffer = vulkan.framebuffers[i];
+            ASSERT_VK_SUCCESS(vkResetCommandBuffer(vulkan.cmdBuffers[i], VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT));
+            ASSERT_VK_SUCCESS(vkBeginCommandBuffer(vulkan.cmdBuffers[i], &commandBufferBeginInfo));
+            vkCmdBeginRenderPass(vulkan.cmdBuffers[i], &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
+            vkCmdEndRenderPass(vulkan.cmdBuffers[i]);
+            ASSERT_VK_SUCCESS(vkEndCommandBuffer(vulkan.cmdBuffers[i]));
+        }
+    }
+
+    /*
     VkImageSubresourceRange imageSubresourceRange = {};
     imageSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     imageSubresourceRange.baseMipLevel = 0;
@@ -897,7 +842,6 @@ static bool Vulkan::ClearScreenToSolid(vulkan_state &vulkan, float color[3])
         barrierFromClearToPresent.image = vulkan.swapchainImages[i];
         barrierFromClearToPresent.subresourceRange = imageSubresourceRange;
 
-        //ASSERT_VK_SUCCESS(vkResetCommandBuffer(vulkan.cmdBuffers[i], VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
         ASSERT_VK_SUCCESS(vkBeginCommandBuffer(vulkan.cmdBuffers[i], &commandBufferBeginInfo));
         vkCmdPipelineBarrier(vulkan.cmdBuffers[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
                              0, 0, 0, 0, 0, 1, &barrierFromPresentToClear);
@@ -907,49 +851,54 @@ static bool Vulkan::ClearScreenToSolid(vulkan_state &vulkan, float color[3])
                              0, 0, 0, 0, 0, 1, &barrierFromClearToPresent);
         ASSERT_VK_SUCCESS(vkEndCommandBuffer(vulkan.cmdBuffers[i]));
     }
+    */
     return true;
 }
 
-static bool Vulkan::OnWindowSizeChange(vulkan_state &vulkan)
+static bool Vulkan::Draw()
 {
-    Vulkan::ClearCommands(vulkan);
-    if (!Vulkan::CreateSwapchain(vulkan))
-        return false;
-    if (!Vulkan::CreateCommandBuffers(vulkan))
-        return false;
-    return true;
-}
+    ASSERT_VK_SUCCESS(vkWaitForFences(vulkan.device, 1, &vulkan.renderFence, true, UINT64_MAX));
+    ASSERT_VK_SUCCESS(vkResetFences(vulkan.device, 1, &vulkan.renderFence));
 
-static bool Vulkan::Draw(vulkan_state &vulkan)
-{
     // NOTE: Get the image
-    u32 imageIndex;
     VkResult result = vkAcquireNextImageKHR(vulkan.device, vulkan.swapchain, UINT64_MAX,
-                                            vulkan.imageAvailableSem, 0, &imageIndex);
+                                            vulkan.imageAvailableSem, 0, &vulkan.currentImage);
+
+    if (vulkan.currentImage == 0)
+    {
+        vulkan.recordCmdBuffer[0] = false;
+        vulkan.recordCmdBuffer[1] = true;
+    }
+    else
+    {
+        vulkan.recordCmdBuffer[0] = true;
+        vulkan.recordCmdBuffer[1] = false;
+    }
+
     switch (result)
     {
     case VK_SUCCESS:
     case VK_SUBOPTIMAL_KHR:
         break;
     case VK_ERROR_OUT_OF_DATE_KHR:
-        return Vulkan::OnWindowSizeChange(vulkan);
+        return Vulkan::OnWindowSizeChange();
     default:
         DebugPrint("Problem occurred during swap chain image acquisition!\n");
         return false;
     }
 
     // NOTE: Wait on imageAvailableSem and submit the command buffer and signal renderFinishedSem
-    VkPipelineStageFlags waitDestStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    VkPipelineStageFlags waitDestStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     VkSubmitInfo submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.pWaitDstStageMask = &waitDestStageMask;
     submitInfo.waitSemaphoreCount = 1;
     submitInfo.pWaitSemaphores = &vulkan.imageAvailableSem;
-    submitInfo.pWaitDstStageMask = &waitDestStageMask;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &vulkan.cmdBuffers[imageIndex];
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = &vulkan.renderFinishedSem;
-    vkQueueSubmit(vulkan.presentQueue, 1, &submitInfo, 0);
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &vulkan.cmdBuffers[vulkan.currentImage];
+    ASSERT_VK_SUCCESS(vkQueueSubmit(vulkan.graphicsQueue, 1, &submitInfo, vulkan.renderFence));
 
     // NOTE: Submit image to present when signaled by renderFinishedSem
     VkPresentInfoKHR presentInfo = {};
@@ -958,8 +907,8 @@ static bool Vulkan::Draw(vulkan_state &vulkan)
     presentInfo.pWaitSemaphores = &vulkan.renderFinishedSem;
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = &vulkan.swapchain;
-    presentInfo.pImageIndices = &imageIndex;
-    vkQueuePresentKHR(vulkan.presentQueue, &presentInfo);
+    presentInfo.pImageIndices = &vulkan.currentImage;
+    result = vkQueuePresentKHR(vulkan.presentQueue, &presentInfo);
 
     switch (result)
     {
@@ -967,7 +916,7 @@ static bool Vulkan::Draw(vulkan_state &vulkan)
         break;
     case VK_ERROR_OUT_OF_DATE_KHR:
     case VK_SUBOPTIMAL_KHR:
-        return Vulkan::OnWindowSizeChange(vulkan);
+        return Vulkan::OnWindowSizeChange();
     default:
         DebugPrint("Problem occurred during image presentation!\n");
         return false;
@@ -975,7 +924,91 @@ static bool Vulkan::Draw(vulkan_state &vulkan)
     return true;
 }
 
-bool Vulkan::CanRender(vulkan_state &vulkan)
+static bool Vulkan::OnWindowSizeChange()
 {
-    return vulkan.canRender;
+    Vulkan::ClearCommands();
+    Vulkan::ClearFrameBuffers();
+    if (!Vulkan::CreateSwapchain())
+        return false;
+    if (!Vulkan::CreateCommandBuffers())
+        return false;
+    if (!Vulkan::CreateFrameBuffers())
+        return false;
+    return true;
 }
+
+#if VULKAN_VALIDATION_LAYERS_ON
+static VKAPI_ATTR VkBool32 VKAPI_CALL
+Vulkan::DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+                      VkDebugUtilsMessageTypeFlagsEXT messageType,
+                      const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
+                      void *pUserData)
+{
+    bool isError = false;
+    char *type;
+    if (messageType == VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT)
+        type = "Some general event has occurred";
+    else if (messageType == VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT)
+        type = "Something has occurred during validation against the Vulkan specification that may indicate invalid behavior.";
+    else
+        type = "Potentially non-optimal use of Vulkan.";
+
+    if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
+    {
+        DebugPrint("WARNING: ");
+    }
+    else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT)
+    {
+        DebugPrint("DIAGNOSTIC: ");
+    }
+    else if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
+    {
+        DebugPrint("INFO: ");
+    }
+    else
+    {
+        DebugPrint("ERROR: ");
+        isError = true;
+    }
+    DebugPrint(type);
+    DebugPrint('\n');
+    DebugPrint(pCallbackData->pMessageIdName);
+    DebugPrint('\n');
+
+    char c;
+    u32 i = 0;
+    do
+    {
+        c = pCallbackData->pMessage[i];
+        i++;
+    } while (c != ']');
+    i++;
+    do
+    {
+        c = pCallbackData->pMessage[i];
+        if (c != ';' && c != '|')
+        {
+            DebugPrint(c);
+            i++;
+        }
+        else
+        {
+            DebugPrint('\n');
+            i++;
+            do
+            {
+                c = pCallbackData->pMessage[i];
+                i++;
+            } while (c == ' ' || c == '|');
+            i--;
+        }
+    } while (c != '\0');
+    DebugPrint('\n');
+    if (isError)
+    {
+        Assert(0);
+        return VK_FALSE;
+    }
+    return VK_FALSE;
+}
+#endif
