@@ -81,10 +81,18 @@ static LRESULT Win32MainWindowProc(HWND handle, UINT message, WPARAM wParam, LPA
 		break;
 	}
 
-	case WM_SIZE:
-	case WM_EXITSIZEMOVE:
+	case WM_GETMINMAXINFO:
+	{
+		LPMINMAXINFO lpMMI = (LPMINMAXINFO)lParam;
+		lpMMI->ptMinTrackSize.x = WINDOW_WIDTH_MIN;
+		lpMMI->ptMinTrackSize.y = WINDOW_HEIGHT_MIN;
 		PostMessage(handle, WM_USER + 1, wParam, lParam);
 		break;
+	}
+
+		//case WM_SIZE:
+		//case WM_EXITSIZEMOVE:
+		//	break;
 
 	case WM_CLOSE:
 	{
@@ -276,8 +284,10 @@ static bool Win32ProcessMessages(win32_window &window, engine_input &input, i32 
 		switch (message.message)
 		{
 		case WM_QUIT:
+		{
 			return false;
 			break;
+		}
 
 		case WM_USER + 1: //WM_SIZE OR WM_EXITSIZEMOVE
 		{
@@ -285,6 +295,7 @@ static bool Win32ProcessMessages(win32_window &window, engine_input &input, i32 
 			window.dimensions = Win32GetWindowDim(window.handle);
 			break;
 		}
+
 		/***************** KEYBOARD EVENTS ****************/
 		case WM_SYSKEYDOWN:
 		case WM_KEYDOWN:
@@ -426,7 +437,7 @@ static bool Win32InitializeWindow(win32_window &window, u16 width, u16 height, L
 	AttachConsole(GetCurrentProcessId());
 	freopen("CON", "w", stdout);
 	freopen("CON", "w", stderr);
-	SetConsoleTitle("Warnings / Errors");
+	SetConsoleTitle("hy3d vulkan log");
 #endif
 
 	window.instance = GetModuleHandleW(nullptr);

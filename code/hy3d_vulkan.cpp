@@ -8,6 +8,8 @@ static bool Vulkan::Win32LoadDLL()
         return false;
 
     vkGetInstanceProcAddr = (vk_get_instance_proc_addr *)GetProcAddress(vulkan.dll, "vkGetInstanceProcAddr");
+
+    DebugPrint("Loaded DLL\n");
     return true;
 }
 
@@ -44,6 +46,7 @@ static bool Vulkan::CreateFrameBuffers()
         framebufferInfo.pAttachments = &vulkan.swapchainImageViews[i];
         ASSERT_VK_SUCCESS(vkCreateFramebuffer(vulkan.device, &framebufferInfo, 0, &vulkan.framebuffers[i]));
     }
+    DebugPrint("Created FrameBuffers\n");
     return true;
 }
 
@@ -64,6 +67,7 @@ static bool Vulkan::CreateCommandBuffers()
 
     for (u32 i = 0; i < NUM_SWAPCHAIN_IMAGES; i++)
         vulkan.recordCmdBuffer[i] = true;
+    DebugPrint("Created CommandBuffers\n");
     return true;
 }
 
@@ -76,27 +80,7 @@ static bool Vulkan::CreateSwapchain()
 
     vulkan.canRender = false;
 
-    // NOTE: 1.set a proper surface format
-    {
-        vulkan.surfaceFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-        vulkan.surfaceFormat.format = VK_FORMAT_B8G8R8A8_UNORM;
-        u32 formatCount = 0;
-        VkSurfaceFormatKHR availableFormats[16] = {};
-        bool desiredSurfaceFormatSupported = false;
-        ASSERT_VK_SUCCESS(vkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.gpu, vulkan.surface, &formatCount, 0));
-        Assert(formatCount <= ArrayCount(availableFormats));
-        for (u32 i = 0; i < formatCount; ++i)
-            ASSERT_VK_SUCCESS(vkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.gpu, vulkan.surface, &formatCount, &availableFormats[i]));
-        for (u32 i = 0; i < formatCount; ++i)
-        {
-            if (vulkan.surfaceFormat.format == availableFormats[i].format &&
-                vulkan.surfaceFormat.colorSpace == availableFormats[i].colorSpace)
-                desiredSurfaceFormatSupported = true;
-        }
-        Assert(desiredSurfaceFormatSupported);
-    }
-
-    // NOTE: 2. Get Surface capabilities
+    // NOTE: Get Surface capabilities
     {
         VkSurfaceCapabilitiesKHR surfCapabilities = {};
         ASSERT_VK_SUCCESS(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vulkan.gpu, vulkan.surface, &surfCapabilities));
@@ -123,23 +107,22 @@ static bool Vulkan::CreateSwapchain()
         }
         if ((vulkan.windowExtent.width == 0) || (vulkan.windowExtent.height == 0))
         {
-            // Current surface size is (0, 0) so we can't create a swap chain and render anything (CanRender == false)
-            // But we don't wont to kill the application as this situation may occur i.e. when window gets minimized
+            DebugPrint("Window minimized or completed shrinked.\n");
             return true;
         }
-
-        // NOTE: 3. Determine the number of VkImage's to use in the swap chain.
+        
+        // NOTE: Determine the number of VkImage's to use in the swap chain.
         //Constant at 2 for now: Double buffering
         Assert(NUM_SWAPCHAIN_IMAGES >= surfCapabilities.minImageCount);
         Assert(NUM_SWAPCHAIN_IMAGES <= surfCapabilities.maxImageCount);
         vulkan.swapchainImageCount = NUM_SWAPCHAIN_IMAGES;
 
-        // NOTE: 4. Determine the pre-transform
+        // NOTE: Determine the pre-transform
         VkSurfaceTransformFlagBitsKHR desiredPreTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR; //do nothing
         if (!(surfCapabilities.supportedTransforms & desiredPreTransform))
             desiredPreTransform = surfCapabilities.currentTransform;
 
-        // NOTE: 5. Set the present mode
+        // NOTE: Set the present mode
         VkPresentModeKHR desiredPresentMode = VK_PRESENT_MODE_FIFO_KHR; //The FIFO present mode is guaranteed by the spec to be supported
 
         //uint32_t presentModeCount;
@@ -155,7 +138,7 @@ static bool Vulkan::CreateSwapchain()
         //}
         //Assert(desiredPresentModeSupported);
 
-        // NOTE: 6. Find a supported composite alpha mode - one of these is guaranteed to be set
+        // NOTE: Find a supported composite alpha mode - one of these is guaranteed to be set
         VkCompositeAlphaFlagBitsKHR desiredCompositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
         VkCompositeAlphaFlagBitsKHR compositeAlphaFlags[4] = {
             VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
@@ -172,14 +155,37 @@ static bool Vulkan::CreateSwapchain()
             }
         }
 
-        // NOTE: 7. Set image usage flags
+        // NOTE: Set image usage flags
         VkImageUsageFlags desiredImageUsageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; //must alwasy be supported
         if (surfCapabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT)
             desiredImageUsageFlags |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
         else
+        {
             DebugPrint("VK_IMAGE_USAGE_TRANSFER_DST_BIT not supported\n");
+            return false;
+        }
 
-        // NOTE: 8. Make the actual swapchain
+        // NOTE: Set a proper surface format
+        {
+            vulkan.surfaceFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+            vulkan.surfaceFormat.format = VK_FORMAT_B8G8R8A8_UNORM;
+            u32 formatCount = 0;
+            VkSurfaceFormatKHR availableFormats[16] = {};
+            bool desiredSurfaceFormatSupported = false;
+            ASSERT_VK_SUCCESS(vkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.gpu, vulkan.surface, &formatCount, 0));
+            Assert(formatCount <= ArrayCount(availableFormats));
+            for (u32 i = 0; i < formatCount; ++i)
+                ASSERT_VK_SUCCESS(vkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.gpu, vulkan.surface, &formatCount, &availableFormats[i]));
+            for (u32 i = 0; i < formatCount; ++i)
+            {
+                if (vulkan.surfaceFormat.format == availableFormats[i].format &&
+                    vulkan.surfaceFormat.colorSpace == availableFormats[i].colorSpace)
+                    desiredSurfaceFormatSupported = true;
+            }
+            Assert(desiredSurfaceFormatSupported);
+        }
+
+        // NOTE: Make the actual swapchain
         VkSwapchainCreateInfoKHR swapchainInfo = {};
         swapchainInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
         swapchainInfo.surface = vulkan.surface;
@@ -243,6 +249,7 @@ static bool Vulkan::CreateSwapchain()
             ASSERT_VK_SUCCESS(vkCreateImageView(vulkan.device, &imageViewInfo, 0, &vulkan.swapchainImageViews[i]));
         }
     }
+    DebugPrint("Created SwapChain\n");
     vulkan.canRender = true;
 
     return true;
@@ -321,6 +328,8 @@ static bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, con
                                           VK_KHR_XLIB_SURFACE_EXTENSION_NAME
 #endif
     };
+
+    DebugPrint("Created Vulkan Debug Messenger\n");
 #endif
 
     // NOTE: Create an instance
@@ -369,6 +378,8 @@ static bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, con
 #endif
 
         ASSERT_VK_SUCCESS(vkCreateInstance(&instanceInfo, NULL, &vulkan.instance));
+        DebugPrint("Created Vulkan Instance\n");
+
         if (!Vulkan::LoadInstanceFunctions())
         {
             Assert("ERROR: Instance Functions not loaded\n");
@@ -417,6 +428,8 @@ static bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, con
         //For now it's ok since I only have 1 gpu.
 
         vkGetPhysicalDeviceMemoryProperties(vulkan.gpu, &vulkan.memoryProperties);
+
+        DebugPrint("Selected a GPU\n");
     }
 
     // NOTE: Pick a queue family the supports both present and graphics operations
@@ -474,6 +487,7 @@ static bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, con
         Assert("vulkan.graphicsQueueFamilyIndex != vulkan.presentQueueFamilyIndex\n");
         return false;
     }
+    DebugPrint("Selected a queue family\n");
 
     // TODO: Need to do some stuff if they are different like:
     //VkDeviceQueueCreateInfo queueInfo[2] = {};
@@ -531,6 +545,8 @@ static bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, con
         deviceInfo.enabledExtensionCount = ArrayCount(desiredDeviceExtensions);
         deviceInfo.ppEnabledExtensionNames = desiredDeviceExtensions;
         ASSERT_VK_SUCCESS(vkCreateDevice(vulkan.gpu, &deviceInfo, 0, &vulkan.device));
+        DebugPrint("\nCreated a Vulkan Device\n");
+
         if (!Vulkan::LoadDeviceFunctions())
         {
             Assert("ERROR: Device Functions not loaded\n");
@@ -553,6 +569,8 @@ static bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, con
         fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
         ASSERT_VK_SUCCESS(vkCreateFence(vulkan.device, &fenceInfo, 0, &vulkan.renderFence));
+
+        DebugPrint("Created Semaphores and Fence\n");
     }
 
     // NOTE: Create a depth buffer
@@ -667,6 +685,8 @@ static bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, con
         renderPassInfo.subpassCount = 1;
         renderPassInfo.pSubpasses = &subpassDescriptions;
         ASSERT_VK_SUCCESS(vkCreateRenderPass(vulkan.device, &renderPassInfo, 0, &vulkan.renderPass));
+
+        DebugPrint("Created a renderpass\n");
     }
 
     if (!CreateFrameBuffers())
@@ -683,19 +703,21 @@ static void Vulkan::ClearFrameBuffers()
 {
     if (VulkanIsValidHandle(vulkan.device))
     {
+        vkDeviceWaitIdle(vulkan.device);
         for (u32 i = 0; i < vulkan.swapchainImageCount; i++)
         {
             vkDestroyFramebuffer(vulkan.device, vulkan.framebuffers[i], 0);
         }
+        DebugPrint("Cleared FrameBuffers\n");
     }
 }
 
-static void Vulkan::ClearCommands()
+static void Vulkan::ClearCommandBuffers()
 {
     if (VulkanIsValidHandle(vulkan.device))
     {
         vkDeviceWaitIdle(vulkan.device);
-
+        // TODO: Should I just reset the command pool?
         if (VulkanIsValidHandle(vulkan.cmdBuffers[0]) && VulkanIsValidHandle(vulkan.cmdBuffers[1])) // TODO: For now we only support double buffering
         {
             vkFreeCommandBuffers(vulkan.device, vulkan.cmdPool, ArrayCount(vulkan.cmdBuffers), vulkan.cmdBuffers);
@@ -707,6 +729,7 @@ static void Vulkan::ClearCommands()
             vkDestroyCommandPool(vulkan.device, vulkan.cmdPool, 0);
             vulkan.cmdPool = 0;
         }
+        DebugPrint("Cleared Command Buffers\n");
     }
 }
 
@@ -719,6 +742,7 @@ static void Vulkan::ClearSwapchainImages()
             if (VulkanIsValidHandle(vulkan.swapchainImageViews[i]))
                 vkDestroyImageView(vulkan.device, vulkan.swapchainImageViews[i], 0);
         }
+        DebugPrint("Cleared Swapchain Image Views\n");
     }
 }
 
@@ -753,7 +777,7 @@ static void Vulkan::Destroy()
         if (VulkanIsValidHandle(vulkan.renderFence))
             vkDestroyFence(vulkan.device, vulkan.renderFence, 0);
 
-        Vulkan::ClearCommands();
+        Vulkan::ClearCommandBuffers();
 
         vkDestroyDevice(vulkan.device, 0);
     }
@@ -773,13 +797,15 @@ static void Vulkan::Destroy()
 
     if (vulkan.dll)
         FreeLibrary(vulkan.dll);
+
+    DebugPrint("Destroyed Vulkan\n");
     return;
 }
 
 static bool Vulkan::ClearScreenToSolid(float color[3])
 {
     // TODO: THIS IS VERY WASTEFULL
-    //Vulkan::ClearCommands();
+    //Vulkan::ClearCommandBuffers();
     //if (!Vulkan::CreateCommandBuffers())
     //    return false;
 
@@ -926,14 +952,23 @@ static bool Vulkan::Draw()
 
 static bool Vulkan::OnWindowSizeChange()
 {
-    Vulkan::ClearCommands();
-    Vulkan::ClearFrameBuffers();
+    DebugPrint("\n- Window Resize:\n");
+
     if (!Vulkan::CreateSwapchain())
         return false;
-    if (!Vulkan::CreateCommandBuffers())
-        return false;
-    if (!Vulkan::CreateFrameBuffers())
-        return false;
+
+    if (!(vulkan.windowExtent.width == 0 || vulkan.windowExtent.height == 0))
+    {
+        Vulkan::ClearCommandBuffers();
+        if (!Vulkan::CreateCommandBuffers())
+            return false;
+
+        Vulkan::ClearFrameBuffers();
+        if (!Vulkan::CreateFrameBuffers())
+            return false;
+    }
+
+    DebugPrint("\n");
     return true;
 }
 

@@ -71,7 +71,7 @@ namespace Vulkan
     static bool CreateCommandBuffers();
     static bool CreateFrameBuffers();
 
-    static void ClearCommands();
+    static void ClearCommandBuffers();
     static void ClearFrameBuffers();
     static void ClearSwapchainImages();
     static void Destroy();
@@ -119,6 +119,9 @@ static bool Vulkan::LoadGlobalFunctions()
     VulkanLoadGlobalFunc(vkCreateInstance);
     VulkanLoadGlobalFunc(vkEnumerateInstanceLayerProperties);
     VulkanLoadGlobalFunc(vkEnumerateInstanceExtensionProperties);
+
+    DebugPrint("Loaded Global Functions\n");
+
     return true;
 }
 
@@ -173,6 +176,8 @@ static bool Vulkan::LoadInstanceFunctions()
     VulkanLoadInstanceFunc(vkEnumerateDeviceExtensionProperties);
     VulkanLoadInstanceFunc(vkCreateDevice);
     VulkanLoadInstanceFunc(vkGetDeviceProcAddr);
+
+    DebugPrint("Loaded Instance Functions\n");
 
     return true;
 }
@@ -266,6 +271,8 @@ static bool Vulkan::LoadDeviceFunctions()
     VulkanLoadDeviceFunc(vkResetFences);
     VulkanLoadDeviceFunc(vkCmdBeginRenderPass);
     VulkanLoadDeviceFunc(vkCmdEndRenderPass);
+
+    DebugPrint("Loaded Device Functions\n");
 
     return true;
 }

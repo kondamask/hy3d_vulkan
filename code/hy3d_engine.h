@@ -6,6 +6,8 @@
 
 #define WINDOW_WIDTH 640
 #define WINDOW_HEIGHT 480
+#define WINDOW_WIDTH_MIN 256
+#define WINDOW_HEIGHT_MIN 144
 
 struct debug_read_file_result
 {

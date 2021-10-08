@@ -52,8 +52,8 @@ extern "C" UPDATE_AND_RENDER(UpdateAndRender)
     e.frameStart = frameEnd;
 
     // NOTE: UPDATE
-    float min = 0.2f;
-    float max = 0.5f;
+    float min = 0.1f;
+    float max = 0.65f;
     for (int i = 0; i < ArrayCount(state->color); i++)
     {
         if (state->color[i] >= max)
@@ -66,7 +66,7 @@ extern "C" UPDATE_AND_RENDER(UpdateAndRender)
             state->change[i] *= -1.0f;
             state->color[i] = min;
         }
-        state->color[i] += state->change[i] * dt * 0.2;
+        state->color[i] += state->change[i] * dt * 0.1f;
     }
 
     //state->color[0] = 0.8;

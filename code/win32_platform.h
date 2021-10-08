@@ -15,7 +15,7 @@ struct win32_window
 	wnd_dim dimensions;
 	HWND handle;
 	HINSTANCE instance;
-	const char *name = "HY3D_ENGINE";
+	const char *name = "hy3d vulkan";
 	bool onResize;
 };
 
