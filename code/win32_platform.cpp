@@ -536,6 +536,23 @@ int CALLBACK WinMain(
 		return 1;
 	}
 
+	// TODO: Use this to load OBJs
+	/*char filename[FILENAME_MAX] = {};
+	WORD filenameOffset = 0;
+	WORD extensionOffset = 0;
+	OPENFILENAMEA openFilename = {};
+	openFilename.lStructSize = sizeof(OPENFILENAME);
+	openFilename.hwndOwner = window.handle;
+	openFilename.hInstance = window.instance;
+	openFilename.lpstrFile = filename;
+	openFilename.nMaxFile = ArrayCount(filename);
+	openFilename.lpstrTitle = "Select an OBJ file";
+	openFilename.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+	openFilename.nFileOffset = filenameOffset;
+	openFilename.nFileExtension = extensionOffset;
+	openFilename.lpstrDefExt = "obj";
+	GetOpenFileNameA(&openFilename);*/
+
 	engine_memory engineMemory = {};
 	if (!Win32InitializeMemory(engineMemory))
 	{

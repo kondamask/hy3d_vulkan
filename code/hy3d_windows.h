@@ -3,6 +3,7 @@
 // target Windows 7 or later
 #define _WIN32_WINNT _WIN32_WINNT_WIN7
 
+
 #include <sdkddkver.h>
 // NOTE: Credit for most of this goes to ChiliTomatoNoodle
 // The following #defines disable a bunch of unused windows stuff. If you
@@ -12,19 +13,19 @@
 #define NOGDICAPMASKS
 #define NOSYSMETRICS
 #define NOMENUS
-#define NOICONS
+//#define NOICONS
 #define NOSYSCOMMANDS
 #define OEMRESOURCE
 #define NOATOM
 #define NOCLIPBOARD
 #define NOCOLOR
-#define NOCTLMGR
+//#define NOCTLMGR
 #define NODRAWTEXT
 #define NOKERNEL
 #define NONLS
 #define NOMEMMGR
 #define NOMETAFILE
-#define NOOPENFILE
+//#define NOOPENFILE
 #define NOSCROLL
 #define NOSERVICE
 #define NOSOUND
@@ -40,9 +41,11 @@
 #define NOPROXYSTUB
 #define NOIMAGE
 #define NOTAPE
+//#define NMHDR
 
 #define NOMINMAX
 
 #define STRICT
 
 #include <Windows.h>
+#include "commdlg.h" // for open file dialog 

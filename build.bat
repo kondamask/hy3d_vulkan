@@ -7,7 +7,7 @@ REM RELEASE
 REM set MODE=-DHY3D_DEBUG=0 -DVULKAN_VALIDATION_LAYERS_ON=0 -O2
 
 set COMPILER_FLAGS=%MODE% -MTd -WL %OPTIMIZATION% -D_CRT_SECURE_NO_WARNINGS=1 -nologo -fp:fast -fp:except- -Gm- -EHsc -Zo -Oi -W4 -wd4100 -wd4458 -wd4505 -wd4201 -FC -Zi -GS-
-set LIBS=user32.lib gdi32.lib
+set LIBS=user32.lib gdi32.lib Comdlg32.lib
 set LINKER_FLAGS=-subsystem:windows -incremental:no -opt:ref %LIBS%
 set EXE_NAME=hy3d_vulkan
 
