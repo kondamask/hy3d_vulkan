@@ -1,0 +1,3 @@
+#include "win32_resource.h"
+
+101 ICON "..\hy3d.ico"

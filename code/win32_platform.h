@@ -2,6 +2,7 @@
 #include "hy3d_base.h"
 #include "hy3d_windows.h"
 #include "hy3d_engine.h"
+#include "win32_resource.h"
 
 #define VK_CODE unsigned char
 

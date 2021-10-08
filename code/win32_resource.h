@@ -1,0 +1,1 @@
+#define IDI_MYAPP_ICON 101

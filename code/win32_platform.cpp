@@ -450,7 +450,7 @@ static bool Win32InitializeWindow(win32_window &window, u16 width, u16 height, L
 	windowClass.lpszClassName = windowTitle;
 	windowClass.hInstance = window.instance;
 	windowClass.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
-	//windowClass.hIcon = LoadIconA(windowClass.hInstance, MAKEINTRESOURCEA(IDI_APPLICATION));
+	windowClass.hIcon = LoadIconA(windowClass.hInstance, MAKEINTRESOURCEA(IDI_MYAPP_ICON));
 
 	if (!RegisterClassA(&windowClass))
 	{
@@ -538,8 +538,7 @@ int CALLBACK WinMain(
 	}
 
 	// TODO: Use this to load OBJs
-	//SHOULD SPECIFY FILE RESTRICTIONS!!!
-	char filename[FILENAME_MAX] = {};
+	/*char filename[FILENAME_MAX] = {};
 	WORD filenameOffset = 0;
 	WORD extensionOffset = 0;
 	OPENFILENAMEA openFilename = {};
@@ -547,13 +546,14 @@ int CALLBACK WinMain(
 	openFilename.hwndOwner = window.handle;
 	openFilename.hInstance = window.instance;
 	openFilename.lpstrFile = filename;
+	openFilename.lpstrFilter = "Wavefront .obj file\0*.obj\0\0";
 	openFilename.nMaxFile = ArrayCount(filename);
 	openFilename.lpstrTitle = "Select an OBJ file";
 	openFilename.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
 	openFilename.nFileOffset = filenameOffset;
 	openFilename.nFileExtension = extensionOffset;
 	openFilename.lpstrDefExt = "obj";
-	GetOpenFileNameA(&openFilename);
+	GetOpenFileNameA(&openFilename);*/
 
 	engine_memory engineMemory = {};
 	if (!Win32InitializeMemory(engineMemory))
