@@ -5,7 +5,7 @@
 #define VK_NO_PROTOTYPES
 
 // TODO: WHY IS THE INCLUDE DIR NOT INCLUDED BY THE COMPILER????
-#include <D:/.DEV/VulkanSDK/1.2.176.1/Include/vulkan/vulkan.h>
+#include "vulkan\vulkan.h"
 
 #define NUM_SAMPLES VK_SAMPLE_COUNT_1_BIT
 #define NUM_SWAPCHAIN_IMAGES 2

@@ -14,11 +14,11 @@ set EXE_NAME=hy3d_vulkan
 if not exist .\build mkdir .\build
 pushd .\build
 
-rc /fowin32_hy3d.res ..\code\win32_resource.rc
+rc /fo win32_hy3d.res /nologo ..\code\win32_resource.rc
 
 del *.pdb > NUL 2> NUL
 set EXPOTED_FUNCS=-EXPORT:UpdateAndRender
 cl  %COMPILER_FLAGS% ..\code\hy3d_engine.cpp -Fmhy3d_engine.map -LD -link -incremental:no -opt:ref  -PDB:hy3d_engine_%RANDOM%.pdb %EXPOTED_FUNCS%
 
-cl  %COMPILER_FLAGS% -I %VULKAN_SDK%\Include ..\code\win32_platform.cpp  win32_hy3d.res -Fwin32_platform.map -Fe%EXE_NAME% -link %LINKER_FLAGS%
+cl  %COMPILER_FLAGS% /I%VULKAN_SDK%\Include ..\code\win32_platform.cpp  win32_hy3d.res -Fwin32_platform.map -Fe%EXE_NAME% -link %LINKER_FLAGS%
 popd

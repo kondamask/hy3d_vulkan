@@ -1,6 +1,5 @@
 #pragma once
 #include "hy3d_base.h"
-#include "hy3d_vulkan.h"
 
 #include <chrono>
 

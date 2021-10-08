@@ -1,3 +1,3 @@
 #include "win32_resource.h"
 
-101 ICON "..\hy3d.ico"
+IDI_MYAPP_ICON ICON "..\hy3d.ico"
