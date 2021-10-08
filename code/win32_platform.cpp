@@ -86,13 +86,14 @@ static LRESULT Win32MainWindowProc(HWND handle, UINT message, WPARAM wParam, LPA
 		LPMINMAXINFO lpMMI = (LPMINMAXINFO)lParam;
 		lpMMI->ptMinTrackSize.x = WINDOW_WIDTH_MIN;
 		lpMMI->ptMinTrackSize.y = WINDOW_HEIGHT_MIN;
+		break;
+	}
+	case WM_SIZE:
+	{
 		PostMessage(handle, WM_USER + 1, wParam, lParam);
 		break;
 	}
-
-		//case WM_SIZE:
 		//case WM_EXITSIZEMOVE:
-		//	break;
 
 	case WM_CLOSE:
 	{
@@ -537,7 +538,8 @@ int CALLBACK WinMain(
 	}
 
 	// TODO: Use this to load OBJs
-	/*char filename[FILENAME_MAX] = {};
+	//SHOULD SPECIFY FILE RESTRICTIONS!!!
+	char filename[FILENAME_MAX] = {};
 	WORD filenameOffset = 0;
 	WORD extensionOffset = 0;
 	OPENFILENAMEA openFilename = {};
@@ -551,7 +553,7 @@ int CALLBACK WinMain(
 	openFilename.nFileOffset = filenameOffset;
 	openFilename.nFileExtension = extensionOffset;
 	openFilename.lpstrDefExt = "obj";
-	GetOpenFileNameA(&openFilename);*/
+	GetOpenFileNameA(&openFilename);
 
 	engine_memory engineMemory = {};
 	if (!Win32InitializeMemory(engineMemory))
