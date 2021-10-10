@@ -1044,8 +1044,8 @@ static bool Vulkan::CreatePipeline()
     
     // TODO(heyyod): THIS IS BAAAAADDDD! Change the paths
     VkShaderModule triangleVertShader, triangleFragShader = {};
-    if(!LoadShader("W:\\hy3d_vulkan\\build\\shaders\\triangle.frag.spv", &triangleFragShader) ||
-       !LoadShader("W:\\hy3d_vulkan\\build\\shaders\\triangle.vert.spv", &triangleVertShader))
+    if(!LoadShader("..\\build\\shaders\\triangle.frag.spv", &triangleFragShader) ||
+       !LoadShader("..\\build\\shaders\\triangle.vert.spv", &triangleVertShader))
     {
         Assert("Couldn't load shaders");
         return false;

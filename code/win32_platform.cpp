@@ -13,7 +13,12 @@ DEBUG_FREE_FILE(DEBUGFreeFileMemory)
 DEBUG_READ_FILE(DEBUGReadFile)
 {
 	debug_read_file_result result = {};
-	HANDLE fileHandle = CreateFileA(filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+	
+    char fullFilePath[MAX_PATH] = {};
+    if(GetFullPathNameA(filename, ArrayCount(fullFilePath), fullFilePath, 0) == 0)
+        return result;
+    
+    HANDLE fileHandle = CreateFileA(fullFilePath, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
 	if (fileHandle != INVALID_HANDLE_VALUE)
 	{
         LARGE_INTEGER fileSize;
@@ -47,7 +52,12 @@ DEBUG_READ_FILE(DEBUGReadFile)
 DEBUG_WRITE_FILE(DEBUGWriteFile)
 {
 	bool result = false;
-	HANDLE fileHandle = CreateFileA(filename, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+	
+    char fullFilePath[MAX_PATH] = {};
+    if(GetFullPathNameA(filename, ArrayCount(fullFilePath), fullFilePath, 0) == 0)
+        return result;
+    
+    HANDLE fileHandle = CreateFileA(filename, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
 	if (fileHandle != INVALID_HANDLE_VALUE)
 	{
 		DWORD bytesWritten;
@@ -390,9 +400,12 @@ static bool Win32ProcessMessages(win32_window &window, engine_input &input, i32 
 static FILETIME Win32GetWriteTime(char *filename)
 {
 	FILETIME result = {};
+    char fullFilePath[MAX_PATH] = {};
+    if(GetFullPathNameA(filename, ArrayCount(fullFilePath), fullFilePath, 0) == 0)
+        return result;
     
 	WIN32_FIND_DATA data = {};
-	HANDLE handle = FindFirstFileA(filename, &data);
+    HANDLE handle = FindFirstFileA(fullFilePath, &data);
 	if (handle != INVALID_HANDLE_VALUE)
 	{
 		result = data.ftLastWriteTime;
@@ -405,9 +418,16 @@ static void Win32LoadEngineCode(win32_engine_code *engineCode, char *sourceFilen
 {
 	// NOTE:  We need to add a sleep in order to wait for the dll compilation.
 	Sleep(800);
-	engineCode->writeTime = Win32GetWriteTime(sourceFilename);
-	CopyFileA(sourceFilename, sourceFilenameCopy, FALSE);
-	engineCode->dll = LoadLibraryA(sourceFilenameCopy);
+	char sourceFullPath[MAX_PATH] = {};
+    if(GetFullPathNameA(sourceFilename, ArrayCount(sourceFullPath), sourceFullPath, 0) == 0)
+        return;
+    char sourceFullPathCopy[MAX_PATH] = {};
+    if(GetFullPathNameA(sourceFilenameCopy, ArrayCount(sourceFullPathCopy), sourceFullPathCopy, 0) == 0)
+        return;
+    
+    engineCode->writeTime = Win32GetWriteTime(sourceFullPath);
+	CopyFileA(sourceFullPath, sourceFullPathCopy, FALSE);
+	engineCode->dll = LoadLibraryA(sourceFullPathCopy);
 	if (engineCode->dll)
 	{
 		engineCode->UpdateAndRender = (update_and_render *)GetProcAddress(engineCode->dll, "UpdateAndRender");
@@ -563,8 +583,8 @@ int CALLBACK WinMain(
     
 	win32_engine_code engineCode = {};
 	// TODO: make this less explicit
-	char *sourceDLLPath = "W:\\hy3d_vulkan\\build\\hy3d_engine.dll";
-	char *sourceDLLCopyPath = "W:\\hy3d_vulkan\\build\\hy3d_engine_copy.dll";
+	char *sourceDLLPath = "..\\build\\hy3d_engine.dll";
+	char *sourceDLLCopyPath = "..\\build\\hy3d_engine_copy.dll";
 	Win32LoadEngineCode(&engineCode, sourceDLLPath, sourceDLLCopyPath);
     
 	hy3d_engine engine = {};
