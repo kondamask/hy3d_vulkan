@@ -587,9 +587,9 @@ int CALLBACK WinMain(
         
 		if (window.onResize)
 		{
-			if (!Vulkan::OnWindowSizeChange())
+			if (!Vulkan::Recreate())
 			{
-				Assert("Failed To Resize Window.");
+				Assert("Failed To Recreate Window.");
 				return -1;
 			}
 			window.onResize = false;

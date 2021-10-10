@@ -775,7 +775,6 @@ static bool Vulkan::CreateSwapchain()
         }
         if ((vulkan.windowExtent.width == 0) || (vulkan.windowExtent.height == 0))
         {
-            DebugPrint("Window minimized or completed shrinked.\n");
             return true;
         }
         
@@ -938,15 +937,6 @@ static void Vulkan::ClearSwapchainImages()
 
 static bool Vulkan::CreatePipeline()
 {
-    // TODO(heyyod): THIS IS BAAAAADDDD!
-    VkShaderModule triangleVertShader, triangleFragShader = {};
-    if(!LoadShader("W:\\hy3d_vulkan\\build\\shaders\\triangle.frag.spv", &triangleFragShader) ||
-       !LoadShader("W:\\hy3d_vulkan\\build\\shaders\\triangle.vert.spv", &triangleVertShader))
-    {
-        Assert("Couldn't load shaders");
-        return false;
-    }
-    
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     //vertexInputInfo.vertexBindingDescriptionCount = 0;
@@ -1043,6 +1033,15 @@ static bool Vulkan::CreatePipeline()
     ASSERT_VK_SUCCESS(vkCreatePipelineLayout(vulkan.device, &pipelineLayoutInfo, 0, &vulkan.pipelineLayout));
     DebugPrint("Created Graphics Pipeline\n");
     
+    // TODO(heyyod): THIS IS BAAAAADDDD! Change the paths
+    VkShaderModule triangleVertShader, triangleFragShader = {};
+    if(!LoadShader("W:\\hy3d_vulkan\\build\\shaders\\triangle.frag.spv", &triangleFragShader) ||
+       !LoadShader("W:\\hy3d_vulkan\\build\\shaders\\triangle.vert.spv", &triangleVertShader))
+    {
+        Assert("Couldn't load shaders");
+        return false;
+    }
+    
     VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
     vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
@@ -1062,7 +1061,7 @@ static bool Vulkan::CreatePipeline()
     
     VkGraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    pipelineInfo.stageCount = 2;
+    pipelineInfo.stageCount = ArrayCount(shaderStages);
     pipelineInfo.pStages = shaderStages;
     pipelineInfo.pVertexInputState = &vertexInputInfo;
     pipelineInfo.pInputAssemblyState = &inputAssemblyInfo;
@@ -1086,17 +1085,25 @@ static bool Vulkan::CreatePipeline()
     return true;
 }
 
+static void Vulkan::ClearPipeline()
+{
+    if(VulkanIsValidHandle(vulkan.device))
+    {
+        if (VulkanIsValidHandle(vulkan.pipeline))
+            vkDestroyPipeline(vulkan.device, vulkan.pipeline, 0);
+        
+        if (VulkanIsValidHandle(vulkan.pipelineLayout))
+            vkDestroyPipelineLayout(vulkan.device, vulkan.pipelineLayout, 0);
+    }
+}
+
 static void Vulkan::Destroy()
 {
     if (VulkanIsValidHandle(vulkan.device))
     {
         vkDeviceWaitIdle(vulkan.device);
         
-        if (VulkanIsValidHandle(vulkan.pipeline))
-            vkDestroyPipeline(vulkan.device, vulkan.pipeline, 0);
-        
-        if (VulkanIsValidHandle(vulkan.pipelineLayout))
-            vkDestroyPipelineLayout(vulkan.device, vulkan.pipelineLayout, 0);
+        ClearPipeline();
         
         ClearFrameBuffers();
         if (VulkanIsValidHandle(vulkan.renderPass))
@@ -1145,9 +1152,9 @@ static void Vulkan::Destroy()
     return;
 }
 
-static bool Vulkan::OnWindowSizeChange()
+static bool Vulkan::Recreate()
 {
-    DebugPrint("\n- Window Resize:\n");
+    DebugPrint("\n-Recreate:\n");
     
     if (!CreateSwapchain())
         return false;
@@ -1161,6 +1168,14 @@ static bool Vulkan::OnWindowSizeChange()
         ClearFrameBuffers();
         if (!CreateFrameBuffers())
             return false;
+        
+        ClearPipeline();
+        if(!CreatePipeline())
+            return false;
+    }
+    else
+    {
+        DebugPrint("Window minimized or completely shrinked.\n");
     }
     
     DebugPrint("\n");
@@ -1269,7 +1284,7 @@ static bool Vulkan::Draw()
         case VK_SUBOPTIMAL_KHR:
         break;
         case VK_ERROR_OUT_OF_DATE_KHR:
-        return OnWindowSizeChange();
+        return Recreate();
         default:
         DebugPrint("Problem occurred during swap chain image acquisition!\n");
         return false;
@@ -1304,7 +1319,7 @@ static bool Vulkan::Draw()
         break;
         case VK_ERROR_OUT_OF_DATE_KHR:
         case VK_SUBOPTIMAL_KHR:
-        return OnWindowSizeChange();
+        return Recreate();
         default:
         DebugPrint("Problem occurred during image presentation!\n");
         return false;

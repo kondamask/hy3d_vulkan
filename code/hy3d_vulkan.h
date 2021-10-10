@@ -73,10 +73,12 @@ namespace Vulkan
     static bool CreateSwapchain();
     static bool CreateCommandBuffers();
     static bool CreateFrameBuffers();
+    static bool Recreate();
     
     static void ClearCommandBuffers();
     static void ClearFrameBuffers();
     static void ClearSwapchainImages();
+    static void ClearPipeline();
     static void Destroy();
     
     static bool Draw();
@@ -85,7 +87,6 @@ namespace Vulkan
     static bool CreatePipeline();
     
     static bool ClearScreenToSolid(f32 color[3]);
-    static bool OnWindowSizeChange();
     static bool FindMemoryProperties(VkPhysicalDeviceMemoryProperties &memoryProperties, uint32_t memoryTypeBitsRequirement, VkMemoryPropertyFlags requiredProperties, u32 &memoryIndex);
     static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData);
 }
