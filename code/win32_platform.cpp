@@ -289,7 +289,7 @@ static bool Win32ProcessMessages(win32_window &window, engine_input &input, i32 
                 break;
             }
             
-            case WM_USER + 1: //WM_SIZE OR WM_EXITSIZEMOVE
+            case WM_USER + 1: //WM_SIZE
             {
                 window.onResize = true;
                 window.dimensions = Win32GetWindowDim(window.handle);
@@ -582,7 +582,6 @@ int CALLBACK WinMain(
 		{
 			Win32UnloadEngineCode(&engineCode);
 			Win32LoadEngineCode(&engineCode, sourceDLLPath, sourceDLLCopyPath);
-            platformAPI = engineMemory.platformAPI_;
         }
         
 		if (window.onResize)

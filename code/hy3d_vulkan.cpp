@@ -224,6 +224,7 @@ static bool Vulkan::Win32LoadDLL()
 // TODO: Make it cross-platform
 static bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
 {
+    DebugPrint("Initialize Vulkan\n");
     if (!Win32LoadDLL())
     {
         return false;
@@ -601,16 +602,24 @@ static bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, con
         ASSERT_VK_SUCCESS(vkCreateImageView(vulkan.device, &depthImageViewInfo, 0, &vulkan.depthImageView));
     }*/
     
-    if (!CreateSwapchain())
+    // NOTE: Set a proper surface format
     {
-        Assert("Failed to create swapchain");
-        return false;
-    }
-    
-    if (!CreateCommandBuffers())
-    {
-        Assert("Failed to create command buffers");
-        return false;
+        vulkan.surfaceFormat.colorSpace = SURFACE_FORMAT_COLOR_SPACE;
+        vulkan.surfaceFormat.format = SURFACE_FORMAT_FORMAT;
+        u32 formatCount = 0;
+        VkSurfaceFormatKHR availableFormats[16] = {};
+        bool desiredSurfaceFormatSupported = false;
+        ASSERT_VK_SUCCESS(vkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.gpu, vulkan.surface, &formatCount, 0));
+        Assert(formatCount <= ArrayCount(availableFormats));
+        for (u32 i = 0; i < formatCount; ++i)
+            ASSERT_VK_SUCCESS(vkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.gpu, vulkan.surface, &formatCount, &availableFormats[i]));
+        for (u32 i = 0; i < formatCount; ++i)
+        {
+            if (vulkan.surfaceFormat.format == availableFormats[i].format &&
+                vulkan.surfaceFormat.colorSpace == availableFormats[i].colorSpace)
+                desiredSurfaceFormatSupported = true;
+        }
+        Assert(desiredSurfaceFormatSupported);
     }
     
     // NOTE: Create a renderpass
@@ -661,17 +670,33 @@ static bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, con
         DebugPrint("Created a renderpass\n");
     }
     
-    if (!CreateFrameBuffers())
-    {
-        Assert("Failed to create framebuffers");
-        return false;
-    }
-    
-    if(!CreatePipeline())
-    {
-        Assert("Could not create pipeline");
-        return false;
-    }
+    // NOTE(heyyod): It looks like window always sends a WM_SIZE message
+    // at startup. This Recreats the following. So we don't need to create these here
+    /* 
+        if (!CreateSwapchain())
+        {
+            Assert("Failed to create swapchain");
+            return false;
+        }
+        
+        if (!CreateCommandBuffers())
+        {
+            Assert("Failed to create command buffers");
+            return false;
+        }
+        
+        if (!CreateFrameBuffers())
+        {
+            Assert("Failed to create framebuffers");
+            return false;
+        }
+        
+        if(!CreatePipeline())
+        {
+            Assert("Could not create pipeline");
+            return false;
+        }
+         */
     
     vulkan.canRender = true;
     return true;
@@ -702,9 +727,12 @@ static void Vulkan::ClearFrameBuffers()
         vkDeviceWaitIdle(vulkan.device);
         for (u32 i = 0; i < vulkan.swapchainImageCount; i++)
         {
-            vkDestroyFramebuffer(vulkan.device, vulkan.framebuffers[i], 0);
+            if(VulkanIsValidHandle(vulkan.framebuffers[i]))
+            {
+                vkDestroyFramebuffer(vulkan.device, vulkan.framebuffers[i], 0);
+                DebugPrint("Cleared FrameBuffer\n");
+            }
         }
-        DebugPrint("Cleared FrameBuffers\n");
     }
 }
 
@@ -731,7 +759,7 @@ static bool Vulkan::CreateCommandBuffers()
 
 static void Vulkan::ClearCommandBuffers()
 {
-    if (VulkanIsValidHandle(vulkan.device))
+    if (VulkanIsValidHandle(vulkan.device) && VulkanIsValidHandle(vulkan.cmdPool))
     {
         vkDeviceWaitIdle(vulkan.device);
         vkResetCommandPool(vulkan.device, vulkan.cmdPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
@@ -832,26 +860,6 @@ static bool Vulkan::CreateSwapchain()
             return false;
         }
         
-        // NOTE: Set a proper surface format
-        {
-            vulkan.surfaceFormat.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-            vulkan.surfaceFormat.format = VK_FORMAT_B8G8R8A8_UNORM;
-            u32 formatCount = 0;
-            VkSurfaceFormatKHR availableFormats[16] = {};
-            bool desiredSurfaceFormatSupported = false;
-            ASSERT_VK_SUCCESS(vkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.gpu, vulkan.surface, &formatCount, 0));
-            Assert(formatCount <= ArrayCount(availableFormats));
-            for (u32 i = 0; i < formatCount; ++i)
-                ASSERT_VK_SUCCESS(vkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.gpu, vulkan.surface, &formatCount, &availableFormats[i]));
-            for (u32 i = 0; i < formatCount; ++i)
-            {
-                if (vulkan.surfaceFormat.format == availableFormats[i].format &&
-                    vulkan.surfaceFormat.colorSpace == availableFormats[i].colorSpace)
-                    desiredSurfaceFormatSupported = true;
-            }
-            Assert(desiredSurfaceFormatSupported);
-        }
-        
         // NOTE: Make the actual swapchain
         VkSwapchainCreateInfoKHR swapchainInfo = {};
         swapchainInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
@@ -929,9 +937,11 @@ static void Vulkan::ClearSwapchainImages()
         for (u32 i = 0; i < vulkan.swapchainImageCount; i++)
         {
             if (VulkanIsValidHandle(vulkan.swapchainImageViews[i]))
+            {
                 vkDestroyImageView(vulkan.device, vulkan.swapchainImageViews[i], 0);
+                DebugPrint("Cleared Swapchain Image View\n");
+            }
         }
-        DebugPrint("Cleared Swapchain Image Views\n");
     }
 }
 
@@ -1031,7 +1041,6 @@ static bool Vulkan::CreatePipeline()
     //pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
     
     ASSERT_VK_SUCCESS(vkCreatePipelineLayout(vulkan.device, &pipelineLayoutInfo, 0, &vulkan.pipelineLayout));
-    DebugPrint("Created Graphics Pipeline\n");
     
     // TODO(heyyod): THIS IS BAAAAADDDD! Change the paths
     VkShaderModule triangleVertShader, triangleFragShader = {};
@@ -1080,6 +1089,7 @@ static bool Vulkan::CreatePipeline()
     
     ASSERT_VK_SUCCESS(vkCreateGraphicsPipelines(vulkan.device, VK_NULL_HANDLE, 1, &pipelineInfo, 0, &vulkan.pipeline));
     
+    DebugPrint("Created Pipeline\n");
     vkDestroyShaderModule(vulkan.device, triangleVertShader, 0);
     vkDestroyShaderModule(vulkan.device, triangleFragShader, 0);
     return true;
@@ -1090,10 +1100,16 @@ static void Vulkan::ClearPipeline()
     if(VulkanIsValidHandle(vulkan.device))
     {
         if (VulkanIsValidHandle(vulkan.pipeline))
+        {
             vkDestroyPipeline(vulkan.device, vulkan.pipeline, 0);
+            DebugPrint("Cleared Pipeline\n");
+        }
         
         if (VulkanIsValidHandle(vulkan.pipelineLayout))
+        {
             vkDestroyPipelineLayout(vulkan.device, vulkan.pipelineLayout, 0);
+        }
+        
     }
 }
 
@@ -1282,12 +1298,18 @@ static bool Vulkan::Draw()
     {
         case VK_SUCCESS:
         case VK_SUBOPTIMAL_KHR:
-        break;
+        {
+            break;
+        }
         case VK_ERROR_OUT_OF_DATE_KHR:
-        return Recreate();
+        {
+            return Recreate();
+        }break;
         default:
-        DebugPrint("Problem occurred during swap chain image acquisition!\n");
-        return false;
+        {
+            DebugPrint("Problem occurred during swap chain image acquisition!\n");
+            return false;
+        }
     }
     
     // NOTE: Wait on imageAvailableSem and submit the command buffer and signal renderFinishedSem
@@ -1316,13 +1338,20 @@ static bool Vulkan::Draw()
     switch (result)
     {
         case VK_SUCCESS:
-        break;
+        {
+            break;
+        }
         case VK_ERROR_OUT_OF_DATE_KHR:
         case VK_SUBOPTIMAL_KHR:
-        return Recreate();
+        {
+            return Recreate();
+        }
         default:
-        DebugPrint("Problem occurred during image presentation!\n");
-        return false;
+        {
+            
+            DebugPrint("Problem occurred during image presentation!\n");
+            return false;
+        }
     }
     return true;
 }
@@ -1341,11 +1370,11 @@ static bool Vulkan::LoadShader(char *filepath, VkShaderModule *shaderOut)
         shaderInfo.codeSize = shaderCode.size;
         shaderInfo.pCode = (u32 *)shaderCode.content;
         ASSERT_VK_SUCCESS(vkCreateShaderModule(vulkan.device, &shaderInfo, 0, shaderOut));
+        DebugPrint("Loaded Shader\n");
+        return true;
     }
     else
     {
         return false;
     }
-    
-    return true;
 }
