@@ -48,6 +48,8 @@ struct vulkan_state
     
     VkRenderPass renderPass;
     VkFramebuffer framebuffers[NUM_SWAPCHAIN_IMAGES];
+    VkPipelineLayout pipelineLayout;
+    VkPipeline pipeline;
     
     bool canRender;
     
@@ -80,6 +82,7 @@ namespace Vulkan
     static bool Draw();
     
     static bool LoadShader(char *filepath, VkShaderModule *shaderOut);
+    static bool CreatePipeline();
     
     static bool ClearScreenToSolid(f32 color[3]);
     static bool OnWindowSizeChange();
@@ -152,8 +155,6 @@ VulkanDeclareFunction(vkFreeCommandBuffers);
 VulkanDeclareFunction(vkBeginCommandBuffer);
 VulkanDeclareFunction(vkEndCommandBuffer);
 VulkanDeclareFunction(vkResetCommandBuffer);
-VulkanDeclareFunction(vkCmdPipelineBarrier);
-VulkanDeclareFunction(vkCmdClearColorImage);
 VulkanDeclareFunction(vkCreateImage);
 VulkanDeclareFunction(vkDestroyImage);
 VulkanDeclareFunction(vkCreateImageView);
@@ -167,9 +168,19 @@ VulkanDeclareFunction(vkDestroyRenderPass);
 VulkanDeclareFunction(vkCreateFramebuffer);
 VulkanDeclareFunction(vkDestroyFramebuffer);
 VulkanDeclareFunction(vkCreateFence);
+VulkanDeclareFunction(vkResetFences);
 VulkanDeclareFunction(vkDestroyFence);
 VulkanDeclareFunction(vkWaitForFences);
-VulkanDeclareFunction(vkResetFences);
-VulkanDeclareFunction(vkCmdBeginRenderPass);
-VulkanDeclareFunction(vkCmdEndRenderPass);
 VulkanDeclareFunction(vkCreateShaderModule);
+VulkanDeclareFunction(vkDestroyShaderModule);
+VulkanDeclareFunction(vkCreatePipelineLayout);
+VulkanDeclareFunction(vkDestroyPipelineLayout);
+VulkanDeclareFunction(vkCreateGraphicsPipelines);
+VulkanDeclareFunction(vkDestroyPipeline);
+
+VulkanDeclareFunction(vkCmdPipelineBarrier);
+VulkanDeclareFunction(vkCmdClearColorImage);
+VulkanDeclareFunction(vkCmdEndRenderPass);
+VulkanDeclareFunction(vkCmdBeginRenderPass);
+VulkanDeclareFunction(vkCmdBindPipeline);
+VulkanDeclareFunction(vkCmdDraw);

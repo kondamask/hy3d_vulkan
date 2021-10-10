@@ -1,4 +1,5 @@
 @echo off
+echo Compiling Code...
 
 REM DEBUG
 set MODE=-DHY3D_DEBUG=1 -DVULKAN_VALIDATION_LAYERS_ON=1 -Od
