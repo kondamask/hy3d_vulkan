@@ -1,5 +1,5 @@
 #pragma once
-#include "hy3d_types.h"
+#include "hy3d_base.h"
 #include "math.h"
 
 inline f32 minF32(f32 a, f32 b)

@@ -20,6 +20,26 @@
                 "kind": "build",
                 "isDefault": true
             }
+        },
+        {
+            "label": "debug",
+            "type": "shell",
+            "command": "${workspaceFolder}\\debug.bat",
+            "problemMatcher": "$msCompile",
+            "presentation": {
+                "revealProblems": "never",
+                "close": true,
+                "echo": false,
+                "reveal": "never",
+                "focus": false,
+                "panel": "new",
+                "showReuseMessage": false,
+                "clear": true
+            },
+            "group": {
+                "kind": "none",
+                "isDefault": false
+            }
         }
     ]
 }

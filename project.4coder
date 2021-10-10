@@ -1,0 +1,63 @@
+version(1);
+
+project_name = "hy3d vulkan";
+
+patterns = {
+	"*.c",
+	"*.cpp",
+	"*.h",
+	"*.bat",
+	"*.sh",
+	"*.vert",
+	"*.frag",
+	"*.4coder",
+};
+
+blacklist_patterns = {
+	".*",
+};
+
+load_paths = {
+	{
+		{ {"."}, .recursive = true, .relative = true }, .os = "win"
+	},
+};
+
+command_list = {
+	{
+		.name = "build",
+		.out = "*compilation*",
+		.footer_panel = true,
+		.save_dirty_files = true,
+		.cursor_at_end = false,
+		.cmd = {
+			{ "build.bat", .os = "win" },
+		},
+	},
+
+	{
+		.name = "compile shaders",
+		.out = "*compilation*",
+		.footer_panel = true,
+		.save_dirty_files = true,
+		.cursor_at_end = false,
+		.cmd = {
+			{ "compileShaders.bat", .os = "win" },
+		},
+	},
+	
+	{
+		.name = "debug",
+		.out = "*compilation*",
+		.footer_panel = true,
+		.save_dirty_files = true,
+		.cursor_at_end = false,
+		.cmd = {
+			{ "debug.bat", .os = "win" },
+		},
+	}	
+};
+
+fkey_command[7] = "build";
+fkey_command[8] = "compile shaders";
+fkey_command[10] = "debug";

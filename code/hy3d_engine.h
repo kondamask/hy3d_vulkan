@@ -33,7 +33,7 @@ struct platform_api
 {
     vulkan_draw_func *Draw;
     vulkan_udate_func *Update;
-
+    
 #if HY3D_DEBUG
     debug_read_file *DEBUGReadFile;
     debug_write_file *DEBUGWriteFile;
@@ -48,9 +48,10 @@ struct engine_memory
     void *permanentMemory;
     u64 transientMemorySize;
     void *transientMemory;
-
-    platform_api platformAPI;
+    
+    platform_api platformAPI_;
 };
+static platform_api platformAPI;
 
 struct memory_arena
 {
@@ -107,13 +108,13 @@ struct keyboard
     // WE ONLY NEED 1 BIT FOR A KEY
     bool autoRepeatEnabled = false;
     bool isPressed[KEYBOARD_BUTTON::COUNT];
-
+    
     inline void Clear()
     {
         for (int i = 0; i < KEYBOARD_BUTTON::COUNT; i++)
             isPressed[i] = false;
     }
-
+    
     inline void ToggleKey(KEYBOARD_BUTTON key)
     {
         isPressed[key] = !isPressed[key];
@@ -128,26 +129,26 @@ struct mouse
     bool leftIsPressed;
     bool rightIsPressed;
     bool wheelUp;
-
+    
     inline void SetPos(i16 x_, i16 y_)
     {
         x = x_;
         y = y_;
     }
-
+    
     i32 WheelDelta()
     {
         i32 result = wheelDelta;
         wheelDelta = 0;
         return result;
     }
-
+    
     void SetWheelDelta(i32 delta)
     {
         wheelDelta = delta;
     }
-
-private:
+    
+    private:
     i32 wheelDelta;
 };
 
