@@ -72,7 +72,7 @@ DEBUG_WRITE_FILE(DEBUGWriteFile)
 	return result;
 }
 
-static LRESULT Win32MainWindowProc(HWND handle, UINT message, WPARAM wParam, LPARAM lParam)
+function LRESULT Win32MainWindowProc(HWND handle, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	// NOTE: This pointer doesn't need to be checked for null since it always gets a value
 	// before we need to process ather messages. On application start we get:
@@ -150,12 +150,12 @@ static LRESULT Win32MainWindowProc(HWND handle, UINT message, WPARAM wParam, LPA
 	return result;
 }
 
-static void Win32Update(win32_window &window)
+function void Win32Update(win32_window &window)
 {
 	return;
 }
 
-static KEYBOARD_BUTTON Win32TranslateKeyInput(VK_CODE code)
+function KEYBOARD_BUTTON Win32TranslateKeyInput(VK_CODE code)
 {
 	switch (code)
 	{
@@ -274,7 +274,7 @@ static KEYBOARD_BUTTON Win32TranslateKeyInput(VK_CODE code)
 	}
 }
 
-static wnd_dim Win32GetWindowDim(HWND handle)
+function wnd_dim Win32GetWindowDim(HWND handle)
 {
 	wnd_dim result = {};
 	RECT rect = {};
@@ -284,7 +284,7 @@ static wnd_dim Win32GetWindowDim(HWND handle)
 	return result;
 }
 
-static bool Win32ProcessMessages(win32_window &window, engine_input &input, i32 &quitMessage)
+function bool Win32ProcessMessages(win32_window &window, engine_input &input, i32 &quitMessage)
 {
 	MSG message;
 	while (PeekMessage(&message, 0, 0, 0, PM_REMOVE))
@@ -397,7 +397,7 @@ static bool Win32ProcessMessages(win32_window &window, engine_input &input, i32 
 	return true;
 }
 
-static FILETIME Win32GetWriteTime(char *filename)
+function FILETIME Win32GetWriteTime(char *filename)
 {
 	FILETIME result = {};
     char fullFilePath[MAX_PATH] = {};
@@ -414,7 +414,7 @@ static FILETIME Win32GetWriteTime(char *filename)
 	return result;
 }
 
-static void Win32LoadEngineCode(win32_engine_code *engineCode, char *sourceFilename, char *sourceFilenameCopy)
+function void Win32LoadEngineCode(win32_engine_code *engineCode, char *sourceFilename, char *sourceFilenameCopy)
 {
 	// NOTE:  We need to add a sleep in order to wait for the dll compilation.
 	Sleep(800);
@@ -439,7 +439,7 @@ static void Win32LoadEngineCode(win32_engine_code *engineCode, char *sourceFilen
 	}
 }
 
-static void Win32UnloadEngineCode(win32_engine_code *engineCode)
+function void Win32UnloadEngineCode(win32_engine_code *engineCode)
 {
 	if (engineCode->dll)
 	{
@@ -450,7 +450,7 @@ static void Win32UnloadEngineCode(win32_engine_code *engineCode)
 	engineCode->UpdateAndRender = UpdateAndRenderStub;
 }
 
-static bool Win32InitializeWindow(win32_window &window, u16 width, u16 height, LPCSTR windowTitle)
+function bool Win32InitializeWindow(win32_window &window, u16 width, u16 height, LPCSTR windowTitle)
 {
 #if HY3D_DEBUG
 	AllocConsole();
@@ -521,7 +521,7 @@ static bool Win32InitializeWindow(win32_window &window, u16 width, u16 height, L
 	return true;
 }
 
-static bool Win32InitializeMemory(engine_memory &memory)
+function bool Win32InitializeMemory(engine_memory &memory)
 {
 	LPVOID baseAddress = (LPVOID)TERABYTES(2);
 	memory.permanentMemorySize = MEGABYTES(64);

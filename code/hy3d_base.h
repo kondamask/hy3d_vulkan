@@ -16,23 +16,23 @@
 
 #if HY3D_DEBUG
 #define Assert(Expression) \
-    if (!(Expression))     \
-    AssertBreak()
+if (!(Expression))     \
+AssertBreak()
 #else
 #define Assert(Expression)
 #endif
 
 #if HY3D_DEBUG
 #define ASSERT_VK_SUCCESS(FuncResult) \
-    if (FuncResult != VK_SUCCESS)     \
-    {                                 \
-        DebugPrint(#FuncResult);      \
-        AssertBreak();                \
-    }
+if (FuncResult != VK_SUCCESS)     \
+{                                 \
+DebugPrint(#FuncResult);      \
+AssertBreak();                \
+}
 #else
 #define ASSERT_VK_SUCCESS(FuncResult) \
-    if (FuncResult != VK_SUCCESS)     \
-        return false;
+if (FuncResult != VK_SUCCESS)     \
+return false;
 #endif
 
 #if HY3D_DEBUG
@@ -53,6 +53,10 @@ typedef uint32_t u32;
 typedef uint64_t u64;
 typedef float f32;
 typedef double f64;
+
+#define global static
+#define local static
+#define function static
 
 inline i16 RoundF32toI16(f32 in)
 {

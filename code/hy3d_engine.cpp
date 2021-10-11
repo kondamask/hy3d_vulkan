@@ -1,7 +1,7 @@
 #include "hy3d_engine.h"
 #include <intrin.h>
 
-static void InitializeMemoryArena(memory_arena *arena, u8 *base, size_t size)
+function void InitializeMemoryArena(memory_arena *arena, u8 *base, size_t size)
 {
     arena->base = base;
     arena->size = size;
@@ -10,7 +10,7 @@ static void InitializeMemoryArena(memory_arena *arena, u8 *base, size_t size)
 
 #define ReserveStructMemory(arena, type) (type *)ReserveMemory(arena, sizeof(type))
 #define ReserveArrayMemory(arena, count, type) (type *)ReserveMemory(arena, (count) * sizeof(type))
-static void *ReserveMemory(memory_arena *arena, size_t size)
+function void *ReserveMemory(memory_arena *arena, size_t size)
 {
     Assert(arena->used + size <= arena->size);
     void *result = arena->base + arena->used;
@@ -18,7 +18,7 @@ static void *ReserveMemory(memory_arena *arena, size_t size)
     return result;
 }
 
-static void Initialize(hy3d_engine *e, engine_state *state, engine_memory *memory)
+function void Initialize(hy3d_engine *e, engine_state *state, engine_memory *memory)
 {
     e->input = {};
     e->onResize = false;

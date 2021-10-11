@@ -51,7 +51,7 @@ struct engine_memory
     
     platform_api platformAPI_;
 };
-static platform_api platformAPI;
+global platform_api platformAPI;
 
 struct memory_arena
 {

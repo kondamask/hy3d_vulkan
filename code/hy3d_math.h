@@ -35,7 +35,7 @@ struct vec3
         };
         f32 pos[3];
     };
-
+    
     inline vec3 operator=(vec3 b)
     {
         x = b.x;
@@ -43,22 +43,22 @@ struct vec3
         z = b.z;
         return *this;
     }
-
+    
     inline vec3 operator/(f32 b)
     {
         return vec3{x / b, y / b, z / b};
     }
-
+    
     inline f32 lengthSq()
     {
         return (x * x + y * y + z * z);
     }
-
+    
     inline f32 length()
     {
         return sqrtf(lengthSq());
     }
-
+    
     inline vec3 normalized()
     {
         f32 l = length();
@@ -66,7 +66,7 @@ struct vec3
             return {};
         return (*this / l);
     }
-
+    
     inline void normalize()
     {
         *this = this->normalized();
@@ -135,15 +135,15 @@ inline f32 DotProduct(vec3 a, vec3 b)
 inline vec3 CrossProduct(vec3 a, vec3 b)
 {
     return {a.y * b.z - a.z * b.y,
-            a.z * b.x - a.x * b.z,
-            a.x * b.y - a.y * b.x};
+        a.z * b.x - a.x * b.z,
+        a.x * b.y - a.y * b.x};
 }
 
 inline vec3 HadamardProduct(vec3 a, vec3 b)
 {
     return {a.x * b.x,
-            a.y * b.y,
-            a.z * b.z};
+        a.y * b.y,
+        a.z * b.z};
 }
 
 inline vec3 Saturated(vec3 a)
@@ -184,34 +184,34 @@ struct vec2
         };
         f32 pos[2];
     };
-
+    
     inline vec2 operator=(vec2 b)
     {
         x = b.x;
         y = b.y;
         return *this;
     }
-
+    
     inline vec2 operator-(vec2 b)
     {
         return vec2{x - b.x, y - b.y};
     }
-
+    
     inline vec2 operator/(f32 b)
     {
         return vec2{x / b, y / b};
     }
-
+    
     inline f32 lengthSq()
     {
         return (x * x + y * y);
     }
-
+    
     inline f32 length()
     {
         return sqrtf(lengthSq());
     }
-
+    
     inline vec2 normal()
     {
         f32 l = length();
@@ -219,7 +219,7 @@ struct vec2
             return {};
         return (*this / l);
     }
-
+    
     inline void normalize()
     {
         *this = this->normal();
@@ -299,7 +299,7 @@ struct mat3
     float cell[3][3]; // [row][column]
 };
 /*
-static mat3 Identity()
+ function mat3 Identity()
 {
     return {
         1.0f, 0.0f, 0.0f,
@@ -307,7 +307,7 @@ static mat3 Identity()
         0.0f, 0.0f, 1.0f};
 }
 */
-static mat3 Scale(float factor)
+function mat3 Scale(float factor)
 {
     return {
         factor, 0.0f, 0.0f,
@@ -315,7 +315,7 @@ static mat3 Scale(float factor)
         0.0f, 0.0f, factor};
 }
 
-static mat3 RotateZ(float theta)
+function mat3 RotateZ(float theta)
 {
     float sinTheta = sinf(theta);
     float cosTheta = cosf(theta);
@@ -325,7 +325,7 @@ static mat3 RotateZ(float theta)
         0.0f, 0.0f, 1.0f};
 }
 
-static mat3 RotateY(float theta)
+function mat3 RotateY(float theta)
 {
     float sinTheta = sinf(theta);
     float cosTheta = cosf(theta);
@@ -335,7 +335,7 @@ static mat3 RotateY(float theta)
         sinTheta, 0.0f, cosTheta};
 }
 
-static mat3 RotateX(float theta)
+function mat3 RotateX(float theta)
 {
     float sinTheta = sinf(theta);
     float cosTheta = cosf(theta);

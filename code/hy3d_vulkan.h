@@ -61,42 +61,42 @@ struct vulkan_state
     VkDebugUtilsMessengerEXT debugMessenger;
 #endif
 };
-static vulkan_state vulkan;
+global vulkan_state vulkan;
 
 namespace Vulkan
 {
-    static bool Win32LoadDLL();
-    static bool Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name);
+    function bool Win32LoadDLL();
+    function bool Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name);
     
-    static bool LoadGlobalFunctions();
-    static bool LoadInstanceFunctions();
-    static bool LoadDeviceFunctions();
+    function bool LoadGlobalFunctions();
+    function bool LoadInstanceFunctions();
+    function bool LoadDeviceFunctions();
     
-    static bool CreateSwapchain();
-    static bool CreateCommandBuffers();
-    static bool CreateFrameBuffers();
-    static bool Recreate();
+    function bool CreateSwapchain();
+    function bool CreateCommandBuffers();
+    function bool CreateFrameBuffers();
+    function bool Recreate();
     
-    static void ClearCommandBuffers();
-    static void ClearFrameBuffers();
-    static void ClearSwapchainImages();
-    static void ClearPipeline();
-    static void Destroy();
+    function void ClearCommandBuffers();
+    function void ClearFrameBuffers();
+    function void ClearSwapchainImages();
+    function void ClearPipeline();
+    function void Destroy();
     
-    static bool Draw();
+    function bool Draw();
     
-    static bool LoadShader(char *filepath, VkShaderModule *shaderOut);
-    static bool CreatePipeline();
+    function bool LoadShader(char *filepath, VkShaderModule *shaderOut);
+    function bool CreatePipeline();
     
-    static bool ClearScreenToSolid(f32 color[3]);
-    static bool FindMemoryProperties(VkPhysicalDeviceMemoryProperties &memoryProperties, uint32_t memoryTypeBitsRequirement, VkMemoryPropertyFlags requiredProperties, u32 &memoryIndex);
-    static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData);
+    function bool ClearScreenToSolid(f32 color[3]);
+    function bool FindMemoryProperties(VkPhysicalDeviceMemoryProperties &memoryProperties, uint32_t memoryTypeBitsRequirement, VkMemoryPropertyFlags requiredProperties, u32 &memoryIndex);
+    function VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData);
 }
 
 //=====================================================================
 // NOTE: Macros
 #define VulkanFuncPtr(func) PFN_##func
-#define VulkanDeclareFunction(func) static VulkanFuncPtr(func) func
+#define VulkanDeclareFunction(func) function VulkanFuncPtr(func) func
 #define VulkanClearColor(r, g, b, a) \
 {                                \
 r, g, b, a                   \
@@ -108,7 +108,7 @@ r, g, b, a                   \
 #define VK_GET_INSTANCE_PROC_ADDR(name) PFN_vkVoidFunction name(VkInstance instance, const char *pName)
 typedef VK_GET_INSTANCE_PROC_ADDR(vk_get_instance_proc_addr);
 VK_GET_INSTANCE_PROC_ADDR(vkGetInstanceProcAddrStub) { return 0; }
-static vk_get_instance_proc_addr *vkGetInstanceProcAddr_ = vkGetInstanceProcAddrStub;
+function vk_get_instance_proc_addr *vkGetInstanceProcAddr_ = vkGetInstanceProcAddrStub;
 #define vkGetInstanceProcAddr vkGetInstanceProcAddr_
 
 VulkanDeclareFunction(vkCreateInstance);

@@ -1,7 +1,7 @@
 #include "hy3d_vulkan.h"
 
 #if VULKAN_VALIDATION_LAYERS_ON
-static VKAPI_ATTR VkBool32 VKAPI_CALL
+function VKAPI_ATTR VkBool32 VKAPI_CALL
 Vulkan::DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
                       VkDebugUtilsMessageTypeFlagsEXT messageType,
                       const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
@@ -82,7 +82,7 @@ if (!(func))                                                       \
 {                                                                  \
 return false;                                                  \
 }
-static bool Vulkan::LoadGlobalFunctions()
+function bool Vulkan::LoadGlobalFunctions()
 {
     VulkanLoadGlobalFunc(vkCreateInstance);
     VulkanLoadGlobalFunc(vkEnumerateInstanceLayerProperties);
@@ -99,7 +99,7 @@ if (!(func))                                                               \
 {                                                                          \
 return false;                                                          \
 }
-static bool Vulkan::LoadInstanceFunctions()
+function bool Vulkan::LoadInstanceFunctions()
 {
     VulkanLoadInstanceFunc(vkDestroyInstance);
     
@@ -132,7 +132,7 @@ if (!(func))                                                           \
 {                                                                      \
 return false;                                                      \
 }
-static bool Vulkan::LoadDeviceFunctions()
+function bool Vulkan::LoadDeviceFunctions()
 {
     VulkanLoadDeviceFunc(vkDeviceWaitIdle);
     VulkanLoadDeviceFunc(vkDestroyDevice);
@@ -188,10 +188,10 @@ static bool Vulkan::LoadDeviceFunctions()
     return true;
 }
 
-static bool Vulkan::FindMemoryProperties(VkPhysicalDeviceMemoryProperties &memoryProperties,
-                                         uint32_t memoryTypeBitsRequirement,
-                                         VkMemoryPropertyFlags requiredProperties,
-                                         u32 &memoryIndex)
+function bool Vulkan::FindMemoryProperties(VkPhysicalDeviceMemoryProperties &memoryProperties,
+                                           uint32_t memoryTypeBitsRequirement,
+                                           VkMemoryPropertyFlags requiredProperties,
+                                           u32 &memoryIndex)
 {
     u32 memoryCount = memoryProperties.memoryTypeCount;
     for (memoryIndex = 0; memoryIndex < memoryCount; ++memoryIndex)
@@ -208,7 +208,7 @@ static bool Vulkan::FindMemoryProperties(VkPhysicalDeviceMemoryProperties &memor
 }
 
 // TODO: make this cross-platform
-static bool Vulkan::Win32LoadDLL()
+function bool Vulkan::Win32LoadDLL()
 {
     vulkan.dll = LoadLibraryA("vulkan-1.dll");
     if (!vulkan.dll)
@@ -222,7 +222,7 @@ static bool Vulkan::Win32LoadDLL()
 
 
 // TODO: Make it cross-platform
-static bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
+function bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
 {
     DebugPrint("Initialize Vulkan\n");
     if (!Win32LoadDLL())
@@ -702,7 +702,7 @@ static bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, con
     return true;
 }
 
-static bool Vulkan::CreateFrameBuffers()
+function bool Vulkan::CreateFrameBuffers()
 {
     VkFramebufferCreateInfo framebufferInfo = {};
     framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -720,7 +720,7 @@ static bool Vulkan::CreateFrameBuffers()
     return true;
 }
 
-static void Vulkan::ClearFrameBuffers()
+function void Vulkan::ClearFrameBuffers()
 {
     if (VulkanIsValidHandle(vulkan.device))
     {
@@ -736,7 +736,7 @@ static void Vulkan::ClearFrameBuffers()
     }
 }
 
-static bool Vulkan::CreateCommandBuffers()
+function bool Vulkan::CreateCommandBuffers()
 {
     VkCommandPoolCreateInfo cmdPoolInfo = {};
     cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -757,7 +757,7 @@ static bool Vulkan::CreateCommandBuffers()
     return true;
 }
 
-static void Vulkan::ClearCommandBuffers()
+function void Vulkan::ClearCommandBuffers()
 {
     if (VulkanIsValidHandle(vulkan.device) && VulkanIsValidHandle(vulkan.cmdPool))
     {
@@ -767,7 +767,7 @@ static void Vulkan::ClearCommandBuffers()
     }
 }
 
-static bool Vulkan::CreateSwapchain()
+function bool Vulkan::CreateSwapchain()
 {
     if (VulkanIsValidHandle(vulkan.device))
         vkDeviceWaitIdle(vulkan.device);
@@ -930,7 +930,7 @@ static bool Vulkan::CreateSwapchain()
     return true;
 }
 
-static void Vulkan::ClearSwapchainImages()
+function void Vulkan::ClearSwapchainImages()
 {
     if (VulkanIsValidHandle(vulkan.device))
     {
@@ -945,7 +945,7 @@ static void Vulkan::ClearSwapchainImages()
     }
 }
 
-static bool Vulkan::CreatePipeline()
+function bool Vulkan::CreatePipeline()
 {
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -1095,7 +1095,7 @@ static bool Vulkan::CreatePipeline()
     return true;
 }
 
-static void Vulkan::ClearPipeline()
+function void Vulkan::ClearPipeline()
 {
     if(VulkanIsValidHandle(vulkan.device))
     {
@@ -1113,7 +1113,7 @@ static void Vulkan::ClearPipeline()
     }
 }
 
-static void Vulkan::Destroy()
+function void Vulkan::Destroy()
 {
     if (VulkanIsValidHandle(vulkan.device))
     {
@@ -1168,7 +1168,7 @@ static void Vulkan::Destroy()
     return;
 }
 
-static bool Vulkan::Recreate()
+function bool Vulkan::Recreate()
 {
     DebugPrint("\n-Recreate:\n");
     
@@ -1198,7 +1198,7 @@ static bool Vulkan::Recreate()
     return true;
 }
 
-static bool Vulkan::ClearScreenToSolid(float color[3])
+function bool Vulkan::ClearScreenToSolid(float color[3])
 {
     VkCommandBufferBeginInfo commandBufferBeginInfo = {};
     commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -1274,7 +1274,7 @@ static bool Vulkan::ClearScreenToSolid(float color[3])
     return true;
 }
 
-static bool Vulkan::Draw()
+function bool Vulkan::Draw()
 {
     ASSERT_VK_SUCCESS(vkWaitForFences(vulkan.device, 1, &vulkan.renderFence, true, UINT64_MAX));
     ASSERT_VK_SUCCESS(vkResetFences(vulkan.device, 1, &vulkan.renderFence));
@@ -1356,9 +1356,7 @@ static bool Vulkan::Draw()
     return true;
 }
 
-// TODO(heyyod): Should replace this with fast_io?
-//#include <fstream>
-static bool Vulkan::LoadShader(char *filepath, VkShaderModule *shaderOut)
+function bool Vulkan::LoadShader(char *filepath, VkShaderModule *shaderOut)
 {
     
     debug_read_file_result shaderCode = platformAPI.DEBUGReadFile(filepath);
