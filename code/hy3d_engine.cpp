@@ -34,7 +34,6 @@ function void Initialize(hy3d_engine *e, engine_state *state, engine_memory *mem
     state->change[1] = 1.5f;
     state->change[2] = 2.0f;
     
-    //--------------------------------------
     memory->isInitialized = true;
     e->frameStart = std::chrono::steady_clock::now();
 }

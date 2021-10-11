@@ -63,6 +63,11 @@ struct vulkan_state
 };
 global vulkan_state vulkan;
 
+global char* shaderFiles[2] = {
+    "..\\build\\shaders\\triangle.vert.spv",
+    "..\\build\\shaders\\triangle.frag.spv"
+};
+
 namespace Vulkan
 {
     function bool Win32LoadDLL();

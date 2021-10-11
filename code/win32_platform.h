@@ -3,6 +3,7 @@
 #include "hy3d_windows.h"
 #include "hy3d_engine.h"
 #include "win32_resource.h"
+#include "hy3d_vulkan.h"
 
 #define VK_CODE unsigned char
 
@@ -24,8 +25,9 @@ struct win32_engine_code
 {
 	HMODULE dll;
 	FILETIME writeTime;
-
+    
 	update_and_render *UpdateAndRender;
-
+    
 	bool isValid;
 };
+

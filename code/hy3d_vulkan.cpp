@@ -84,6 +84,7 @@ return false;                                                  \
 }
 function bool Vulkan::LoadGlobalFunctions()
 {
+    //test
     VulkanLoadGlobalFunc(vkCreateInstance);
     VulkanLoadGlobalFunc(vkEnumerateInstanceLayerProperties);
     VulkanLoadGlobalFunc(vkEnumerateInstanceExtensionProperties);
@@ -704,6 +705,8 @@ function bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, c
 
 function bool Vulkan::CreateFrameBuffers()
 {
+    ClearFrameBuffers();
+    
     VkFramebufferCreateInfo framebufferInfo = {};
     framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
     framebufferInfo.renderPass = vulkan.renderPass;
@@ -738,6 +741,8 @@ function void Vulkan::ClearFrameBuffers()
 
 function bool Vulkan::CreateCommandBuffers()
 {
+    ClearCommandBuffers();
+    
     VkCommandPoolCreateInfo cmdPoolInfo = {};
     cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     cmdPoolInfo.queueFamilyIndex = vulkan.presentQueueFamilyIndex;
@@ -934,6 +939,7 @@ function void Vulkan::ClearSwapchainImages()
 {
     if (VulkanIsValidHandle(vulkan.device))
     {
+        vkDeviceWaitIdle(vulkan.device);
         for (u32 i = 0; i < vulkan.swapchainImageCount; i++)
         {
             if (VulkanIsValidHandle(vulkan.swapchainImageViews[i]))
@@ -947,6 +953,8 @@ function void Vulkan::ClearSwapchainImages()
 
 function bool Vulkan::CreatePipeline()
 {
+    ClearPipeline();
+    
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     //vertexInputInfo.vertexBindingDescriptionCount = 0;
@@ -1099,6 +1107,7 @@ function void Vulkan::ClearPipeline()
 {
     if(VulkanIsValidHandle(vulkan.device))
     {
+        vkDeviceWaitIdle(vulkan.device);
         if (VulkanIsValidHandle(vulkan.pipeline))
         {
             vkDestroyPipeline(vulkan.device, vulkan.pipeline, 0);
@@ -1174,18 +1183,12 @@ function bool Vulkan::Recreate()
     
     if (!CreateSwapchain())
         return false;
-    
     if (!(vulkan.windowExtent.width == 0 || vulkan.windowExtent.height == 0))
     {
-        ClearCommandBuffers();
         if (!CreateCommandBuffers())
             return false;
-        
-        ClearFrameBuffers();
         if (!CreateFrameBuffers())
             return false;
-        
-        ClearPipeline();
         if(!CreatePipeline())
             return false;
     }
@@ -1367,12 +1370,14 @@ function bool Vulkan::LoadShader(char *filepath, VkShaderModule *shaderOut)
         shaderInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
         shaderInfo.codeSize = shaderCode.size;
         shaderInfo.pCode = (u32 *)shaderCode.content;
-        ASSERT_VK_SUCCESS(vkCreateShaderModule(vulkan.device, &shaderInfo, 0, shaderOut));
-        DebugPrint("Loaded Shader\n");
-        return true;
+        VkResult res = vkCreateShaderModule(vulkan.device, &shaderInfo, 0, shaderOut);
+        platformAPI.DEBUGFreeFileMemory(shaderCode.content);
+        if (res == VK_SUCCESS)
+        {
+            DebugPrint("Loaded Shader\n");
+            return true;
+        }
     }
-    else
-    {
-        return false;
-    }
+    return false;
+    
 }

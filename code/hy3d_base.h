@@ -2,10 +2,6 @@
 #include <cstdint>
 #include <math.h>
 
-#if HY3D_DEBUG
-#include <iostream>
-#endif
-
 #define KILOBYTES(val) (val * 1024LL)
 #define MEGABYTES(val) (KILOBYTES(val) * 1024LL)
 #define GIGABYTES(val) (MEGABYTES(val) * 1024LL)
@@ -15,11 +11,11 @@
 #define AssertBreak() *(int *)0 = 0
 
 #if HY3D_DEBUG
-#define Assert(Expression) \
-if (!(Expression))     \
+#define Assert(val) \
+if (!(val))     \
 AssertBreak()
 #else
-#define Assert(Expression)
+#define Assert(val)
 #endif
 
 #if HY3D_DEBUG
@@ -36,12 +32,23 @@ return false;
 #endif
 
 #if HY3D_DEBUG
-#define DebugPrint(Expression) std::cerr << Expression
+// TODO(heyyod): Use fast_io instead?
+#include <iostream>
+#define DebugPrint(val) std::cerr << val
 #else
-#define DebugPrint(Expression)
+#define DebugPrint(val)
 #endif
 
-#define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
+#define ArrayCount(array) (sizeof(array) / sizeof((array)[0]))
+
+#if HY3D_DEBUG
+#define AssertArraySize(array, count) \
+if (ArrayCount(array) < count)     \
+AssertBreak()
+#else
+#define AssertArraySize(array, count)
+#endif
+
 
 typedef int8_t i8;
 typedef int16_t i16;

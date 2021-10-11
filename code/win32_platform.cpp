@@ -414,6 +414,12 @@ function FILETIME Win32GetWriteTime(char *filename)
 	return result;
 }
 
+function inline bool Win32FileUpdated(char *filename, FILETIME &oldWriteTime)
+{
+    FILETIME newWriteTime = Win32GetWriteTime(filename);
+    return (CompareFileTime(&newWriteTime, &oldWriteTime) == 1);
+}
+
 function void Win32LoadEngineCode(win32_engine_code *engineCode, char *sourceFilename, char *sourceFilenameCopy)
 {
 	// NOTE:  We need to add a sleep in order to wait for the dll compilation.
@@ -581,27 +587,34 @@ int CALLBACK WinMain(
 		return 3;
 	}
     
-	win32_engine_code engineCode = {};
+    win32_engine_code engineCode = {};
 	// TODO: make this less explicit
 	char *sourceDLLPath = "..\\build\\hy3d_engine.dll";
 	char *sourceDLLCopyPath = "..\\build\\hy3d_engine_copy.dll";
 	Win32LoadEngineCode(&engineCode, sourceDLLPath, sourceDLLCopyPath);
-    
-	hy3d_engine engine = {};
-	if (!Vulkan::Win32Initialize(window.instance, window.handle, window.name))
+	
+    if (!Vulkan::Win32Initialize(window.instance, window.handle, window.name))
 	{
 		return 4;
 	}
     
-	i32 quitMessage = -1;
+    FILETIME shadersWriteTime = Win32GetWriteTime(shaderFiles[0]);
     
+    hy3d_engine engine = {};
+	
+    i32 quitMessage = -1;
 	while (Win32ProcessMessages(window, engine.input, quitMessage))
 	{
-		FILETIME newWriteTime = Win32GetWriteTime(sourceDLLPath);
-		if (CompareFileTime(&newWriteTime, &engineCode.writeTime) == 1)
+		if (Win32FileUpdated(sourceDLLPath, engineCode.writeTime))
 		{
 			Win32UnloadEngineCode(&engineCode);
 			Win32LoadEngineCode(&engineCode, sourceDLLPath, sourceDLLCopyPath);
+        }
+		if (Win32FileUpdated(shaderFiles[0], shadersWriteTime))
+        {
+            shadersWriteTime = Win32GetWriteTime(shaderFiles[0]);
+            if(!Vulkan::CreatePipeline())
+                Assert("Failed to recreate pipeline");
         }
         
 		if (window.onResize)
