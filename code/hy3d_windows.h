@@ -1,5 +1,5 @@
-#pragma once
-
+#ifndef HY3D_WINDOWS_H
+#define HY3D_WINDOWS_H 1
 // target Windows 7 or later
 #define _WIN32_WINNT _WIN32_WINNT_WIN7
 
@@ -48,4 +48,6 @@
 #define STRICT
 
 #include <Windows.h>
-#include "commdlg.h" // for open file dialog 
+//#include "commdlg.h" // for open file dialog 
+
+#endif

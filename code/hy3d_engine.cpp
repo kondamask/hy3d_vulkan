@@ -74,14 +74,18 @@ extern "C" UPDATE_AND_RENDER(UpdateAndRender)
             state->clearColorChange[i] *= -1.0f;
             state->updateData.clearColor[i] = min;
         }
-        state->updateData.clearColor[i] += state->clearColorChange[i] * dt;
+        state->updateData.clearColor[i] += state->clearColorChange[i] * dt * 0.3f;
     }
-    state->updateData.verts[0].pos.x = -state->updateData.clearColor[0];
-    state->updateData.verts[0].pos.y = state->updateData.clearColor[1];
-    state->updateData.verts[1].pos.x =  state->updateData.clearColor[2];
-    state->updateData.verts[1].pos.y = -state->updateData.clearColor[1];
+    state->updateData.verts[0].pos.x = -state->updateData.clearColor[1];
+    state->updateData.verts[0].pos.y = state->updateData.clearColor[0];
+    state->updateData.verts[1].pos.x =  state->updateData.clearColor[0];
+    state->updateData.verts[1].pos.y = -state->updateData.clearColor[2];
     state->updateData.verts[2].pos.x = state->updateData.clearColor[2];
-    state->updateData.verts[2].pos.y = state->updateData.clearColor[0];
+    state->updateData.verts[2].pos.y = state->updateData.clearColor[1];
+    state->updateData.verts[0].color.pos[0] = state->updateData.clearColor[0];
+    state->updateData.verts[1].color.pos[1] = state->updateData.clearColor[1];
+    state->updateData.verts[2].color.pos[2] = state->updateData.clearColor[2];
+    
     
     //state->color[0] = 0.8;
     //state->color[1] = 0.55;

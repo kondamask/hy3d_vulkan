@@ -269,11 +269,11 @@ function bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, c
         "VK_LAYER_KHRONOS_validation"};
     
     u32 layerCount;
-    ASSERT_VK_SUCCESS(vkEnumerateInstanceLayerProperties(&layerCount, 0));
+    AssertSuccess(vkEnumerateInstanceLayerProperties(&layerCount, 0));
     
     VkLayerProperties availableLayers[16];
     Assert(layerCount <= ArrayCount(availableLayers));
-    ASSERT_VK_SUCCESS(vkEnumerateInstanceLayerProperties(&layerCount, availableLayers));
+    AssertSuccess(vkEnumerateInstanceLayerProperties(&layerCount, availableLayers));
     
     for (char *layerName : validationLayers)
     {
@@ -340,9 +340,9 @@ function bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, c
         
         u32 instanceExtensionsCount;
         VkExtensionProperties availableInstanceExtensions[255] = {};
-        ASSERT_VK_SUCCESS(vkEnumerateInstanceExtensionProperties(0, &instanceExtensionsCount, 0));
+        AssertSuccess(vkEnumerateInstanceExtensionProperties(0, &instanceExtensionsCount, 0));
         Assert(instanceExtensionsCount <= ArrayCount(availableInstanceExtensions));
-        ASSERT_VK_SUCCESS(vkEnumerateInstanceExtensionProperties(0, &instanceExtensionsCount, availableInstanceExtensions));
+        AssertSuccess(vkEnumerateInstanceExtensionProperties(0, &instanceExtensionsCount, availableInstanceExtensions));
         for (char *desiredInstanceExtension : desiredInstanceExtensions)
         {
             bool found = false;
@@ -373,7 +373,7 @@ function bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, c
         instanceInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT *)&debugMessengerInfo;
 #endif
         
-        ASSERT_VK_SUCCESS(vkCreateInstance(&instanceInfo, NULL, &vulkan.instance));
+        AssertSuccess(vkCreateInstance(&instanceInfo, NULL, &vulkan.instance));
         DebugPrint("Created Vulkan Instance\n");
         
         if (!LoadInstanceFunctions())
@@ -383,7 +383,7 @@ function bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, c
         }
         
 #if VULKAN_VALIDATION_LAYERS_ON
-        ASSERT_VK_SUCCESS(vkCreateDebugUtilsMessengerEXT(vulkan.instance, &debugMessengerInfo, 0, &vulkan.debugMessenger));
+        AssertSuccess(vkCreateDebugUtilsMessengerEXT(vulkan.instance, &debugMessengerInfo, 0, &vulkan.debugMessenger));
 #endif
     }
     
@@ -394,21 +394,21 @@ function bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, c
         surfaceInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
         surfaceInfo.hinstance = wndInstance;
         surfaceInfo.hwnd = wndHandle;
-        ASSERT_VK_SUCCESS(vkCreateWin32SurfaceKHR(vulkan.instance, &surfaceInfo, 0, &vulkan.surface));
+        AssertSuccess(vkCreateWin32SurfaceKHR(vulkan.instance, &surfaceInfo, 0, &vulkan.surface));
         
 #elif defined(VK_USE_PLATFORM_XCB_KHR)
         VkXcbSurfaceCreateInfoKHR surfaceInfo = {};
         surfaceInfo.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
         surfaceInfo.connection = 0; //we'll have these if we implement a linux window
         surfaceInfo.window = 0;     //we'll have these if we implement a linux window
-        ASSERT_VK_SUCCESS(vkCreateXcbSurfaceKHR(vulkan.instance, &surfaceInfo, 0, &vulkan.surface));
+        AssertSuccess(vkCreateXcbSurfaceKHR(vulkan.instance, &surfaceInfo, 0, &vulkan.surface));
         
 #elif defined(VK_USE_PLATFORM_XLIB_KHR)
         VkXcbSurfaceCreateInfoKHR surfaceInfo = {};
         surfaceInfo.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
         surfaceInfo.dpy = 0;    //we'll have these if we implement a mac(?) window
         surfaceInfo.window = 0; //we'll have these if we implement a mac(?) window
-        ASSERT_VK_SUCCESS(vkCreateXlibSurfaceKHR(vulkan.instance, &surfaceInfo, 0, &vulkan.surface));
+        AssertSuccess(vkCreateXlibSurfaceKHR(vulkan.instance, &surfaceInfo, 0, &vulkan.surface));
 #endif
     }
     
@@ -416,9 +416,9 @@ function bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, c
     {
         u32 gpuCount = 0;
         VkPhysicalDevice gpuBuffer[16] = {};
-        ASSERT_VK_SUCCESS(vkEnumeratePhysicalDevices(vulkan.instance, &gpuCount, 0));
+        AssertSuccess(vkEnumeratePhysicalDevices(vulkan.instance, &gpuCount, 0));
         Assert(gpuCount > 0 && gpuCount <= ArrayCount(gpuBuffer));
-        ASSERT_VK_SUCCESS(vkEnumeratePhysicalDevices(vulkan.instance, &gpuCount, gpuBuffer));
+        AssertSuccess(vkEnumeratePhysicalDevices(vulkan.instance, &gpuCount, gpuBuffer));
         vulkan.gpu = gpuBuffer[0];
         // TODO: ACTUALY CHECK WHICH GPU IS BEST TO USE BY CHECKING THEIR QUEUES
         //For now it's ok since I only have 1 gpu.
@@ -440,7 +440,7 @@ function bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, c
         vkGetPhysicalDeviceQueueFamilyProperties(vulkan.gpu, &queueFamilyCount, availableQueueFamilies);
         
         for (u32 i = 0; i < queueFamilyCount; i++)
-            ASSERT_VK_SUCCESS(vkGetPhysicalDeviceSurfaceSupportKHR(vulkan.gpu, i, vulkan.surface, &supportsPresent[i]));
+            AssertSuccess(vkGetPhysicalDeviceSurfaceSupportKHR(vulkan.gpu, i, vulkan.surface, &supportsPresent[i]));
         
         for (u32 i = 0; i < queueFamilyCount; ++i)
         {
@@ -513,9 +513,9 @@ function bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, c
         
         u32 deviceExtensionsCount;
         VkExtensionProperties availableDeviceExtensions[255] = {};
-        ASSERT_VK_SUCCESS(vkEnumerateDeviceExtensionProperties(vulkan.gpu, 0, &deviceExtensionsCount, 0));
+        AssertSuccess(vkEnumerateDeviceExtensionProperties(vulkan.gpu, 0, &deviceExtensionsCount, 0));
         Assert(deviceExtensionsCount <= ArrayCount(availableDeviceExtensions));
-        ASSERT_VK_SUCCESS(vkEnumerateDeviceExtensionProperties(vulkan.gpu, 0, &deviceExtensionsCount, availableDeviceExtensions));
+        AssertSuccess(vkEnumerateDeviceExtensionProperties(vulkan.gpu, 0, &deviceExtensionsCount, availableDeviceExtensions));
         for (char *desiredDeviceExtension : desiredDeviceExtensions)
         {
             bool found = false;
@@ -540,7 +540,7 @@ function bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, c
         deviceInfo.pQueueCreateInfos = &queueInfo;
         deviceInfo.enabledExtensionCount = ArrayCount(desiredDeviceExtensions);
         deviceInfo.ppEnabledExtensionNames = desiredDeviceExtensions;
-        ASSERT_VK_SUCCESS(vkCreateDevice(vulkan.gpu, &deviceInfo, 0, &vulkan.device));
+        AssertSuccess(vkCreateDevice(vulkan.gpu, &deviceInfo, 0, &vulkan.device));
         DebugPrint("\nCreated a Vulkan Device\n");
         
         if (!LoadDeviceFunctions())
@@ -558,13 +558,13 @@ function bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, c
     {
         VkSemaphoreCreateInfo semaphoreInfo = {};
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-        ASSERT_VK_SUCCESS(vkCreateSemaphore(vulkan.device, &semaphoreInfo, 0, &vulkan.imageAvailableSem));
-        ASSERT_VK_SUCCESS(vkCreateSemaphore(vulkan.device, &semaphoreInfo, 0, &vulkan.renderFinishedSem));
+        AssertSuccess(vkCreateSemaphore(vulkan.device, &semaphoreInfo, 0, &vulkan.imageAvailableSem));
+        AssertSuccess(vkCreateSemaphore(vulkan.device, &semaphoreInfo, 0, &vulkan.renderFinishedSem));
         
         VkFenceCreateInfo fenceInfo = {};
         fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-        ASSERT_VK_SUCCESS(vkCreateFence(vulkan.device, &fenceInfo, 0, &vulkan.renderFence));
+        AssertSuccess(vkCreateFence(vulkan.device, &fenceInfo, 0, &vulkan.renderFence));
         
         DebugPrint("Created Semaphores and Fence\n");
     }
@@ -599,7 +599,7 @@ function bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, c
         depthImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
         VkMemoryRequirements depthMemoryReq = {};
-        ASSERT_VK_SUCCESS(vkCreateImage(vulkan.device, &depthImageInfo, 0, &vulkan.depthImage));
+        AssertSuccess(vkCreateImage(vulkan.device, &depthImageInfo, 0, &vulkan.depthImage));
         vkGetImageMemoryRequirements(vulkan.device, vulkan.depthImage, &depthMemoryReq);
 
         u32 memoryIndex = 0; // no use for now
@@ -611,8 +611,8 @@ function bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, c
         depthMemAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         depthMemAllocInfo.allocationSize = depthMemoryReq.size;
 
-        ASSERT_VK_SUCCESS(vkAllocateMemory(vulkan.device, &depthMemAllocInfo, 0, &vulkan.depthMemory));
-        ASSERT_VK_SUCCESS(vkBindImageMemory(vulkan.device, vulkan.depthImage, vulkan.depthMemory, 0));
+        AssertSuccess(vkAllocateMemory(vulkan.device, &depthMemAllocInfo, 0, &vulkan.depthMemory));
+        AssertSuccess(vkBindImageMemory(vulkan.device, vulkan.depthImage, vulkan.depthMemory, 0));
 
         VkImageViewCreateInfo depthImageViewInfo = {};
         depthImageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -628,7 +628,7 @@ function bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, c
         depthImageViewInfo.subresourceRange.baseArrayLayer = 0;
         depthImageViewInfo.subresourceRange.layerCount = 1;
         depthImageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        ASSERT_VK_SUCCESS(vkCreateImageView(vulkan.device, &depthImageViewInfo, 0, &vulkan.depthImageView));
+        AssertSuccess(vkCreateImageView(vulkan.device, &depthImageViewInfo, 0, &vulkan.depthImageView));
     }*/
     
     // NOTE: Set a proper surface format
@@ -638,10 +638,10 @@ function bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, c
         u32 formatCount = 0;
         VkSurfaceFormatKHR availableFormats[16] = {};
         bool desiredSurfaceFormatSupported = false;
-        ASSERT_VK_SUCCESS(vkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.gpu, vulkan.surface, &formatCount, 0));
+        AssertSuccess(vkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.gpu, vulkan.surface, &formatCount, 0));
         Assert(formatCount <= ArrayCount(availableFormats));
         for (u32 i = 0; i < formatCount; ++i)
-            ASSERT_VK_SUCCESS(vkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.gpu, vulkan.surface, &formatCount, &availableFormats[i]));
+            AssertSuccess(vkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.gpu, vulkan.surface, &formatCount, &availableFormats[i]));
         for (u32 i = 0; i < formatCount; ++i)
         {
             if (vulkan.surfaceFormat.format == availableFormats[i].format &&
@@ -694,7 +694,7 @@ function bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, c
         renderPassInfo.pAttachments = &colorAttachment;
         renderPassInfo.subpassCount = 1;
         renderPassInfo.pSubpasses = &subpassDescriptions;
-        ASSERT_VK_SUCCESS(vkCreateRenderPass(vulkan.device, &renderPassInfo, 0, &vulkan.renderPass));
+        AssertSuccess(vkCreateRenderPass(vulkan.device, &renderPassInfo, 0, &vulkan.renderPass));
         
         DebugPrint("Created a renderpass\n");
     }
@@ -745,7 +745,7 @@ function bool Vulkan::CreateFrameBuffers()
     for (u32 i = 0; i < vulkan.swapchainImageCount; i++)
     {
         framebufferInfo.pAttachments = &vulkan.swapchainImageViews[i];
-        ASSERT_VK_SUCCESS(vkCreateFramebuffer(vulkan.device, &framebufferInfo, 0, &vulkan.framebuffers[i]));
+        AssertSuccess(vkCreateFramebuffer(vulkan.device, &framebufferInfo, 0, &vulkan.framebuffers[i]));
     }
     DebugPrint("Created FrameBuffers\n");
     return true;
@@ -775,14 +775,14 @@ function bool Vulkan::CreateCommandBuffers()
         cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         cmdPoolInfo.queueFamilyIndex = vulkan.presentQueueFamilyIndex;
         cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT; //VK_COMMAND_POOL_CREATE_TRANSIENT_BIT
-        ASSERT_VK_SUCCESS(vkCreateCommandPool(vulkan.device, &cmdPoolInfo, 0, &vulkan.cmdPool));
+        AssertSuccess(vkCreateCommandPool(vulkan.device, &cmdPoolInfo, 0, &vulkan.cmdPool));
         
         VkCommandBufferAllocateInfo cmdBufferAllocInfo = {};
         cmdBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
         cmdBufferAllocInfo.commandPool = vulkan.cmdPool;
         cmdBufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         cmdBufferAllocInfo.commandBufferCount = vulkan.swapchainImageCount;
-        ASSERT_VK_SUCCESS(vkAllocateCommandBuffers(vulkan.device, &cmdBufferAllocInfo, vulkan.cmdBuffers));
+        AssertSuccess(vkAllocateCommandBuffers(vulkan.device, &cmdBufferAllocInfo, vulkan.cmdBuffers));
         
         DebugPrint("Created Command Pool and Command Buffers\n");
     }
@@ -820,7 +820,7 @@ function bool Vulkan::CreateSwapchain()
     // NOTE: Get Surface capabilities
     {
         VkSurfaceCapabilitiesKHR surfCapabilities = {};
-        ASSERT_VK_SUCCESS(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vulkan.gpu, vulkan.surface, &surfCapabilities));
+        AssertSuccess(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vulkan.gpu, vulkan.surface, &surfCapabilities));
         
         vulkan.windowExtent = {};
         if (surfCapabilities.currentExtent.width == UINT32_MAX)
@@ -862,10 +862,10 @@ function bool Vulkan::CreateSwapchain()
         VkPresentModeKHR desiredPresentMode = VK_PRESENT_MODE_FIFO_KHR; //The FIFO present mode is guaranteed by the spec to be supported
         
         //uint32_t presentModeCount;
-        //ASSERT_VK_SUCCESS(vkGetPhysicalDeviceSurfacePresentModesKHR(vulkan.gpu, vulkan.surface, &presentModeCount, NULL));
+        //AssertSuccess(vkGetPhysicalDeviceSurfacePresentModesKHR(vulkan.gpu, vulkan.surface, &presentModeCount, NULL));
         //VkPresentModeKHR presentModes[16];
         //Assert(presentModeCount <= ArrayCount(presentModes));
-        //ASSERT_VK_SUCCESS(vkGetPhysicalDeviceSurfacePresentModesKHR(vulkan.gpu, vulkan.surface, &presentModeCount, presentModes));
+        //AssertSuccess(vkGetPhysicalDeviceSurfacePresentModesKHR(vulkan.gpu, vulkan.surface, &presentModeCount, presentModes));
         //bool desiredPresentModeSupported = false;
         //for (u32 i = 0; i < presentModeCount; i++)
         //{
@@ -934,7 +934,7 @@ function bool Vulkan::CreateSwapchain()
         
         VkSwapchainKHR oldSwapchain = vulkan.swapchain;
         swapchainInfo.oldSwapchain = oldSwapchain;
-        ASSERT_VK_SUCCESS(vkCreateSwapchainKHR(vulkan.device, &swapchainInfo, 0, &vulkan.swapchain));
+        AssertSuccess(vkCreateSwapchainKHR(vulkan.device, &swapchainInfo, 0, &vulkan.swapchain));
         if (VulkanIsValidHandle(oldSwapchain)) //old swapchain
             vkDestroySwapchainKHR(vulkan.device, oldSwapchain, 0);
     }
@@ -942,9 +942,9 @@ function bool Vulkan::CreateSwapchain()
     // NOTE: Create the Image views
     {
         ClearSwapchainImages();
-        ASSERT_VK_SUCCESS(vkGetSwapchainImagesKHR(vulkan.device, vulkan.swapchain, &vulkan.swapchainImageCount, 0));
+        AssertSuccess(vkGetSwapchainImagesKHR(vulkan.device, vulkan.swapchain, &vulkan.swapchainImageCount, 0));
         Assert(vulkan.swapchainImageCount == ArrayCount(vulkan.swapchainImages));
-        ASSERT_VK_SUCCESS(vkGetSwapchainImagesKHR(vulkan.device, vulkan.swapchain, &vulkan.swapchainImageCount, vulkan.swapchainImages));
+        AssertSuccess(vkGetSwapchainImagesKHR(vulkan.device, vulkan.swapchain, &vulkan.swapchainImageCount, vulkan.swapchainImages));
         
         VkImageViewCreateInfo imageViewInfo = {};
         imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -962,7 +962,7 @@ function bool Vulkan::CreateSwapchain()
         for (u32 i = 0; i < vulkan.swapchainImageCount; i++)
         {
             imageViewInfo.image = vulkan.swapchainImages[i];
-            ASSERT_VK_SUCCESS(vkCreateImageView(vulkan.device, &imageViewInfo, 0, &vulkan.swapchainImageViews[i]));
+            AssertSuccess(vkCreateImageView(vulkan.device, &imageViewInfo, 0, &vulkan.swapchainImageViews[i]));
         }
     }
     DebugPrint("Created SwapChain\n");
@@ -1099,7 +1099,7 @@ function bool Vulkan::CreatePipeline()
     //pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
     //pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
     
-    ASSERT_VK_SUCCESS(vkCreatePipelineLayout(vulkan.device, &pipelineLayoutInfo, 0, &vulkan.pipelineLayout));
+    AssertSuccess(vkCreatePipelineLayout(vulkan.device, &pipelineLayoutInfo, 0, &vulkan.pipelineLayout));
     
     // TODO(heyyod): THIS IS BAAAAADDDD! Change the paths
     VkShaderModule triangleVertShader, triangleFragShader = {};
@@ -1146,7 +1146,7 @@ function bool Vulkan::CreatePipeline()
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
     pipelineInfo.basePipelineIndex = -1; // Optional
     
-    ASSERT_VK_SUCCESS(vkCreateGraphicsPipelines(vulkan.device, VK_NULL_HANDLE, 1, &pipelineInfo, 0, &vulkan.pipeline));
+    AssertSuccess(vkCreateGraphicsPipelines(vulkan.device, VK_NULL_HANDLE, 1, &pipelineInfo, 0, &vulkan.pipeline));
     
     DebugPrint("Created Pipeline\n");
     vkDestroyShaderModule(vulkan.device, triangleVertShader, 0);
@@ -1181,10 +1181,14 @@ function void Vulkan::Destroy()
         
         ClearPipeline();
         
+        
         if(VulkanIsValidHandle(vulkan.vertexBuffer))
             vkDestroyBuffer(vulkan.device, vulkan.vertexBuffer, 0);
         if(VulkanIsValidHandle(vulkan.vertexBufferMemory))
+        {
+            vkUnmapMemory(vulkan.device, vulkan.vertexBufferMemory); // optional???
             vkFreeMemory(vulkan.device, vulkan.vertexBufferMemory, 0);
+        }
         
         ClearFrameBuffers();
         if (VulkanIsValidHandle(vulkan.renderPass))
@@ -1245,14 +1249,14 @@ function bool Vulkan::Recreate()
         // TODO(heyyod): Should make this a function!!
         if(!(VulkanIsValidHandle(vulkan.vertexBuffer)))
         {
-            vulkan.vertexBufferSize = sizeof(vertex2) * 3; // TODO(heyyod): FOR NOW!!!!
+            vulkan.vertexBufferSize = 500; //sizeof(vertex2) * 3; // TODO(heyyod): FOR NOW!!!!
             
             VkBufferCreateInfo bufferInfo = {};
             bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
             bufferInfo.size = vulkan.vertexBufferSize;
             bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
             bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-            ASSERT_VK_SUCCESS(vkCreateBuffer(vulkan.device, &bufferInfo, 0, &vulkan.vertexBuffer));
+            AssertSuccess(vkCreateBuffer(vulkan.device, &bufferInfo, 0, &vulkan.vertexBuffer));
             
             VkMemoryRequirements vertexBufferMemReq = {};
             vkGetBufferMemoryRequirements(vulkan.device, vulkan.vertexBuffer, &vertexBufferMemReq);
@@ -1265,8 +1269,10 @@ function bool Vulkan::Recreate()
                 allocInfo.allocationSize = vertexBufferMemReq.size;
                 allocInfo.memoryTypeIndex = memIndex;
                 
-                ASSERT_VK_SUCCESS(vkAllocateMemory(vulkan.device, &allocInfo, 0, &vulkan.vertexBufferMemory));
-                ASSERT_VK_SUCCESS(vkBindBufferMemory(vulkan.device, vulkan.vertexBuffer, vulkan.vertexBufferMemory, 0));
+                AssertSuccess(vkAllocateMemory(vulkan.device, &allocInfo, 0, &vulkan.vertexBufferMemory));
+                AssertSuccess(vkBindBufferMemory(vulkan.device, vulkan.vertexBuffer, vulkan.vertexBufferMemory, 0));
+                
+                vkMapMemory(vulkan.device, vulkan.vertexBufferMemory, 0, vulkan.vertexBufferSize, 0, &vulkan.gpuMemory);
             }
             else
             {
@@ -1294,10 +1300,7 @@ function bool Vulkan::Recreate()
 
 function bool Vulkan::Update(update_data *data)
 {
-    void *gpuData;
-    vkMapMemory(vulkan.device, vulkan.vertexBufferMemory, 0, vulkan.vertexBufferSize, 0, &gpuData);
-    memcpy(gpuData, data->verts, vulkan.vertexBufferSize);
-    vkUnmapMemory(vulkan.device, vulkan.vertexBufferMemory);
+    memcpy(vulkan.gpuMemory, data->verts, vulkan.vertexBufferSize);
     
     VkCommandBufferBeginInfo commandBufferBeginInfo = {};
     commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -1318,8 +1321,8 @@ function bool Vulkan::Update(update_data *data)
         if (vulkan.recordCmdBuffer[i])
         {
             rpInfo.framebuffer = vulkan.framebuffers[i];
-            //ASSERT_VK_SUCCESS(vkResetCommandBuffer(vulkan.cmdBuffers[i], VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT));
-            ASSERT_VK_SUCCESS(vkBeginCommandBuffer(vulkan.cmdBuffers[i], &commandBufferBeginInfo));
+            //AssertSuccess(vkResetCommandBuffer(vulkan.cmdBuffers[i], VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT));
+            AssertSuccess(vkBeginCommandBuffer(vulkan.cmdBuffers[i], &commandBufferBeginInfo));
             vkCmdBeginRenderPass(vulkan.cmdBuffers[i], &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
             vkCmdBindPipeline(vulkan.cmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan.pipeline);
             
@@ -1329,7 +1332,7 @@ function bool Vulkan::Update(update_data *data)
             
             vkCmdDraw(vulkan.cmdBuffers[i], ArrayCount(data->verts), 1, 0, 0);
             vkCmdEndRenderPass(vulkan.cmdBuffers[i]);
-            ASSERT_VK_SUCCESS(vkEndCommandBuffer(vulkan.cmdBuffers[i]));
+            AssertSuccess(vkEndCommandBuffer(vulkan.cmdBuffers[i]));
         }
     }
     return true;
@@ -1337,8 +1340,8 @@ function bool Vulkan::Update(update_data *data)
 
 function bool Vulkan::Draw()
 {
-    ASSERT_VK_SUCCESS(vkWaitForFences(vulkan.device, 1, &vulkan.renderFence, true, UINT64_MAX));
-    ASSERT_VK_SUCCESS(vkResetFences(vulkan.device, 1, &vulkan.renderFence));
+    AssertSuccess(vkWaitForFences(vulkan.device, 1, &vulkan.renderFence, true, UINT64_MAX));
+    AssertSuccess(vkResetFences(vulkan.device, 1, &vulkan.renderFence));
     
     // NOTE: Get the image
     VkResult result = vkAcquireNextImageKHR(vulkan.device, vulkan.swapchain, UINT64_MAX,
@@ -1384,7 +1387,7 @@ function bool Vulkan::Draw()
     submitInfo.pSignalSemaphores = &vulkan.renderFinishedSem;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &vulkan.cmdBuffers[vulkan.currentImage];
-    ASSERT_VK_SUCCESS(vkQueueSubmit(vulkan.graphicsQueue, 1, &submitInfo, vulkan.renderFence));
+    AssertSuccess(vkQueueSubmit(vulkan.graphicsQueue, 1, &submitInfo, vulkan.renderFence));
     
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
     {

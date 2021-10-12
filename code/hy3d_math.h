@@ -1,4 +1,6 @@
-#pragma once
+#ifndef HY3D_MATH_H
+#define HY3D_MATH_H 1
+
 #include "hy3d_base.h"
 #include "math.h"
 
@@ -414,3 +416,5 @@ struct vertex2
     vec2 pos;
     colorRGB color;
 };
+
+#endif

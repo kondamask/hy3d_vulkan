@@ -1,4 +1,6 @@
-#pragma once
+#ifndef HY3D_WIN32_PLATFORM_H
+#define HY3D_WIN32_PLATFORM_H 1
+
 #include "hy3d_base.h"
 #include "hy3d_windows.h"
 #include "hy3d_engine.h"
@@ -31,3 +33,4 @@ struct win32_engine_code
 	bool isValid;
 };
 
+#endif

@@ -25,16 +25,27 @@ load_paths = {
 
 command_list = {
 	{
-		.name = "build",
+		.name = "build-debug",
 		.out = "*compilation*",
 		.footer_panel = true,
 		.save_dirty_files = true,
 		.cursor_at_end = false,
 		.cmd = {
-			{ "build.bat", .os = "win" },
+			{ "build_debug.bat", .os = "win" },
 		},
 	},
-
+    
+    {
+		.name = "build-release",
+		.out = "*compilation*",
+		.footer_panel = true,
+		.save_dirty_files = true,
+		.cursor_at_end = false,
+		.cmd = {
+			{ "build_release.bat", .os = "win" },
+		},
+	},
+    
 	{
 		.name = "compile shaders",
 		.out = "*compilation*",
@@ -55,9 +66,22 @@ command_list = {
 		.cmd = {
 			{ "debug.bat", .os = "win" },
 		},
-	}	
+	},
+    
+    {
+		.name = "run",
+		.out = "*run*",
+		.footer_panel = true,
+		.save_dirty_files = true,
+		.cursor_at_end = false,
+		.cmd = {
+			{ "run.bat", .os = "win" },
+		},
+	}
 };
 
-fkey_command[7] = "build";
-fkey_command[8] = "compile shaders";
-fkey_command[10] = "debug";
+fkey_command[5] = "run";
+fkey_command[7] = "build-debug";
+fkey_command[8] = "build-release";
+fkey_command[9] = "compile shaders";
+fkey_command[12] = "debug";

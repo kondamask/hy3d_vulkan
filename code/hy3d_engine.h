@@ -1,4 +1,6 @@
-#pragma once
+#ifndef HY3D_ENGINE_H
+#define HY3D_ENGINE_H 1
+
 #include "hy3d_base.h"
 #include "hy3d_math.h"
 
@@ -36,11 +38,11 @@ struct platform_api
     vulkan_draw_func *Draw;
     vulkan_udate_func *Update;
     
-#if HY3D_DEBUG
+    //#if HY3D_DEBUG
     debug_read_file *DEBUGReadFile;
     debug_write_file *DEBUGWriteFile;
     debug_free_file *DEBUGFreeFileMemory;
-#endif
+    //#endif
 };
 
 struct engine_memory
@@ -151,3 +153,5 @@ struct hy3d_engine
 #define UPDATE_AND_RENDER(name) void name(hy3d_engine &e, engine_memory *memory)
 typedef UPDATE_AND_RENDER(update_and_render);
 UPDATE_AND_RENDER(UpdateAndRenderStub) {}
+
+#endif

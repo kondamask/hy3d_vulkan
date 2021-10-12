@@ -1,4 +1,6 @@
-#pragma once
+#ifndef HY3D_VULKAN_H
+#define HY3D_VULKAN_H 1
+
 #include "hy3d_base.h"
 #include "hy3d_engine.h"
 
@@ -13,31 +15,32 @@
 #define SURFACE_FORMAT_COLOR_SPACE VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
 #define SURFACE_FORMAT_FORMAT VK_FORMAT_B8G8R8A8_UNORM
 
-struct vulkan_state
+struct vulkan_engine
 {
+    VkPhysicalDeviceMemoryProperties memoryProperties;
+    
     VkInstance instance;
     VkPhysicalDevice gpu;
     VkDevice device;
-    VkPhysicalDeviceMemoryProperties memoryProperties;
     
     VkSurfaceKHR surface;
     VkSurfaceFormatKHR surfaceFormat;
     
-    u32 graphicsQueueFamilyIndex;
-    u32 presentQueueFamilyIndex;
     VkQueue graphicsQueue;
     VkQueue presentQueue;
+    u32 graphicsQueueFamilyIndex;
+    u32 presentQueueFamilyIndex;
     
     VkSemaphore imageAvailableSem;
     VkSemaphore renderFinishedSem;
     VkFence renderFence;
     
-    u32 currentImage;
     VkExtent2D windowExtent;
     VkSwapchainKHR swapchain;
-    u32 swapchainImageCount;
     VkImage swapchainImages[NUM_SWAPCHAIN_IMAGES];
     VkImageView swapchainImageViews[NUM_SWAPCHAIN_IMAGES];
+    u32 currentImage;
+    u32 swapchainImageCount;
     
     VkCommandPool cmdPool;
     VkCommandBuffer cmdBuffers[NUM_SWAPCHAIN_IMAGES];
@@ -50,22 +53,26 @@ struct vulkan_state
     
     VkRenderPass renderPass;
     VkFramebuffer framebuffers[NUM_SWAPCHAIN_IMAGES];
+    
     VkPipelineLayout pipelineLayout;
     VkPipeline pipeline;
     
     VkBuffer vertexBuffer;
-    u32 vertexBufferSize;
     VkDeviceMemory vertexBufferMemory;
+    void *gpuMemory;
+    u32 vertexBufferSize;
     
     bool canRender;
-    
-    HMODULE dll;
     
 #if VULKAN_VALIDATION_LAYERS_ON
     VkDebugUtilsMessengerEXT debugMessenger;
 #endif
+    
+#ifdef VK_USE_PLATFORM_WIN32_KHR
+    HMODULE dll;
+#endif
 };
-global vulkan_state vulkan;
+global vulkan_engine vulkan;
 
 global char* shaderFiles[2] = {
     "..\\build\\shaders\\triangle.vert.spv",
@@ -106,8 +113,22 @@ namespace Vulkan
     function VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData);
 }
 
-//=====================================================================
+//-
 // NOTE: Macros
+
+#if HY3D_DEBUG
+#define AssertSuccess(FuncResult) \
+if (FuncResult != VK_SUCCESS)     \
+{                                 \
+DebugPrint(#FuncResult);      \
+AssertBreak();                \
+}
+#else
+#define AssertSuccess(FuncResult) \
+if (FuncResult != VK_SUCCESS)     \
+return false;
+#endif
+
 #define VulkanFuncPtr(func) PFN_##func
 #define VulkanDeclareFunction(func) function VulkanFuncPtr(func) func
 #define VulkanClearColor(r, g, b, a) \
@@ -116,7 +137,7 @@ r, g, b, a                   \
 }
 #define VulkanIsValidHandle(obj) obj != VK_NULL_HANDLE
 
-//=====================================================================
+//-
 // NOTE: Global Functions
 #define VK_GET_INSTANCE_PROC_ADDR(name) PFN_vkVoidFunction name(VkInstance instance, const char *pName)
 typedef VK_GET_INSTANCE_PROC_ADDR(vk_get_instance_proc_addr);
@@ -128,7 +149,7 @@ VulkanDeclareFunction(vkCreateInstance);
 VulkanDeclareFunction(vkEnumerateInstanceLayerProperties);
 VulkanDeclareFunction(vkEnumerateInstanceExtensionProperties);
 
-//=====================================================================
+//-
 // NOTE: Instance Functions
 VulkanDeclareFunction(vkDestroyInstance);
 
@@ -150,7 +171,7 @@ VulkanDeclareFunction(vkEnumerateDeviceExtensionProperties);
 VulkanDeclareFunction(vkCreateDevice);
 VulkanDeclareFunction(vkGetDeviceProcAddr);
 
-//=====================================================================
+//-
 // NOTE: Device Functions
 VulkanDeclareFunction(vkDeviceWaitIdle);
 VulkanDeclareFunction(vkDestroyDevice);
@@ -207,3 +228,5 @@ VulkanDeclareFunction(vkCmdBeginRenderPass);
 VulkanDeclareFunction(vkCmdBindPipeline);
 VulkanDeclareFunction(vkCmdBindVertexBuffers);
 VulkanDeclareFunction(vkCmdDraw);
+
+#endif

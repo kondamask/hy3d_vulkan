@@ -1,4 +1,6 @@
-#pragma once
+#ifndef HY3D_BASE_H
+#define HY3D_BASE_H 1
+
 #include <cstdint>
 #include <math.h>
 
@@ -16,19 +18,6 @@ if (!(val))     \
 AssertBreak()
 #else
 #define Assert(val)
-#endif
-
-#if HY3D_DEBUG
-#define ASSERT_VK_SUCCESS(FuncResult) \
-if (FuncResult != VK_SUCCESS)     \
-{                                 \
-DebugPrint(#FuncResult);      \
-AssertBreak();                \
-}
-#else
-#define ASSERT_VK_SUCCESS(FuncResult) \
-if (FuncResult != VK_SUCCESS)     \
-return false;
 #endif
 
 #if HY3D_DEBUG
@@ -74,3 +63,5 @@ inline i8 RoundF32toI8(f32 in)
 {
     return (i8)(ceilf(in - 0.5f));
 }
+
+#endif

@@ -614,7 +614,10 @@ int CALLBACK WinMain(
         {
             shadersWriteTime = Win32GetWriteTime(shaderFiles[0]);
             if(!Vulkan::CreatePipeline())
+            {
                 Assert("Failed to recreate pipeline");
+                return 5;
+            }
         }
         
 		if (window.onResize)
