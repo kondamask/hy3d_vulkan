@@ -85,7 +85,7 @@ namespace Vulkan
     function bool CreateCommandBuffers();
     function bool CreateFrameBuffers();
     function bool CreatePipeline();
-    function void ResetCommandBuffers();
+    function bool ResetCommandBuffers();
     function bool Recreate();
     
     function void ClearFrameBuffers();

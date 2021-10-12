@@ -60,8 +60,8 @@ extern "C" UPDATE_AND_RENDER(UpdateAndRender)
     
     
     // NOTE: UPDATE
-    float min = 0.35f;
-    float max = 0.7f;
+    float min = 0.0f;
+    float max = 1.0f;
     for (int i = 0; i < ArrayCount(state->updateData.clearColor); i++)
     {
         if (state->updateData.clearColor[i] >= max)
@@ -74,7 +74,7 @@ extern "C" UPDATE_AND_RENDER(UpdateAndRender)
             state->clearColorChange[i] *= -1.0f;
             state->updateData.clearColor[i] = min;
         }
-        state->updateData.clearColor[i] += state->clearColorChange[i] * dt * 0.1f;
+        state->updateData.clearColor[i] += state->clearColorChange[i] * dt;
     }
     state->updateData.verts[0].pos.x = -state->updateData.clearColor[0];
     state->updateData.verts[0].pos.y = state->updateData.clearColor[1];

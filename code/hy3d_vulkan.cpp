@@ -769,35 +769,43 @@ function void Vulkan::ClearFrameBuffers()
 
 function bool Vulkan::CreateCommandBuffers()
 {
-    ResetCommandBuffers();
-    
-    VkCommandPoolCreateInfo cmdPoolInfo = {};
-    cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    cmdPoolInfo.queueFamilyIndex = vulkan.presentQueueFamilyIndex;
-    cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT; //VK_COMMAND_POOL_CREATE_TRANSIENT_BIT
-    ASSERT_VK_SUCCESS(vkCreateCommandPool(vulkan.device, &cmdPoolInfo, 0, &vulkan.cmdPool));
-    
-    VkCommandBufferAllocateInfo cmdBufferAllocInfo = {};
-    cmdBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    cmdBufferAllocInfo.commandPool = vulkan.cmdPool;
-    cmdBufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    cmdBufferAllocInfo.commandBufferCount = vulkan.swapchainImageCount;
-    ASSERT_VK_SUCCESS(vkAllocateCommandBuffers(vulkan.device, &cmdBufferAllocInfo, vulkan.cmdBuffers));
+    if (!ResetCommandBuffers())
+    {
+        VkCommandPoolCreateInfo cmdPoolInfo = {};
+        cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        cmdPoolInfo.queueFamilyIndex = vulkan.presentQueueFamilyIndex;
+        cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT; //VK_COMMAND_POOL_CREATE_TRANSIENT_BIT
+        ASSERT_VK_SUCCESS(vkCreateCommandPool(vulkan.device, &cmdPoolInfo, 0, &vulkan.cmdPool));
+        
+        VkCommandBufferAllocateInfo cmdBufferAllocInfo = {};
+        cmdBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        cmdBufferAllocInfo.commandPool = vulkan.cmdPool;
+        cmdBufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        cmdBufferAllocInfo.commandBufferCount = vulkan.swapchainImageCount;
+        ASSERT_VK_SUCCESS(vkAllocateCommandBuffers(vulkan.device, &cmdBufferAllocInfo, vulkan.cmdBuffers));
+        
+        DebugPrint("Created Command Pool and Command Buffers\n");
+    }
+    else
+    {
+        DebugPrint("Reseted Command Pool and Command Buffers\n");
+    }
     
     for (u32 i = 0; i < NUM_SWAPCHAIN_IMAGES; i++)
         vulkan.recordCmdBuffer[i] = true;
-    DebugPrint("Created CommandBuffers\n");
     return true;
 }
 
-function void Vulkan::ResetCommandBuffers()
+function bool Vulkan::ResetCommandBuffers()
 {
     if (VulkanIsValidHandle(vulkan.device) && VulkanIsValidHandle(vulkan.cmdPool))
     {
         vkDeviceWaitIdle(vulkan.device);
         vkResetCommandPool(vulkan.device, vulkan.cmdPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
-        DebugPrint("Cleared Command Buffers\n");
+        DebugPrint("Reseted Command Buffers\n");
+        return true;
     }
+    return false;
 }
 
 function bool Vulkan::CreateSwapchain()
