@@ -1182,8 +1182,8 @@ function bool Vulkan::Recreate()
     DebugPrint("\n-Recreate:\n");
     
     if (!CreateSwapchain())
-        return false;
-    if (!(vulkan.windowExtent.width == 0 || vulkan.windowExtent.height == 0))
+        return false
+        if (!(vulkan.windowExtent.width == 0 || vulkan.windowExtent.height == 0))
     {
         if (!CreateCommandBuffers())
             return false;
@@ -1328,6 +1328,20 @@ function bool Vulkan::Draw()
     submitInfo.pCommandBuffers = &vulkan.cmdBuffers[vulkan.currentImage];
     ASSERT_VK_SUCCESS(vkQueueSubmit(vulkan.graphicsQueue, 1, &submitInfo, vulkan.renderFence));
     
+    if (result == VK_ERROR_OUT_OF_DATE_KHR)
+    {
+        if (!Recreate())
+        {
+            Assert("Could not recreate after queue sumbit.\n");
+            return false;
+        }
+    }
+    else if (result != VK_SUCCESS)
+    {
+        Assert("Couldn't submit draw.\n");
+        return false;
+    }
+    
     // NOTE: Submit image to present when signaled by renderFinishedSem
     VkPresentInfoKHR presentInfo = {};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -1338,30 +1352,26 @@ function bool Vulkan::Draw()
     presentInfo.pImageIndices = &vulkan.currentImage;
     result = vkQueuePresentKHR(vulkan.presentQueue, &presentInfo);
     
-    switch (result)
+    
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
     {
-        case VK_SUCCESS:
+        if (!Recreate())
         {
-            break;
-        }
-        case VK_ERROR_OUT_OF_DATE_KHR:
-        case VK_SUBOPTIMAL_KHR:
-        {
-            return Recreate();
-        }
-        default:
-        {
-            
-            DebugPrint("Problem occurred during image presentation!\n");
+            Assert("Could not recreate after queue present.\n");
             return false;
         }
     }
+    else if (result != VK_SUCCESS)
+    {
+        Assert("Couldn't present image.\n");
+        return false;
+    }
+    
     return true;
 }
 
 function bool Vulkan::LoadShader(char *filepath, VkShaderModule *shaderOut)
 {
-    
     debug_read_file_result shaderCode = platformAPI.DEBUGReadFile(filepath);
     Assert(shaderCode.size < SHADER_CODE_BUFFER_SIZE);
     if(shaderCode.content)

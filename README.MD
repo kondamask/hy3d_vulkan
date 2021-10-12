@@ -2,11 +2,14 @@
 
 ## Previews (recent to older):
 * 11/10/21: Shader code hotloading!\
-![](previews/3_111021.gif)\
+![](previews/3_111021.gif)
+
 * 10/10/21: Triangle!\
-![](previews/2_101021.gif)\
+![](previews/2_101021.gif)
+
 * 06/10/21: Engine code hotloading.\
-![](previews/1_071021.gif)\
+![](previews/1_071021.gif)
+
 * 06/10/21: Just clearing the window to a color.\
-![](previews/0_061021.gif)\
+![](previews/0_061021.gif)
 
