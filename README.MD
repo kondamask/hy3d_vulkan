@@ -1,6 +1,9 @@
 # Just a dude learning Vulkan.
 
 ## Previews (recent to older):
+* 12/10/21: Drawing a simple vertex buffer that I'm updating.
+![](previews/4_121021.gif)
+
 * 11/10/21: Shader code hotloading!\
 ![](previews/3_111021.gif)
 

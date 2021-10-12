@@ -1,5 +1,6 @@
 #pragma once
 #include "hy3d_base.h"
+#include "hy3d_math.h"
 
 #include <chrono>
 
@@ -26,7 +27,8 @@ typedef DEBUG_FREE_FILE(debug_free_file);
 #define VULKAN_DRAW_FUNC(name) bool name()
 typedef VULKAN_DRAW_FUNC(vulkan_draw_func);
 
-#define VULKAN_UPDATE_FUNC(name) bool name(f32 color[3])
+struct update_data;
+#define VULKAN_UPDATE_FUNC(name) bool name(update_data *data)
 typedef VULKAN_UPDATE_FUNC(vulkan_udate_func);
 
 struct platform_api
@@ -62,44 +64,12 @@ struct memory_arena
 
 enum KEYBOARD_BUTTON
 {
-    UP,
-    LEFT,
-    DOWN,
-    RIGHT,
-    W,
-    A,
-    S,
-    D,
-    Q,
-    E,
-    R,
-    F,
-    Z,
-    X,
-    C,
-    V,
-    I,
-    J,
-    K,
-    L,
-    U,
-    O,
-    SHIFT,
-    CTRL,
-    ALT,
-    F4,
-    ZERO,
-    ONE,
-    TWO,
-    THREE,
-    FOUR,
-    FIVE,
-    SIX,
-    SEVEN,
-    EIGHT,
-    NINE,
-    COUNT,
-    INVALID
+    UP, LEFT, DOWN, RIGHT,
+    W, A, S, D, Q, E, R, F, Z, X, C, V, I, J, K, L, U, O,
+    SHIFT, CTRL, ALT, F4,
+    ZERO, ONE, TWO, THREE, FOUR, FIVE,
+    SIX, SEVEN, EIGHT, NINE,
+    COUNT, INVALID
 };
 
 struct keyboard
@@ -158,12 +128,19 @@ struct engine_input
     keyboard keyboard;
 };
 
+struct update_data
+{
+    float clearColor[3];
+    vertex2 verts[3];
+};
+
 struct engine_state
 {
     memory_arena memoryArena;
-    float color[3];
-    float change[3];
+    update_data updateData;
+    float clearColorChange[3];
 };
+
 struct hy3d_engine
 {
     engine_input input;

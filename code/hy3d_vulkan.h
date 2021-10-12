@@ -53,6 +53,10 @@ struct vulkan_state
     VkPipelineLayout pipelineLayout;
     VkPipeline pipeline;
     
+    VkBuffer vertexBuffer;
+    u32 vertexBufferSize;
+    VkDeviceMemory vertexBufferMemory;
+    
     bool canRender;
     
     HMODULE dll;
@@ -80,21 +84,25 @@ namespace Vulkan
     function bool CreateSwapchain();
     function bool CreateCommandBuffers();
     function bool CreateFrameBuffers();
+    function bool CreatePipeline();
+    function void ResetCommandBuffers();
     function bool Recreate();
     
-    function void ClearCommandBuffers();
     function void ClearFrameBuffers();
     function void ClearSwapchainImages();
     function void ClearPipeline();
     function void Destroy();
     
+    function bool Update(update_data *data);
     function bool Draw();
     
     function bool LoadShader(char *filepath, VkShaderModule *shaderOut);
-    function bool CreatePipeline();
     
-    function bool ClearScreenToSolid(f32 color[3]);
-    function bool FindMemoryProperties(VkPhysicalDeviceMemoryProperties &memoryProperties, uint32_t memoryTypeBitsRequirement, VkMemoryPropertyFlags requiredProperties, u32 &memoryIndex);
+    function bool FindMemoryProperties(u32 memoryType, VkMemoryPropertyFlags requiredProperties, u32 &memoryIndexOut);
+    
+    function void GetVertexBindingDesc(vertex2 &v, VkVertexInputBindingDescription &bindingDesc);
+    function void GetVertexAttributeDesc(vertex2 &v, VkVertexInputAttributeDescription *attributeDescs);
+    
     function VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData);
 }
 
@@ -185,10 +193,17 @@ VulkanDeclareFunction(vkCreatePipelineLayout);
 VulkanDeclareFunction(vkDestroyPipelineLayout);
 VulkanDeclareFunction(vkCreateGraphicsPipelines);
 VulkanDeclareFunction(vkDestroyPipeline);
+VulkanDeclareFunction(vkCreateBuffer);
+VulkanDeclareFunction(vkDestroyBuffer);
+VulkanDeclareFunction(vkGetBufferMemoryRequirements);
+VulkanDeclareFunction(vkBindBufferMemory);
+VulkanDeclareFunction(vkMapMemory);
+VulkanDeclareFunction(vkUnmapMemory);
 
 VulkanDeclareFunction(vkCmdPipelineBarrier);
 VulkanDeclareFunction(vkCmdClearColorImage);
 VulkanDeclareFunction(vkCmdEndRenderPass);
 VulkanDeclareFunction(vkCmdBeginRenderPass);
 VulkanDeclareFunction(vkCmdBindPipeline);
+VulkanDeclareFunction(vkCmdBindVertexBuffers);
 VulkanDeclareFunction(vkCmdDraw);

@@ -2,6 +2,7 @@
 #include "hy3d_base.h"
 #include "math.h"
 
+//~ NOTE(heyyod): General
 inline f32 minF32(f32 a, f32 b)
 {
     if (a <= b)
@@ -21,6 +22,7 @@ inline f32 Squared(f32 n)
     return n * n;
 }
 
+//~ NOTE(heyyod): vec3
 struct vec3
 {
     union
@@ -72,8 +74,6 @@ struct vec3
         *this = this->normalized();
     }
 };
-
-typedef vec3 colorV3;
 
 // NOTE:  addition, subtraction
 inline vec3 operator+(vec3 a, vec3 b)
@@ -170,10 +170,7 @@ inline vec3 lerp(vec3 P, vec3 A, vec3 B, f32 alpha)
     return P + (B - P) * alpha;
 }
 
-// ----------------------------------------------------------------------------------------
-// NOTE:  VEC2 ----------------------------------------------------------------------------
-// ----------------------------------------------------------------------------------------
-
+//~ NOTE(heyyod): vec2
 struct vec2
 {
     union
@@ -294,19 +291,20 @@ inline vec2 lerp(vec2 P, vec2 A, vec2 B, f32 alpha)
     return P + (B - P) * alpha;
 }
 
+//~ NOTE(heyyod): mat3
 struct mat3
 {
     float cell[3][3]; // [row][column]
 };
-/*
- function mat3 Identity()
+
+function mat3 Identity()
 {
     return {
         1.0f, 0.0f, 0.0f,
         0.0f, 1.0f, 0.0f,
         0.0f, 0.0f, 1.0f};
 }
-*/
+
 function mat3 Scale(float factor)
 {
     return {
@@ -406,3 +404,13 @@ vec3 operator*=(vec3 &v, mat3 m)
     v = v * m;
     return v;
 }
+
+//~ NOTE(heyyod): Colors defs
+typedef vec3 colorRGB;
+
+//~ NOTE(heyyod): Vertex2d
+struct vertex2
+{
+    vec2 pos;
+    colorRGB color;
+};

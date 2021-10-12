@@ -176,12 +176,19 @@ function bool Vulkan::LoadDeviceFunctions()
     VulkanLoadDeviceFunc(vkDestroyPipelineLayout);
     VulkanLoadDeviceFunc(vkCreateGraphicsPipelines);
     VulkanLoadDeviceFunc(vkDestroyPipeline);
+    VulkanLoadDeviceFunc(vkCreateBuffer);
+    VulkanLoadDeviceFunc(vkDestroyBuffer);
+    VulkanLoadDeviceFunc(vkGetBufferMemoryRequirements);
+    VulkanLoadDeviceFunc(vkBindBufferMemory);
+    VulkanLoadDeviceFunc(vkMapMemory);
+    VulkanLoadDeviceFunc(vkUnmapMemory);
     
     VulkanLoadDeviceFunc(vkCmdBeginRenderPass);
     VulkanLoadDeviceFunc(vkCmdEndRenderPass);
     VulkanLoadDeviceFunc(vkCmdPipelineBarrier);
     VulkanLoadDeviceFunc(vkCmdClearColorImage);
     VulkanLoadDeviceFunc(vkCmdBindPipeline);
+    VulkanLoadDeviceFunc(vkCmdBindVertexBuffers);
     VulkanLoadDeviceFunc(vkCmdDraw);
     
     DebugPrint("Loaded Device Functions\n");
@@ -189,23 +196,44 @@ function bool Vulkan::LoadDeviceFunctions()
     return true;
 }
 
-function bool Vulkan::FindMemoryProperties(VkPhysicalDeviceMemoryProperties &memoryProperties,
-                                           uint32_t memoryTypeBitsRequirement,
-                                           VkMemoryPropertyFlags requiredProperties,
-                                           u32 &memoryIndex)
+function bool Vulkan::FindMemoryProperties(u32 reqMemType, VkMemoryPropertyFlags reqMemProperties, u32 &memoryIndexOut)
 {
-    u32 memoryCount = memoryProperties.memoryTypeCount;
-    for (memoryIndex = 0; memoryIndex < memoryCount; ++memoryIndex)
+    // NOTE(heyyod): We assume we have already set the memory properties during creation.
+    u32 memoryCount = vulkan.memoryProperties.memoryTypeCount;
+    for (memoryIndexOut = 0; memoryIndexOut < memoryCount; ++memoryIndexOut)
     {
-        uint32_t memoryTypeBits = (1 << memoryIndex);
-        bool isRequiredMemoryType = memoryTypeBitsRequirement & memoryTypeBits;
-        VkMemoryPropertyFlags properties = memoryProperties.memoryTypes[memoryIndex].propertyFlags;
-        bool hasRequiredProperties = ((properties & requiredProperties) == requiredProperties);
-        
-        if (isRequiredMemoryType && hasRequiredProperties)
-            return true;
+        uint32_t memoryType= (1 << memoryIndexOut);
+        bool isRequiredMemoryType = reqMemType & memoryType;
+        if(isRequiredMemoryType)
+        {
+            VkMemoryPropertyFlags properties = vulkan.memoryProperties.memoryTypes[memoryIndexOut].propertyFlags;
+            bool hasRequiredProperties = ((properties & reqMemProperties) == reqMemProperties);
+            if (hasRequiredProperties)
+                return true;
+        }
     }
     return false;
+}
+
+function void Vulkan::GetVertexBindingDesc(vertex2 &v, VkVertexInputBindingDescription &bindingDesc)
+{
+    bindingDesc.binding = 0;
+    bindingDesc.stride = sizeof(v);
+    bindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+}
+
+function void Vulkan::GetVertexAttributeDesc(vertex2 &v, VkVertexInputAttributeDescription *attributeDescs)
+{
+    //Assert(ArrayCount(attributeDescs) == 2); // for pos and color
+    attributeDescs[0].binding = 0;
+    attributeDescs[0].location = 0;
+    attributeDescs[0].format = VK_FORMAT_R32G32_SFLOAT;
+    attributeDescs[0].offset = offsetof(vertex2, pos);
+    
+    attributeDescs[1].binding = 0;
+    attributeDescs[1].location = 1;
+    attributeDescs[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+    attributeDescs[1].offset = offsetof(vertex2, color);
 }
 
 // TODO: make this cross-platform
@@ -741,7 +769,7 @@ function void Vulkan::ClearFrameBuffers()
 
 function bool Vulkan::CreateCommandBuffers()
 {
-    ClearCommandBuffers();
+    ResetCommandBuffers();
     
     VkCommandPoolCreateInfo cmdPoolInfo = {};
     cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -762,7 +790,7 @@ function bool Vulkan::CreateCommandBuffers()
     return true;
 }
 
-function void Vulkan::ClearCommandBuffers()
+function void Vulkan::ResetCommandBuffers()
 {
     if (VulkanIsValidHandle(vulkan.device) && VulkanIsValidHandle(vulkan.cmdPool))
     {
@@ -955,12 +983,27 @@ function bool Vulkan::CreatePipeline()
 {
     ClearPipeline();
     
+    VkVertexInputBindingDescription vertexBindingDesc;
+    vertexBindingDesc.binding = 0;
+    vertexBindingDesc.stride = sizeof(vertex2);
+    vertexBindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    
+    VkVertexInputAttributeDescription vertexAttributeDescs[2];
+    vertexAttributeDescs[0].binding = 0;
+    vertexAttributeDescs[0].location = 0;
+    vertexAttributeDescs[0].format = VK_FORMAT_R32G32_SFLOAT;
+    vertexAttributeDescs[0].offset = offsetof(vertex2, pos);
+    vertexAttributeDescs[1].binding = 0;
+    vertexAttributeDescs[1].location = 1;
+    vertexAttributeDescs[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+    vertexAttributeDescs[1].offset = offsetof(vertex2, color);
+    
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    //vertexInputInfo.vertexBindingDescriptionCount = 0;
-    //vertexInputInfo.pVertexBindingDescriptions = nullptr; // Optional
-    //vertexInputInfo.vertexAttributeDescriptionCount = 0;
-    //vertexInputInfo.pVertexAttributeDescriptions = nullptr; // Optional
+    vertexInputInfo.vertexBindingDescriptionCount = 1;
+    vertexInputInfo.pVertexBindingDescriptions = &vertexBindingDesc;
+    vertexInputInfo.vertexAttributeDescriptionCount = ArrayCount(vertexAttributeDescs);
+    vertexInputInfo.pVertexAttributeDescriptions = vertexAttributeDescs;
     
     VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo{};
     inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -1130,6 +1173,11 @@ function void Vulkan::Destroy()
         
         ClearPipeline();
         
+        if(VulkanIsValidHandle(vulkan.vertexBuffer))
+            vkDestroyBuffer(vulkan.device, vulkan.vertexBuffer, 0);
+        if(VulkanIsValidHandle(vulkan.vertexBufferMemory))
+            vkFreeMemory(vulkan.device, vulkan.vertexBufferMemory, 0);
+        
         ClearFrameBuffers();
         if (VulkanIsValidHandle(vulkan.renderPass))
             vkDestroyRenderPass(vulkan.device, vulkan.renderPass, 0);
@@ -1152,7 +1200,8 @@ function void Vulkan::Destroy()
         if (VulkanIsValidHandle(vulkan.renderFence))
             vkDestroyFence(vulkan.device, vulkan.renderFence, 0);
         
-        ClearCommandBuffers();
+        if(VulkanIsValidHandle(vulkan.cmdPool))
+            vkDestroyCommandPool(vulkan.device, vulkan.cmdPool, 0);
         
         vkDestroyDevice(vulkan.device, 0);
     }
@@ -1182,9 +1231,42 @@ function bool Vulkan::Recreate()
     DebugPrint("\n-Recreate:\n");
     
     if (!CreateSwapchain())
-        return false
-        if (!(vulkan.windowExtent.width == 0 || vulkan.windowExtent.height == 0))
+        return false;
+    if (!(vulkan.windowExtent.width == 0 || vulkan.windowExtent.height == 0))
     {
+        // TODO(heyyod): Should make this a function!!
+        if(!(VulkanIsValidHandle(vulkan.vertexBuffer)))
+        {
+            vulkan.vertexBufferSize = sizeof(vertex2) * 3; // TODO(heyyod): FOR NOW!!!!
+            
+            VkBufferCreateInfo bufferInfo = {};
+            bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+            bufferInfo.size = vulkan.vertexBufferSize;
+            bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+            bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            ASSERT_VK_SUCCESS(vkCreateBuffer(vulkan.device, &bufferInfo, 0, &vulkan.vertexBuffer));
+            
+            VkMemoryRequirements vertexBufferMemReq = {};
+            vkGetBufferMemoryRequirements(vulkan.device, vulkan.vertexBuffer, &vertexBufferMemReq);
+            
+            u32 memIndex = 0;
+            if(Vulkan::FindMemoryProperties(vertexBufferMemReq.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, memIndex))
+            {
+                VkMemoryAllocateInfo allocInfo = {};
+                allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+                allocInfo.allocationSize = vertexBufferMemReq.size;
+                allocInfo.memoryTypeIndex = memIndex;
+                
+                ASSERT_VK_SUCCESS(vkAllocateMemory(vulkan.device, &allocInfo, 0, &vulkan.vertexBufferMemory));
+                ASSERT_VK_SUCCESS(vkBindBufferMemory(vulkan.device, vulkan.vertexBuffer, vulkan.vertexBufferMemory, 0));
+            }
+            else
+            {
+                Assert("Could not allocate vertex buffer memory");
+                return false;
+            }
+        }
+        
         if (!CreateCommandBuffers())
             return false;
         if (!CreateFrameBuffers())
@@ -1201,8 +1283,14 @@ function bool Vulkan::Recreate()
     return true;
 }
 
-function bool Vulkan::ClearScreenToSolid(float color[3])
+
+function bool Vulkan::Update(update_data *data)
 {
+    void *gpuData;
+    vkMapMemory(vulkan.device, vulkan.vertexBufferMemory, 0, vulkan.vertexBufferSize, 0, &gpuData);
+    memcpy(gpuData, data->verts, vulkan.vertexBufferSize);
+    vkUnmapMemory(vulkan.device, vulkan.vertexBufferMemory);
+    
     VkCommandBufferBeginInfo commandBufferBeginInfo = {};
     commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -1214,7 +1302,7 @@ function bool Vulkan::ClearScreenToSolid(float color[3])
     rpInfo.clearValueCount = 1;
     
     VkClearValue clearValue = {};
-    clearValue.color = VulkanClearColor(color[0], color[1], color[2], 0.0f);
+    clearValue.color = VulkanClearColor(data->clearColor[0], data->clearColor[1], data->clearColor[2], 0.0f);
     rpInfo.pClearValues = &clearValue;
     
     for (u32 i = 0; i < NUM_SWAPCHAIN_IMAGES; i++)
@@ -1226,54 +1314,16 @@ function bool Vulkan::ClearScreenToSolid(float color[3])
             ASSERT_VK_SUCCESS(vkBeginCommandBuffer(vulkan.cmdBuffers[i], &commandBufferBeginInfo));
             vkCmdBeginRenderPass(vulkan.cmdBuffers[i], &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
             vkCmdBindPipeline(vulkan.cmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan.pipeline);
-            vkCmdDraw(vulkan.cmdBuffers[i], 3, 1, 0, 0);
+            
+            VkBuffer vertexBuffers[] = {vulkan.vertexBuffer};
+            VkDeviceSize offsets[] = {0};
+            vkCmdBindVertexBuffers(vulkan.cmdBuffers[i], 0, 1, vertexBuffers, offsets);
+            
+            vkCmdDraw(vulkan.cmdBuffers[i], ArrayCount(data->verts), 1, 0, 0);
             vkCmdEndRenderPass(vulkan.cmdBuffers[i]);
             ASSERT_VK_SUCCESS(vkEndCommandBuffer(vulkan.cmdBuffers[i]));
         }
     }
-    
-    /*
-    VkImageSubresourceRange imageSubresourceRange = {};
-    imageSubresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    imageSubresourceRange.baseMipLevel = 0;
-    imageSubresourceRange.levelCount = 1;
-    imageSubresourceRange.baseArrayLayer = 0;
-    imageSubresourceRange.layerCount = 1;
-
-    for (u32 i = 0; i < vulkan.swapchainImageCount; ++i)
-    {
-        VkImageMemoryBarrier barrierFromPresentToClear = {};
-        barrierFromPresentToClear.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        barrierFromPresentToClear.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-        barrierFromPresentToClear.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barrierFromPresentToClear.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        barrierFromPresentToClear.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        barrierFromPresentToClear.srcQueueFamilyIndex = vulkan.presentQueueFamilyIndex;
-        barrierFromPresentToClear.dstQueueFamilyIndex = vulkan.presentQueueFamilyIndex;
-        barrierFromPresentToClear.image = vulkan.swapchainImages[i];
-        barrierFromPresentToClear.subresourceRange = imageSubresourceRange;
-
-        VkImageMemoryBarrier barrierFromClearToPresent = {};
-        barrierFromClearToPresent.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        barrierFromClearToPresent.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barrierFromClearToPresent.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-        barrierFromClearToPresent.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        barrierFromClearToPresent.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-        barrierFromClearToPresent.srcQueueFamilyIndex = vulkan.presentQueueFamilyIndex;
-        barrierFromClearToPresent.dstQueueFamilyIndex = vulkan.presentQueueFamilyIndex;
-        barrierFromClearToPresent.image = vulkan.swapchainImages[i];
-        barrierFromClearToPresent.subresourceRange = imageSubresourceRange;
-
-        ASSERT_VK_SUCCESS(vkBeginCommandBuffer(vulkan.cmdBuffers[i], &commandBufferBeginInfo));
-        vkCmdPipelineBarrier(vulkan.cmdBuffers[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                             0, 0, 0, 0, 0, 1, &barrierFromPresentToClear);
-        vkCmdClearColorImage(vulkan.cmdBuffers[i], vulkan.swapchainImages[i], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                             &clearColor, 1, &imageSubresourceRange);
-        vkCmdPipelineBarrier(vulkan.cmdBuffers[i], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                             0, 0, 0, 0, 0, 1, &barrierFromClearToPresent);
-        ASSERT_VK_SUCCESS(vkEndCommandBuffer(vulkan.cmdBuffers[i]));
-    }
-    */
     return true;
 }
 

@@ -538,7 +538,7 @@ function bool Win32InitializeMemory(engine_memory &memory)
 	memory.isInitialized = false;
     
 	memory.platformAPI_.Draw = Vulkan::Draw;
-	memory.platformAPI_.Update = Vulkan::ClearScreenToSolid;
+	memory.platformAPI_.Update = Vulkan::Update;
     
 #if HY3D_DEBUG
 	memory.platformAPI_.DEBUGFreeFileMemory = DEBUGFreeFileMemory;
@@ -630,6 +630,6 @@ int CALLBACK WinMain(
 			engineCode.UpdateAndRender(engine, &engineMemory);
 		Win32Update(window);
 	}
-	// TODO: Destroy Vulkan
+    Vulkan::Destroy();
 	return quitMessage;
 }

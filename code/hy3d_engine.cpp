@@ -27,12 +27,19 @@ function void Initialize(hy3d_engine *e, engine_state *state, engine_memory *mem
                           memory->permanentMemorySize - sizeof(engine_state));
     
     // NOTE: Everything is initialized here
-    state->color[0] = 0.1f;
-    state->color[1] = 0.3f;
-    state->color[2] = 0.6f;
-    state->change[0] = 1.0f;
-    state->change[1] = 1.5f;
-    state->change[2] = 2.0f;
+    state->updateData.clearColor[0] = 0.1f;
+    state->updateData.clearColor[1] = 0.3f;
+    state->updateData.clearColor[2] = 0.6f;
+    state->updateData.verts[0].pos = {-1.0f, 1.0f };
+    state->updateData.verts[1].pos = { 0.0f, -1.0 };
+    state->updateData.verts[2].pos = { 1.0f, 1.0f };
+    state->updateData.verts[0].color = {1.0f, 0.0f, 0.0f};
+    state->updateData.verts[1].color = {0.0f, 1.0f, 0.0f};
+    state->updateData.verts[2].color = {0.0f, 0.0f, 1.0f};
+    
+    state->clearColorChange[0] = 1.0f;
+    state->clearColorChange[1] = 1.5f;
+    state->clearColorChange[2] = 2.0f;
     
     memory->isInitialized = true;
     e->frameStart = std::chrono::steady_clock::now();
@@ -51,29 +58,36 @@ extern "C" UPDATE_AND_RENDER(UpdateAndRender)
     f32 dt = frameTime.count();
     e.frameStart = frameEnd;
     
+    
     // NOTE: UPDATE
     float min = 0.35f;
     float max = 0.7f;
-    for (int i = 0; i < ArrayCount(state->color); i++)
+    for (int i = 0; i < ArrayCount(state->updateData.clearColor); i++)
     {
-        if (state->color[i] >= max)
+        if (state->updateData.clearColor[i] >= max)
         {
-            state->change[i] *= -1.0f;
-            state->color[i] = max;
+            state->clearColorChange[i] *= -1.0f;
+            state->updateData.clearColor[i] = max;
         }
-        if (state->color[i] <= min)
+        if (state->updateData.clearColor[i] <= min)
         {
-            state->change[i] *= -1.0f;
-            state->color[i] = min;
+            state->clearColorChange[i] *= -1.0f;
+            state->updateData.clearColor[i] = min;
         }
-        state->color[i] += state->change[i] * dt * 0.1f;
+        state->updateData.clearColor[i] += state->clearColorChange[i] * dt * 0.1f;
     }
+    state->updateData.verts[0].pos.x = -state->updateData.clearColor[0];
+    state->updateData.verts[0].pos.y = state->updateData.clearColor[1];
+    state->updateData.verts[1].pos.x =  state->updateData.clearColor[2];
+    state->updateData.verts[1].pos.y = -state->updateData.clearColor[1];
+    state->updateData.verts[2].pos.x = state->updateData.clearColor[2];
+    state->updateData.verts[2].pos.y = state->updateData.clearColor[0];
     
     //state->color[0] = 0.8;
     //state->color[1] = 0.55;
     //state->color[2] = 0.35;
     
-    platformAPI.Update(state->color);
+    platformAPI.Update(&state->updateData);
     
     // NOTE: RENDER
     platformAPI.Draw();
