@@ -86,16 +86,5 @@ extern "C" UPDATE_AND_RENDER(UpdateAndRender)
     state->updateData.verts[1].color.pos[1] = state->updateData.clearColor[1];
     state->updateData.verts[2].color.pos[2] = state->updateData.clearColor[2];
     
-    
-    //state->color[0] = 0.8;
-    //state->color[1] = 0.55;
-    //state->color[2] = 0.35;
-    
-    platformAPI.Update(&state->updateData);
-    
-    // NOTE: RENDER
-    platformAPI.Draw();
-    
-    //if we cant render
-    //Sleep(100);
+    platformAPI.Draw(&state->updateData);
 }

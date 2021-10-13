@@ -538,7 +538,6 @@ function bool Win32InitializeMemory(engine_memory &memory)
 	memory.isInitialized = false;
     
 	memory.platformAPI_.Draw = Vulkan::Draw;
-	memory.platformAPI_.Update = Vulkan::Update;
     
 #if HY3D_DEBUG
 	memory.platformAPI_.DEBUGFreeFileMemory = DEBUGFreeFileMemory;
@@ -615,17 +614,14 @@ int CALLBACK WinMain(
             shadersWriteTime = Win32GetWriteTime(shaderFiles[0]);
             if(!Vulkan::CreatePipeline())
             {
-                Assert("Failed to recreate pipeline");
                 return 5;
             }
         }
-        
 		if (window.onResize)
 		{
-			if (!Vulkan::Recreate())
+			if (!Vulkan::CreateSwapchain())
 			{
-				Assert("Failed To Recreate Window.");
-				return -1;
+                return 6;
 			}
 			window.onResize = false;
 		}

@@ -26,17 +26,17 @@ typedef DEBUG_WRITE_FILE(debug_write_file);
 #define DEBUG_FREE_FILE(name) void name(void *memory)
 typedef DEBUG_FREE_FILE(debug_free_file);
 
-#define VULKAN_DRAW_FUNC(name) bool name()
+struct update_data
+{
+    float clearColor[3];
+    vertex2 verts[3];
+};
+#define VULKAN_DRAW_FUNC(name) bool name(update_data *data)
 typedef VULKAN_DRAW_FUNC(vulkan_draw_func);
-
-struct update_data;
-#define VULKAN_UPDATE_FUNC(name) bool name(update_data *data)
-typedef VULKAN_UPDATE_FUNC(vulkan_udate_func);
 
 struct platform_api
 {
     vulkan_draw_func *Draw;
-    vulkan_udate_func *Update;
     
     //#if HY3D_DEBUG
     debug_read_file *DEBUGReadFile;
@@ -128,12 +128,6 @@ struct engine_input
 {
     mouse mouse;
     keyboard keyboard;
-};
-
-struct update_data
-{
-    float clearColor[3];
-    vertex2 verts[3];
 };
 
 struct engine_state

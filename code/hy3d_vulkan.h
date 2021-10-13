@@ -11,9 +11,19 @@
 
 #define NUM_SAMPLES VK_SAMPLE_COUNT_1_BIT
 #define NUM_SWAPCHAIN_IMAGES 2
+#define NUM_RESOURCES 4
 #define SHADER_CODE_BUFFER_SIZE 4096
 #define SURFACE_FORMAT_COLOR_SPACE VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
 #define SURFACE_FORMAT_FORMAT VK_FORMAT_B8G8R8A8_UNORM
+
+struct frame_prep_resource
+{
+    VkCommandBuffer cmdBuffer;
+    VkSemaphore imgAvailableSem;
+    VkSemaphore frameReadySem;
+    VkFence fence;
+    VkFramebuffer framebuffer;
+};
 
 struct vulkan_engine
 {
@@ -31,28 +41,18 @@ struct vulkan_engine
     u32 graphicsQueueFamilyIndex;
     u32 presentQueueFamilyIndex;
     
-    VkSemaphore imageAvailableSem;
-    VkSemaphore renderFinishedSem;
-    VkFence renderFence;
-    
+    // NOTE(heyyod): We have a set of resources that we use in a circular way to prepare
+    // the next frame. For now the number of resources is the same as the swapchain images.
+    // THIS IS IMPORTANT. THE FRAMEBUFFER CREATION DEPENDS ON THIS!!!
     VkExtent2D windowExtent;
     VkSwapchainKHR swapchain;
+    VkCommandPool cmdPool;
+    VkRenderPass renderPass;
     VkImage swapchainImages[NUM_SWAPCHAIN_IMAGES];
     VkImageView swapchainImageViews[NUM_SWAPCHAIN_IMAGES];
-    u32 currentImage;
+    frame_prep_resource resources[NUM_RESOURCES];
     u32 swapchainImageCount;
-    
-    VkCommandPool cmdPool;
-    VkCommandBuffer cmdBuffers[NUM_SWAPCHAIN_IMAGES];
-    bool recordCmdBuffer[NUM_SWAPCHAIN_IMAGES];
-    
-    VkFormat depthFormat;
-    VkImage depthImage;
-    VkImageView depthImageView;
-    VkDeviceMemory depthMemory;
-    
-    VkRenderPass renderPass;
-    VkFramebuffer framebuffers[NUM_SWAPCHAIN_IMAGES];
+    u32 currentResource;
     
     VkPipelineLayout pipelineLayout;
     VkPipeline pipeline;
@@ -60,7 +60,12 @@ struct vulkan_engine
     VkBuffer vertexBuffer;
     VkDeviceMemory vertexBufferMemory;
     void *gpuMemory;
-    u32 vertexBufferSize;
+    u64 vertexBufferSize;
+    
+    VkFormat depthFormat;
+    VkImage depthImage;
+    VkImageView depthImageView;
+    VkDeviceMemory depthMemory;
     
     bool canRender;
     
@@ -90,18 +95,16 @@ namespace Vulkan
     
     function bool CreateSwapchain();
     function bool CreateCommandBuffers();
-    function bool CreateFrameBuffers();
     function bool CreatePipeline();
     function bool ResetCommandBuffers();
-    function bool Recreate();
     
     function void ClearFrameBuffers();
     function void ClearSwapchainImages();
     function void ClearPipeline();
     function void Destroy();
     
-    function bool Update(update_data *data);
-    function bool Draw();
+    function bool Update(update_data *data, u32 imgIndex, frame_prep_resource *res);
+    function bool Draw(update_data *data);
     
     function bool LoadShader(char *filepath, VkShaderModule *shaderOut);
     
@@ -120,7 +123,7 @@ namespace Vulkan
 #define AssertSuccess(FuncResult) \
 if (FuncResult != VK_SUCCESS)     \
 {                                 \
-DebugPrint(#FuncResult);      \
+DebugPrint(FuncResult);      \
 AssertBreak();                \
 }
 #else
@@ -228,5 +231,7 @@ VulkanDeclareFunction(vkCmdBeginRenderPass);
 VulkanDeclareFunction(vkCmdBindPipeline);
 VulkanDeclareFunction(vkCmdBindVertexBuffers);
 VulkanDeclareFunction(vkCmdDraw);
+VulkanDeclareFunction(vkCmdSetViewport);
+VulkanDeclareFunction(vkCmdSetScissor);
 
 #endif

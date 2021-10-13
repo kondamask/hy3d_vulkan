@@ -4,10 +4,10 @@
 #include <cstdint>
 #include <math.h>
 
-#define KILOBYTES(val) (val * 1024LL)
-#define MEGABYTES(val) (KILOBYTES(val) * 1024LL)
-#define GIGABYTES(val) (MEGABYTES(val) * 1024LL)
-#define TERABYTES(val) (GIGABYTES(val) * 1024LL)
+#define KILOBYTES(val) (val * 1024ULL)
+#define MEGABYTES(val) (KILOBYTES(val) * 1024ULL)
+#define GIGABYTES(val) (MEGABYTES(val) * 1024ULL)
+#define TERABYTES(val) (GIGABYTES(val) * 1024ULL)
 
 // TODO: Make this an actual assetion
 #define AssertBreak() *(int *)0 = 0

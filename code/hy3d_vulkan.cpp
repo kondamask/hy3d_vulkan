@@ -190,6 +190,8 @@ function bool Vulkan::LoadDeviceFunctions()
     VulkanLoadDeviceFunc(vkCmdBindPipeline);
     VulkanLoadDeviceFunc(vkCmdBindVertexBuffers);
     VulkanLoadDeviceFunc(vkCmdDraw);
+    VulkanLoadDeviceFunc(vkCmdSetViewport);
+    VulkanLoadDeviceFunc(vkCmdSetScissor);
     
     DebugPrint("Loaded Device Functions\n");
     
@@ -554,18 +556,21 @@ function bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, c
     vkGetDeviceQueue(vulkan.device, vulkan.graphicsQueueFamilyIndex, 0, &vulkan.graphicsQueue);
     vkGetDeviceQueue(vulkan.device, vulkan.presentQueueFamilyIndex, 0, &vulkan.presentQueue);
     
-    // NOTE: Create semaphores and fence
+    // NOTE: Create semaphores and fences
     {
         VkSemaphoreCreateInfo semaphoreInfo = {};
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-        AssertSuccess(vkCreateSemaphore(vulkan.device, &semaphoreInfo, 0, &vulkan.imageAvailableSem));
-        AssertSuccess(vkCreateSemaphore(vulkan.device, &semaphoreInfo, 0, &vulkan.renderFinishedSem));
         
         VkFenceCreateInfo fenceInfo = {};
         fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-        AssertSuccess(vkCreateFence(vulkan.device, &fenceInfo, 0, &vulkan.renderFence));
         
+        for(u32 i = 0; i < NUM_RESOURCES; i++)
+        {
+            AssertSuccess(vkCreateSemaphore(vulkan.device, &semaphoreInfo, 0, &vulkan.resources[i].imgAvailableSem));
+            AssertSuccess(vkCreateSemaphore(vulkan.device, &semaphoreInfo, 0, &vulkan.resources[i].frameReadySem));
+            AssertSuccess(vkCreateFence(vulkan.device, &fenceInfo, 0, &vulkan.resources[i].fence));
+        }
         DebugPrint("Created Semaphores and Fence\n");
     }
     
@@ -675,18 +680,37 @@ function bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, c
         VkSubpassDescription subpassDescriptions = {};
         //subpassDescriptions.flags = 0;
         subpassDescriptions.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        //subpassDescriptions.inputAttachmentCount = 0;
+        //subpassDescriptions.pInputAttachments = 0;
         
-        // NOTE(heyyod): The index of the attachment in this array is directly 
+        // NOTE(heyyod): The index of the color attachment in this array is directly 
         //referenced from the fragment shader with the layout(location = 0) out vec4 outColor directive!
         subpassDescriptions.colorAttachmentCount = 1; // ArrayCount(colorAttachementRef)
         subpassDescriptions.pColorAttachments = &colorAttachementRef;
         
-        //subpassDescriptions.inputAttachmentCount = 0;
-        //subpassDescriptions.pInputAttachments = 0;
         //subpassDescriptions.pResolveAttachments = 0;
         //subpassDescriptions.pDepthStencilAttachment = 0;
         //subpassDescriptions.preserveAttachmentCount = 0;
         //subpassDescriptions.pPreserveAttachments = 0;
+        
+        VkSubpassDependency renderpassDependencies[2] = {};;
+        renderpassDependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+        renderpassDependencies[0].dstSubpass = 0;
+        renderpassDependencies[0].srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+        renderpassDependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        renderpassDependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+        renderpassDependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        renderpassDependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+        
+        renderpassDependencies[1].srcSubpass = 0;
+        renderpassDependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+        renderpassDependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        renderpassDependencies[1].dstStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+        renderpassDependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        renderpassDependencies[1].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+        renderpassDependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+        
+        
         
         VkRenderPassCreateInfo renderPassInfo = {};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -694,9 +718,58 @@ function bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, c
         renderPassInfo.pAttachments = &colorAttachment;
         renderPassInfo.subpassCount = 1;
         renderPassInfo.pSubpasses = &subpassDescriptions;
+        renderPassInfo.dependencyCount = ArrayCount(renderpassDependencies);
+        renderPassInfo.pDependencies = renderpassDependencies;
         AssertSuccess(vkCreateRenderPass(vulkan.device, &renderPassInfo, 0, &vulkan.renderPass));
-        
         DebugPrint("Created a renderpass\n");
+    }
+    
+    if (!CreateCommandBuffers())
+    {
+        Assert("Failed to create command buffers");
+        return false;
+    }
+    
+    if(!CreatePipeline())
+    {
+        Assert("Could not create pipeline");
+        return false;
+    }
+    
+    // NOTE(heyyod): Make a vertex buffer
+    // TODO(heyyod): Should make this a function!!
+    if(!(VulkanIsValidHandle(vulkan.vertexBuffer)))
+    {
+        vulkan.vertexBufferSize = sizeof(vertex2) * 3; // TODO(heyyod): FOR NOW!!!!
+        
+        VkBufferCreateInfo bufferInfo = {};
+        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferInfo.size = vulkan.vertexBufferSize;
+        bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        AssertSuccess(vkCreateBuffer(vulkan.device, &bufferInfo, 0, &vulkan.vertexBuffer));
+        
+        VkMemoryRequirements vertexBufferMemReq = {};
+        vkGetBufferMemoryRequirements(vulkan.device, vulkan.vertexBuffer, &vertexBufferMemReq);
+        
+        u32 memIndex = 0;
+        if(Vulkan::FindMemoryProperties(vertexBufferMemReq.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, memIndex))
+        {
+            VkMemoryAllocateInfo allocInfo = {};
+            allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+            allocInfo.allocationSize = vertexBufferMemReq.size;
+            allocInfo.memoryTypeIndex = memIndex;
+            
+            AssertSuccess(vkAllocateMemory(vulkan.device, &allocInfo, 0, &vulkan.vertexBufferMemory));
+            AssertSuccess(vkBindBufferMemory(vulkan.device, vulkan.vertexBuffer, vulkan.vertexBufferMemory, 0));
+            
+            vkMapMemory(vulkan.device, vulkan.vertexBufferMemory, 0, vulkan.vertexBufferSize, 0, &vulkan.gpuMemory);
+        }
+        else
+        {
+            Assert("Could not allocate vertex buffer memory");
+            return false;
+        }
     }
     
     // NOTE(heyyod): It looks like window always sends a WM_SIZE message
@@ -708,21 +781,9 @@ function bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, c
             return false;
         }
         
-        if (!CreateCommandBuffers())
-        {
-            Assert("Failed to create command buffers");
-            return false;
-        }
-        
         if (!CreateFrameBuffers())
         {
             Assert("Failed to create framebuffers");
-            return false;
-        }
-        
-        if(!CreatePipeline())
-        {
-            Assert("Could not create pipeline");
             return false;
         }
          */
@@ -731,36 +792,16 @@ function bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, c
     return true;
 }
 
-function bool Vulkan::CreateFrameBuffers()
-{
-    ClearFrameBuffers();
-    
-    VkFramebufferCreateInfo framebufferInfo = {};
-    framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    framebufferInfo.renderPass = vulkan.renderPass;
-    framebufferInfo.attachmentCount = 1;
-    framebufferInfo.width = vulkan.windowExtent.width;
-    framebufferInfo.height = vulkan.windowExtent.height;
-    framebufferInfo.layers = 1;
-    for (u32 i = 0; i < vulkan.swapchainImageCount; i++)
-    {
-        framebufferInfo.pAttachments = &vulkan.swapchainImageViews[i];
-        AssertSuccess(vkCreateFramebuffer(vulkan.device, &framebufferInfo, 0, &vulkan.framebuffers[i]));
-    }
-    DebugPrint("Created FrameBuffers\n");
-    return true;
-}
-
 function void Vulkan::ClearFrameBuffers()
 {
     if (VulkanIsValidHandle(vulkan.device))
     {
         vkDeviceWaitIdle(vulkan.device);
-        for (u32 i = 0; i < vulkan.swapchainImageCount; i++)
+        for (u32 i = 0; i < NUM_RESOURCES; i++)
         {
-            if(VulkanIsValidHandle(vulkan.framebuffers[i]))
+            if(VulkanIsValidHandle(vulkan.resources[i].framebuffer))
             {
-                vkDestroyFramebuffer(vulkan.device, vulkan.framebuffers[i], 0);
+                vkDestroyFramebuffer(vulkan.device, vulkan.resources[i].framebuffer, 0);
                 DebugPrint("Cleared FrameBuffer\n");
             }
         }
@@ -769,30 +810,23 @@ function void Vulkan::ClearFrameBuffers()
 
 function bool Vulkan::CreateCommandBuffers()
 {
-    if (!ResetCommandBuffers())
-    {
-        VkCommandPoolCreateInfo cmdPoolInfo = {};
-        cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-        cmdPoolInfo.queueFamilyIndex = vulkan.presentQueueFamilyIndex;
-        cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT; //VK_COMMAND_POOL_CREATE_TRANSIENT_BIT
-        AssertSuccess(vkCreateCommandPool(vulkan.device, &cmdPoolInfo, 0, &vulkan.cmdPool));
-        
-        VkCommandBufferAllocateInfo cmdBufferAllocInfo = {};
-        cmdBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        cmdBufferAllocInfo.commandPool = vulkan.cmdPool;
-        cmdBufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        cmdBufferAllocInfo.commandBufferCount = vulkan.swapchainImageCount;
-        AssertSuccess(vkAllocateCommandBuffers(vulkan.device, &cmdBufferAllocInfo, vulkan.cmdBuffers));
-        
-        DebugPrint("Created Command Pool and Command Buffers\n");
-    }
-    else
-    {
-        DebugPrint("Reseted Command Pool and Command Buffers\n");
-    }
+    VkCommandPoolCreateInfo cmdPoolInfo = {};
+    cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    cmdPoolInfo.queueFamilyIndex = vulkan.presentQueueFamilyIndex;
+    cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT | VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+    AssertSuccess(vkCreateCommandPool(vulkan.device, &cmdPoolInfo, 0, &vulkan.cmdPool));
     
-    for (u32 i = 0; i < NUM_SWAPCHAIN_IMAGES; i++)
-        vulkan.recordCmdBuffer[i] = true;
+    VkCommandBufferAllocateInfo cmdBufferAllocInfo = {};
+    cmdBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    cmdBufferAllocInfo.commandPool = vulkan.cmdPool;
+    cmdBufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    cmdBufferAllocInfo.commandBufferCount = 1;
+    for(u32 i = 0; i < NUM_RESOURCES; i++)
+    {
+        AssertSuccess(vkAllocateCommandBuffers(vulkan.device, &cmdBufferAllocInfo, &vulkan.resources[i].cmdBuffer));
+    }
+    DebugPrint("Created Command Pool and Command Buffers\n");
+    
     return true;
 }
 
@@ -991,124 +1025,40 @@ function bool Vulkan::CreatePipeline()
 {
     ClearPipeline();
     
-    VkVertexInputBindingDescription vertexBindingDesc;
-    vertexBindingDesc.binding = 0;
-    vertexBindingDesc.stride = sizeof(vertex2);
-    vertexBindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-    
-    VkVertexInputAttributeDescription vertexAttributeDescs[2];
-    vertexAttributeDescs[0].binding = 0;
-    vertexAttributeDescs[0].location = 0;
-    vertexAttributeDescs[0].format = VK_FORMAT_R32G32_SFLOAT;
-    vertexAttributeDescs[0].offset = offsetof(vertex2, pos);
-    vertexAttributeDescs[1].binding = 0;
-    vertexAttributeDescs[1].location = 1;
-    vertexAttributeDescs[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-    vertexAttributeDescs[1].offset = offsetof(vertex2, color);
-    
-    VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-    vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInputInfo.vertexBindingDescriptionCount = 1;
-    vertexInputInfo.pVertexBindingDescriptions = &vertexBindingDesc;
-    vertexInputInfo.vertexAttributeDescriptionCount = ArrayCount(vertexAttributeDescs);
-    vertexInputInfo.pVertexAttributeDescriptions = vertexAttributeDescs;
-    
-    VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo{};
-    inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-    //inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
-    
-    VkViewport viewport = {};
-    viewport.x = 0.0f;
-    viewport.y = 0.0f;
-    viewport.width = (f32) vulkan.windowExtent.width;
-    viewport.height = (f32) vulkan.windowExtent.height;
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
-    
-    VkRect2D scissor = {};
-    scissor.offset = {0, 0};
-    scissor.extent = vulkan.windowExtent;
-    
-    VkPipelineViewportStateCreateInfo viewportInfo = {};
-    viewportInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-    viewportInfo.viewportCount = 1;
-    viewportInfo.pViewports = &viewport;
-    viewportInfo.scissorCount = 1;
-    viewportInfo.pScissors = &scissor;
-    
-    VkPipelineRasterizationStateCreateInfo rasterizerInfo = {};
-    rasterizerInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-    //rasterizerInfo.depthClampEnable = VK_FALSE;
-    //rasterizerInfo.rasterizerDiscardEnable = VK_FALSE;
-    rasterizerInfo.polygonMode = VK_POLYGON_MODE_FILL;
-    rasterizerInfo.lineWidth = 1.0f;
-    rasterizerInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-    rasterizerInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
-    //rasterizerInfo.depthBiasEnable = VK_FALSE;
-    //rasterizerInfo.depthBiasConstantFactor = 0.0f; // Optional
-    //rasterizerInfo.depthBiasClamp = 0.0f; // Optional
-    //rasterizerInfo.depthBiasSlopeFactor = 0.0f; // Optional
-    
-    VkPipelineMultisampleStateCreateInfo multisamplingInfo{};
-    multisamplingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-    //multisamplingInfo.sampleShadingEnable = VK_FALSE;
-    multisamplingInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-    multisamplingInfo.minSampleShading = 1.0f; // Optional
-    //multisamplingInfo.pSampleMask = nullptr; // Optional
-    //multisamplingInfo.alphaToCoverageEnable = VK_FALSE; // Optional
-    //multisamplingInfo.alphaToOneEnable = VK_FALSE; // Optional
-    
-    VkPipelineColorBlendAttachmentState blendAttachment{};
-    blendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    blendAttachment.blendEnable = VK_FALSE;
-    //blendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
-    //blendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
-    //blendAttachment.colorBlendOp = VK_BLEND_OP_ADD; // Optional
-    //blendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
-    //blendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
-    //blendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; // Optional
-    
-    VkPipelineColorBlendStateCreateInfo blendingInfo{};
-    blendingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-    blendingInfo.logicOpEnable = VK_FALSE;
-    blendingInfo.logicOp = VK_LOGIC_OP_COPY; // Optional
-    blendingInfo.attachmentCount = 1;
-    blendingInfo.pAttachments = &blendAttachment;
-    //blendingInfo.blendConstants[0] = 0.0f; // Optional
-    //blendingInfo.blendConstants[1] = 0.0f; // Optional
-    //blendingInfo.blendConstants[2] = 0.0f; // Optional
-    //blendingInfo.blendConstants[3] = 0.0f; // Optional
-    
-    /* 
-    VkDynamicState dynamicStates[] = {
-        VK_DYNAMIC_STATE_VIEWPORT,
-        VK_DYNAMIC_STATE_LINE_WIDTH
-    };
-    [
-    VkPipelineDynamicStateCreateInfo dynamicState{};
-    dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    dynamicState.dynamicStateCount = 2;
-    dynamicState.pDynamicStates = dynamicStates;
-     */
-    
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    //pipelineLayoutInfo.setLayoutCount = 0; // Optional
-    //pipelineLayoutInfo.pSetLayouts = nullptr; // Optional
-    //pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
-    //pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
-    
-    AssertSuccess(vkCreatePipelineLayout(vulkan.device, &pipelineLayoutInfo, 0, &vulkan.pipelineLayout));
-    
-    // TODO(heyyod): THIS IS BAAAAADDDD! Change the paths
-    VkShaderModule triangleVertShader, triangleFragShader = {};
+    VkShaderModule triangleVertShader = {};
+    VkShaderModule triangleFragShader = {};
     if(!LoadShader("..\\build\\shaders\\triangle.frag.spv", &triangleFragShader) ||
        !LoadShader("..\\build\\shaders\\triangle.vert.spv", &triangleVertShader))
     {
         Assert("Couldn't load shaders");
         return false;
     }
+    
+    // NOTE(heyyod): specify some general info for the memory of
+    // the vertex buffer we'll be reading from
+    VkVertexInputBindingDescription vertexBindingDesc;
+    vertexBindingDesc.binding = 0;
+    vertexBindingDesc.stride = sizeof(vertex2);
+    vertexBindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    
+    VkVertexInputAttributeDescription vertexAttributeDescs[2];
+    // NOTE(heyyod): specify the inPosition format in vertex shader
+    vertexAttributeDescs[0].binding = 0;
+    vertexAttributeDescs[0].location = 0;// NOTE(heyyod): this maches the value in the shader
+    vertexAttributeDescs[0].format = VK_FORMAT_R32G32_SFLOAT;
+    vertexAttributeDescs[0].offset = offsetof(vertex2, pos);
+    // NOTE(heyyod): spesify the inColor format in vertex shader
+    vertexAttributeDescs[1].binding = 0;
+    vertexAttributeDescs[1].location = 1;
+    vertexAttributeDescs[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+    vertexAttributeDescs[1].offset = offsetof(vertex2, color);
+    
+    VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
+    vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertexInputInfo.vertexBindingDescriptionCount = 1;
+    vertexInputInfo.pVertexBindingDescriptions = &vertexBindingDesc;
+    vertexInputInfo.vertexAttributeDescriptionCount = ArrayCount(vertexAttributeDescs);
+    vertexInputInfo.pVertexAttributeDescriptions = vertexAttributeDescs;
     
     VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
     vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -1127,6 +1077,110 @@ function bool Vulkan::CreatePipeline()
         fragShaderStageInfo
     };
     
+    //-
+    
+    VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo{};
+    inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
+    
+    //-
+    
+    /* NOTE(heyyod): We can make these dynamic and update them with vkCmd commands 
+        VkViewport viewport = {};
+        viewport.x = 0.0f;
+        viewport.y = 0.0f;
+        viewport.width = (f32) vulkan.windowExtent.width;
+        viewport.height = (f32) vulkan.windowExtent.height;
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
+        
+        VkRect2D scissor = {};
+        scissor.offset = {0, 0};
+        scissor.extent = vulkan.windowExtent;
+         */
+    
+    VkPipelineViewportStateCreateInfo viewportInfo = {};
+    viewportInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportInfo.viewportCount = 1;
+    //viewportInfo.pViewports = &viewport;
+    viewportInfo.scissorCount = 1;
+    //viewportInfo.pScissors = &scissor;
+    
+    //-
+    
+    VkPipelineRasterizationStateCreateInfo rasterizerInfo = {};
+    rasterizerInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    //rasterizerInfo.depthClampEnable = VK_FALSE;
+    //rasterizerInfo.rasterizerDiscardEnable = VK_FALSE;
+    rasterizerInfo.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterizerInfo.lineWidth = 1.0f;
+    rasterizerInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterizerInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    //rasterizerInfo.depthBiasEnable = VK_FALSE;
+    //rasterizerInfo.depthBiasConstantFactor = 0.0f; // Optional
+    //rasterizerInfo.depthBiasClamp = 0.0f; // Optional
+    //rasterizerInfo.depthBiasSlopeFactor = 0.0f; // Optional
+    
+    //-
+    
+    VkPipelineMultisampleStateCreateInfo multisamplingInfo = {};
+    multisamplingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    //multisamplingInfo.sampleShadingEnable = VK_FALSE;
+    multisamplingInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    multisamplingInfo.minSampleShading = 1.0f; // Optional
+    //multisamplingInfo.pSampleMask = nullptr; // Optional
+    //multisamplingInfo.alphaToCoverageEnable = VK_FALSE; // Optional
+    //multisamplingInfo.alphaToOneEnable = VK_FALSE; // Optional
+    
+    //-
+    
+    VkPipelineColorBlendAttachmentState blendAttachment = {};
+    blendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    blendAttachment.blendEnable = VK_FALSE;
+    //blendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
+    //blendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
+    //blendAttachment.colorBlendOp = VK_BLEND_OP_ADD; // Optional
+    //blendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
+    //blendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
+    //blendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; // Optional
+    
+    VkPipelineColorBlendStateCreateInfo blendingInfo = {};
+    blendingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    blendingInfo.logicOpEnable = VK_FALSE;
+    blendingInfo.logicOp = VK_LOGIC_OP_COPY; // Optional
+    blendingInfo.attachmentCount = 1;
+    blendingInfo.pAttachments = &blendAttachment;
+    //blendingInfo.blendConstants[0] = 0.0f; // Optional
+    //blendingInfo.blendConstants[1] = 0.0f; // Optional
+    //blendingInfo.blendConstants[2] = 0.0f; // Optional
+    //blendingInfo.blendConstants[3] = 0.0f; // Optional
+    
+    //-
+    
+    VkDynamicState dynamicStates[] = {
+        VK_DYNAMIC_STATE_VIEWPORT,
+        VK_DYNAMIC_STATE_SCISSOR,
+        VK_DYNAMIC_STATE_LINE_WIDTH
+    };
+    
+    VkPipelineDynamicStateCreateInfo dynamicStateInfo = {};
+    dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamicStateInfo.dynamicStateCount = ArrayCount(dynamicStates);
+    dynamicStateInfo.pDynamicStates = dynamicStates;
+    
+    
+    //-
+    
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    //pipelineLayoutInfo.setLayoutCount = 0; // Optional
+    //pipelineLayoutInfo.pSetLayouts = nullptr; // Optional
+    //pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
+    //pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
+    
+    AssertSuccess(vkCreatePipelineLayout(vulkan.device, &pipelineLayoutInfo, 0, &vulkan.pipelineLayout));
+    
     VkGraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pipelineInfo.stageCount = ArrayCount(shaderStages);
@@ -1138,7 +1192,7 @@ function bool Vulkan::CreatePipeline()
     pipelineInfo.pMultisampleState = &multisamplingInfo;
     //pipelineInfo.pDepthStencilState = nullptr; // Optional
     pipelineInfo.pColorBlendState = &blendingInfo;
-    //pipelineInfo.pDynamicState = nullptr; // Optional
+    pipelineInfo.pDynamicState = &dynamicStateInfo; // Optional
     pipelineInfo.layout = vulkan.pipelineLayout;
     pipelineInfo.renderPass = vulkan.renderPass;
     pipelineInfo.subpass = 0;
@@ -1205,12 +1259,15 @@ function void Vulkan::Destroy()
         if (VulkanIsValidHandle(vulkan.swapchain))
             vkDestroySwapchainKHR(vulkan.device, vulkan.swapchain, 0);
         
-        if (VulkanIsValidHandle(vulkan.imageAvailableSem))
-            vkDestroySemaphore(vulkan.device, vulkan.imageAvailableSem, 0);
-        if (VulkanIsValidHandle(vulkan.renderFinishedSem))
-            vkDestroySemaphore(vulkan.device, vulkan.renderFinishedSem, 0);
-        if (VulkanIsValidHandle(vulkan.renderFence))
-            vkDestroyFence(vulkan.device, vulkan.renderFence, 0);
+        for(u32 i = 0; i < NUM_RESOURCES; i++)
+        {
+            if (VulkanIsValidHandle(vulkan.resources[i].imgAvailableSem))
+                vkDestroySemaphore(vulkan.device, vulkan.resources[i].imgAvailableSem, 0);
+            if (VulkanIsValidHandle(vulkan.resources[i].frameReadySem))
+                vkDestroySemaphore(vulkan.device, vulkan.resources[i].frameReadySem, 0);
+            if (VulkanIsValidHandle(vulkan.resources[i].fence))
+                vkDestroyFence(vulkan.device, vulkan.resources[i].fence, 0);
+        }
         
         if(VulkanIsValidHandle(vulkan.cmdPool))
             vkDestroyCommandPool(vulkan.device, vulkan.cmdPool, 0);
@@ -1238,143 +1295,116 @@ function void Vulkan::Destroy()
     return;
 }
 
-function bool Vulkan::Recreate()
-{
-    DebugPrint("\n-Recreate:\n");
-    
-    if (!CreateSwapchain())
-        return false;
-    if (!(vulkan.windowExtent.width == 0 || vulkan.windowExtent.height == 0))
-    {
-        // TODO(heyyod): Should make this a function!!
-        if(!(VulkanIsValidHandle(vulkan.vertexBuffer)))
-        {
-            vulkan.vertexBufferSize = 500; //sizeof(vertex2) * 3; // TODO(heyyod): FOR NOW!!!!
-            
-            VkBufferCreateInfo bufferInfo = {};
-            bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-            bufferInfo.size = vulkan.vertexBufferSize;
-            bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-            bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-            AssertSuccess(vkCreateBuffer(vulkan.device, &bufferInfo, 0, &vulkan.vertexBuffer));
-            
-            VkMemoryRequirements vertexBufferMemReq = {};
-            vkGetBufferMemoryRequirements(vulkan.device, vulkan.vertexBuffer, &vertexBufferMemReq);
-            
-            u32 memIndex = 0;
-            if(Vulkan::FindMemoryProperties(vertexBufferMemReq.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, memIndex))
-            {
-                VkMemoryAllocateInfo allocInfo = {};
-                allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-                allocInfo.allocationSize = vertexBufferMemReq.size;
-                allocInfo.memoryTypeIndex = memIndex;
-                
-                AssertSuccess(vkAllocateMemory(vulkan.device, &allocInfo, 0, &vulkan.vertexBufferMemory));
-                AssertSuccess(vkBindBufferMemory(vulkan.device, vulkan.vertexBuffer, vulkan.vertexBufferMemory, 0));
-                
-                vkMapMemory(vulkan.device, vulkan.vertexBufferMemory, 0, vulkan.vertexBufferSize, 0, &vulkan.gpuMemory);
-            }
-            else
-            {
-                Assert("Could not allocate vertex buffer memory");
-                return false;
-            }
-        }
-        
-        if (!CreateCommandBuffers())
-            return false;
-        if (!CreateFrameBuffers())
-            return false;
-        if(!CreatePipeline())
-            return false;
-    }
-    else
-    {
-        DebugPrint("Window minimized or completely shrinked.\n");
-    }
-    
-    DebugPrint("\n");
-    return true;
-}
-
-
-function bool Vulkan::Update(update_data *data)
+function bool Vulkan::Update(update_data *data, u32 imgIndex, frame_prep_resource *res)
 {
     memcpy(vulkan.gpuMemory, data->verts, vulkan.vertexBufferSize);
+    
+    VkFramebufferCreateInfo framebufferInfo = {};
+    framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    framebufferInfo.renderPass = vulkan.renderPass;
+    framebufferInfo.attachmentCount = 1;
+    framebufferInfo.width = vulkan.windowExtent.width;
+    framebufferInfo.height = vulkan.windowExtent.height;
+    framebufferInfo.layers = 1;
+    framebufferInfo.pAttachments = &vulkan.swapchainImageViews[imgIndex];
+    if(VulkanIsValidHandle(res->framebuffer))
+    {
+        vkDestroyFramebuffer(vulkan.device, res->framebuffer, 0);
+        res->framebuffer = VK_NULL_HANDLE;
+    }
+    AssertSuccess(vkCreateFramebuffer(vulkan.device, &framebufferInfo, 0, &res->framebuffer));
     
     VkCommandBufferBeginInfo commandBufferBeginInfo = {};
     commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     
-    VkRenderPassBeginInfo rpInfo = {};
-    rpInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    rpInfo.renderPass = vulkan.renderPass;
-    rpInfo.renderArea.extent = vulkan.windowExtent;
-    rpInfo.clearValueCount = 1;
-    
     VkClearValue clearValue = {};
     clearValue.color = VulkanClearColor(data->clearColor[0], data->clearColor[1], data->clearColor[2], 0.0f);
-    rpInfo.pClearValues = &clearValue;
     
-    for (u32 i = 0; i < NUM_SWAPCHAIN_IMAGES; i++)
-    {
-        if (vulkan.recordCmdBuffer[i])
-        {
-            rpInfo.framebuffer = vulkan.framebuffers[i];
-            //AssertSuccess(vkResetCommandBuffer(vulkan.cmdBuffers[i], VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT));
-            AssertSuccess(vkBeginCommandBuffer(vulkan.cmdBuffers[i], &commandBufferBeginInfo));
-            vkCmdBeginRenderPass(vulkan.cmdBuffers[i], &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
-            vkCmdBindPipeline(vulkan.cmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan.pipeline);
-            
-            VkBuffer vertexBuffers[] = {vulkan.vertexBuffer};
-            VkDeviceSize offsets[] = {0};
-            vkCmdBindVertexBuffers(vulkan.cmdBuffers[i], 0, 1, vertexBuffers, offsets);
-            
-            vkCmdDraw(vulkan.cmdBuffers[i], ArrayCount(data->verts), 1, 0, 0);
-            vkCmdEndRenderPass(vulkan.cmdBuffers[i]);
-            AssertSuccess(vkEndCommandBuffer(vulkan.cmdBuffers[i]));
-        }
-    }
+    VkRenderPassBeginInfo renderpassInfo = {};
+    renderpassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    renderpassInfo.renderPass = vulkan.renderPass;
+    renderpassInfo.renderArea.extent = vulkan.windowExtent;
+    renderpassInfo.clearValueCount = 1;
+    renderpassInfo.pClearValues = &clearValue;
+    renderpassInfo.framebuffer = res->framebuffer;
+    
+    VkViewport viewport = {};
+    //viewport.x = 0.0f;
+    //viewport.y = 0.0f;
+    viewport.width = (f32) vulkan.windowExtent.width;
+    viewport.height = (f32) vulkan.windowExtent.height;
+    //viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+    
+    VkRect2D scissor = {};
+    //scissor.offset = {0, 0};
+    scissor.extent = vulkan.windowExtent;
+    
+    VkDeviceSize bufferOffset = 0;
+    
+    // NOTE(heyyod): If the graphics and presentation queue are different we
+    // need to manually  change the image layout using VkImageMemoryBarrier
+    // vkCmdPipelineBarrier
+    AssertSuccess(vkBeginCommandBuffer(res->cmdBuffer, &commandBufferBeginInfo));
+    vkCmdBeginRenderPass(res->cmdBuffer, &renderpassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBindPipeline(res->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan.pipeline);
+    vkCmdSetViewport(res->cmdBuffer, 0, 1, &viewport);
+    vkCmdSetScissor(res->cmdBuffer, 0, 1, &scissor);
+    vkCmdBindVertexBuffers(res->cmdBuffer, 0, 1, &vulkan.vertexBuffer, &bufferOffset);
+    vkCmdDraw(res->cmdBuffer, ArrayCount(data->verts), 1, 0, 0);
+    vkCmdEndRenderPass(res->cmdBuffer);
+    
+    /* 
+    VkImageMemoryBarrier barrier_from_draw_to_present = {
+            VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,           // VkStructureType                        sType
+            nullptr,                                          // const void                            *pNext
+            VK_ACCESS_MEMORY_READ_BIT,                        // VkAccessFlags                          srcAccessMask
+            VK_ACCESS_MEMORY_READ_BIT,                        // VkAccessFlags                          dstAccessMask
+            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,                  // VkImageLayout                          oldLayout
+            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,                  // VkImageLayout                          newLayout
+            GetGraphicsQueue().FamilyIndex,                   // uint32_t                               srcQueueFamilyIndex
+            GetPresentQueue().FamilyIndex,                    // uint32_t                               dstQueueFamilyIndex
+            image_parameters.Handle,                          // VkImage                                image
+            image_subresource_range                           // VkImageSubresourceRange                subresourceRange
+          };
+          vkCmdPipelineBarrier( command_buffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier_from_draw_to_present );
+     */
+    
+    AssertSuccess(vkEndCommandBuffer(res->cmdBuffer));
+    
     return true;
 }
 
-function bool Vulkan::Draw()
+function bool Vulkan::Draw(update_data *data)
 {
-    AssertSuccess(vkWaitForFences(vulkan.device, 1, &vulkan.renderFence, true, UINT64_MAX));
-    AssertSuccess(vkResetFences(vulkan.device, 1, &vulkan.renderFence));
+    // NOTE(heyyod): Get the resource tha we'll use to prepare the next frame
+    frame_prep_resource *renderingRes = &vulkan.resources[vulkan.currentResource];
+    // NOTE(heyyod): update the currentResource for the next call (next draw loop)
+    vulkan.currentResource = (vulkan.currentResource + 1) % NUM_RESOURCES;
     
-    // NOTE: Get the image
-    VkResult result = vkAcquireNextImageKHR(vulkan.device, vulkan.swapchain, UINT64_MAX,
-                                            vulkan.imageAvailableSem, 0, &vulkan.currentImage);
+    // NOTE(heyyod): Wait for the resource to be available;
+    AssertSuccess(vkWaitForFences(vulkan.device, 1, &renderingRes->fence, true, UINT64_MAX));
+    AssertSuccess(vkResetFences(vulkan.device, 1, &renderingRes->fence));
     
-    if (vulkan.currentImage == 0)
-    {
-        vulkan.recordCmdBuffer[0] = false;
-        vulkan.recordCmdBuffer[1] = true;
-    }
-    else
-    {
-        vulkan.recordCmdBuffer[0] = true;
-        vulkan.recordCmdBuffer[1] = false;
-    }
+    // NOTE: Get the next image that we'll use to create the frame and draw it
+    // Signal the semaphore when it's available
+    u32 nextImage = 0;
+    VkResult result = vkAcquireNextImageKHR(vulkan.device, vulkan.swapchain, UINT64_MAX, renderingRes->imgAvailableSem, 0, &nextImage);
     
-    switch (result)
+    if (result == VK_ERROR_OUT_OF_DATE_KHR)
     {
-        case VK_SUCCESS:
-        case VK_SUBOPTIMAL_KHR:
-        {
-            break;
-        }
-        case VK_ERROR_OUT_OF_DATE_KHR:
-        {
-            return Recreate();
-        }break;
-        default:
-        {
-            DebugPrint("Problem occurred during swap chain image acquisition!\n");
+        if (!CreateSwapchain())
             return false;
-        }
     }
+    else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
+    {
+        Assert("Could not aquire next image");
+        return false;
+    }
+    
+    if(!Update(data, nextImage, renderingRes))
+        return false;
     
     // NOTE: Wait on imageAvailableSem and submit the command buffer and signal renderFinishedSem
     VkPipelineStageFlags waitDestStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -1382,22 +1412,22 @@ function bool Vulkan::Draw()
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.pWaitDstStageMask = &waitDestStageMask;
     submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores = &vulkan.imageAvailableSem;
+    submitInfo.pWaitSemaphores = &renderingRes->imgAvailableSem;
     submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = &vulkan.renderFinishedSem;
+    submitInfo.pSignalSemaphores = &renderingRes->frameReadySem;
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &vulkan.cmdBuffers[vulkan.currentImage];
-    AssertSuccess(vkQueueSubmit(vulkan.graphicsQueue, 1, &submitInfo, vulkan.renderFence));
+    submitInfo.pCommandBuffers = &renderingRes->cmdBuffer;
+    AssertSuccess(vkQueueSubmit(vulkan.graphicsQueue, 1, &submitInfo, renderingRes->fence));
     
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
     {
-        if (!Recreate())
+        if (!CreateSwapchain())
         {
             Assert("Could not recreate after queue sumbit.\n");
             return false;
         }
     }
-    else if (result != VK_SUCCESS)
+    else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
     {
         Assert("Couldn't submit draw.\n");
         return false;
@@ -1407,16 +1437,16 @@ function bool Vulkan::Draw()
     VkPresentInfoKHR presentInfo = {};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores = &vulkan.renderFinishedSem;
+    presentInfo.pWaitSemaphores = &renderingRes->frameReadySem;
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = &vulkan.swapchain;
-    presentInfo.pImageIndices = &vulkan.currentImage;
+    presentInfo.pImageIndices = &nextImage;
     result = vkQueuePresentKHR(vulkan.presentQueue, &presentInfo);
     
     
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
     {
-        if (!Recreate())
+        if (!CreateSwapchain())
         {
             Assert("Could not recreate after queue present.\n");
             return false;
