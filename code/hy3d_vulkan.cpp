@@ -118,6 +118,7 @@ function bool Vulkan::LoadInstanceFunctions()
     VulkanLoadInstanceFunc(vkGetPhysicalDeviceSurfaceCapabilitiesKHR);
     VulkanLoadInstanceFunc(vkGetPhysicalDeviceFormatProperties);
     VulkanLoadInstanceFunc(vkGetPhysicalDeviceMemoryProperties);
+    VulkanLoadInstanceFunc(vkGetPhysicalDeviceSurfacePresentModesKHR);
     VulkanLoadInstanceFunc(vkEnumerateDeviceExtensionProperties);
     VulkanLoadInstanceFunc(vkCreateDevice);
     VulkanLoadInstanceFunc(vkGetDeviceProcAddr);
@@ -893,20 +894,24 @@ function bool Vulkan::CreateSwapchain()
             desiredPreTransform = surfCapabilities.currentTransform;
         
         // NOTE: Set the present mode
-        VkPresentModeKHR desiredPresentMode = VK_PRESENT_MODE_FIFO_KHR; //The FIFO present mode is guaranteed by the spec to be supported
+        VkPresentModeKHR desiredPresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
+        //The FIFO present mode is guaranteed by the spec to be supported
         
-        //uint32_t presentModeCount;
-        //AssertSuccess(vkGetPhysicalDeviceSurfacePresentModesKHR(vulkan.gpu, vulkan.surface, &presentModeCount, NULL));
-        //VkPresentModeKHR presentModes[16];
-        //Assert(presentModeCount <= ArrayCount(presentModes));
-        //AssertSuccess(vkGetPhysicalDeviceSurfacePresentModesKHR(vulkan.gpu, vulkan.surface, &presentModeCount, presentModes));
-        //bool desiredPresentModeSupported = false;
-        //for (u32 i = 0; i < presentModeCount; i++)
-        //{
-        //	if (desiredPresentMode == presentModes[i])
-        //		desiredPresentModeSupported = true;
-        //}
-        //Assert(desiredPresentModeSupported);
+        uint32_t presentModeCount;
+        AssertSuccess(vkGetPhysicalDeviceSurfacePresentModesKHR(vulkan.gpu, vulkan.surface, &presentModeCount, NULL));
+        VkPresentModeKHR presentModes[16] = {};;
+        Assert(presentModeCount <= ArrayCount(presentModes));
+        AssertSuccess(vkGetPhysicalDeviceSurfacePresentModesKHR(vulkan.gpu, vulkan.surface, &presentModeCount, presentModes));
+        bool desiredPresentModeSupported = false;
+        for (u32 i = 0; i < presentModeCount; i++)
+        {
+        	if (desiredPresentMode == presentModes[i])
+        		desiredPresentModeSupported = true;
+        }
+        if (!desiredPresentModeSupported)
+        {
+            desiredPresentMode = VK_PRESENT_MODE_IMMEDIATE_KHR; //VK_PRESENT_MODE_FIFO_KHR;
+        }
         
         // NOTE: Find a supported composite alpha mode - one of these is guaranteed to be set
         VkCompositeAlphaFlagBitsKHR desiredCompositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
@@ -1343,9 +1348,6 @@ function bool Vulkan::Update(update_data *data, u32 imgIndex, frame_prep_resourc
     
     VkDeviceSize bufferOffset = 0;
     
-    // NOTE(heyyod): If the graphics and presentation queue are different we
-    // need to manually  change the image layout using VkImageMemoryBarrier
-    // vkCmdPipelineBarrier
     AssertSuccess(vkBeginCommandBuffer(res->cmdBuffer, &commandBufferBeginInfo));
     vkCmdBeginRenderPass(res->cmdBuffer, &renderpassInfo, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindPipeline(res->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan.pipeline);
@@ -1354,23 +1356,6 @@ function bool Vulkan::Update(update_data *data, u32 imgIndex, frame_prep_resourc
     vkCmdBindVertexBuffers(res->cmdBuffer, 0, 1, &vulkan.vertexBuffer, &bufferOffset);
     vkCmdDraw(res->cmdBuffer, ArrayCount(data->verts), 1, 0, 0);
     vkCmdEndRenderPass(res->cmdBuffer);
-    
-    /* 
-    VkImageMemoryBarrier barrier_from_draw_to_present = {
-            VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,           // VkStructureType                        sType
-            nullptr,                                          // const void                            *pNext
-            VK_ACCESS_MEMORY_READ_BIT,                        // VkAccessFlags                          srcAccessMask
-            VK_ACCESS_MEMORY_READ_BIT,                        // VkAccessFlags                          dstAccessMask
-            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,                  // VkImageLayout                          oldLayout
-            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,                  // VkImageLayout                          newLayout
-            GetGraphicsQueue().FamilyIndex,                   // uint32_t                               srcQueueFamilyIndex
-            GetPresentQueue().FamilyIndex,                    // uint32_t                               dstQueueFamilyIndex
-            image_parameters.Handle,                          // VkImage                                image
-            image_subresource_range                           // VkImageSubresourceRange                subresourceRange
-          };
-          vkCmdPipelineBarrier( command_buffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier_from_draw_to_present );
-     */
-    
     AssertSuccess(vkEndCommandBuffer(res->cmdBuffer));
     
     return true;

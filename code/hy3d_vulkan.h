@@ -170,6 +170,7 @@ VulkanDeclareFunction(vkGetPhysicalDeviceSurfaceFormatsKHR);
 VulkanDeclareFunction(vkGetPhysicalDeviceSurfaceCapabilitiesKHR);
 VulkanDeclareFunction(vkGetPhysicalDeviceFormatProperties);
 VulkanDeclareFunction(vkGetPhysicalDeviceMemoryProperties);
+VulkanDeclareFunction(vkGetPhysicalDeviceSurfacePresentModesKHR);
 VulkanDeclareFunction(vkEnumerateDeviceExtensionProperties);
 VulkanDeclareFunction(vkCreateDevice);
 VulkanDeclareFunction(vkGetDeviceProcAddr);

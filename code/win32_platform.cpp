@@ -539,11 +539,11 @@ function bool Win32InitializeMemory(engine_memory &memory)
     
 	memory.platformAPI_.Draw = Vulkan::Draw;
     
-#if HY3D_DEBUG
+    //#if HY3D_DEBUG
 	memory.platformAPI_.DEBUGFreeFileMemory = DEBUGFreeFileMemory;
 	memory.platformAPI_.DEBUGReadFile = DEBUGReadFile;
 	memory.platformAPI_.DEBUGWriteFile = DEBUGWriteFile;
-#endif
+    //#endif
     
     platformAPI = memory.platformAPI_;
 	return (memory.permanentMemory && memory.transientMemory);
