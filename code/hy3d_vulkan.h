@@ -25,6 +25,14 @@ struct frame_prep_resource
     VkFramebuffer framebuffer;
 };
 
+struct vulkan_buffer
+{
+    VkBuffer handle;
+    VkDeviceMemory memoryHandle;
+    void *data;
+    u64 size;
+};
+
 struct vulkan_engine
 {
     VkPhysicalDeviceMemoryProperties memoryProperties;
@@ -57,15 +65,16 @@ struct vulkan_engine
     VkPipelineLayout pipelineLayout;
     VkPipeline pipeline;
     
-    VkBuffer vertexBuffer;
-    VkDeviceMemory vertexBufferMemory;
-    void *gpuMemory;
-    u64 vertexBufferSize;
+    /*     
+        VkFormat depthFormat;
+        VkImage depthImage;
+        VkImageView depthImageView;
+        VkDeviceMemory depthMemory;
+         */
     
-    VkFormat depthFormat;
-    VkImage depthImage;
-    VkImageView depthImageView;
-    VkDeviceMemory depthMemory;
+    vulkan_buffer stagingBuffer;
+    vulkan_buffer vertexBuffer;
+    bool vertexBufferUpdated;
     
     bool canRender;
     
@@ -94,16 +103,14 @@ namespace Vulkan
     function bool LoadDeviceFunctions();
     
     function bool CreateSwapchain();
-    function bool CreateCommandBuffers();
     function bool CreatePipeline();
-    function bool ResetCommandBuffers();
+    function bool CreateBuffer(VkBufferUsageFlags usage, VkDeviceSize size, VkMemoryPropertyFlags properties, vulkan_buffer &buffer);
     
     function void ClearFrameBuffers();
     function void ClearSwapchainImages();
     function void ClearPipeline();
     function void Destroy();
     
-    function bool Update(update_data *data, u32 imgIndex, frame_prep_resource *res);
     function bool Draw(update_data *data);
     
     function bool LoadShader(char *filepath, VkShaderModule *shaderOut);
@@ -113,7 +120,9 @@ namespace Vulkan
     function void GetVertexBindingDesc(vertex2 &v, VkVertexInputBindingDescription &bindingDesc);
     function void GetVertexAttributeDesc(vertex2 &v, VkVertexInputAttributeDescription *attributeDescs);
     
+#if VULKAN_VALIDATION_LAYERS_ON
     function VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData);
+#endif
 }
 
 //-
@@ -234,5 +243,6 @@ VulkanDeclareFunction(vkCmdBindVertexBuffers);
 VulkanDeclareFunction(vkCmdDraw);
 VulkanDeclareFunction(vkCmdSetViewport);
 VulkanDeclareFunction(vkCmdSetScissor);
+VulkanDeclareFunction(vkCmdCopyBuffer);
 
 #endif

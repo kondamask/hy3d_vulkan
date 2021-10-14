@@ -1,11 +1,8 @@
 #include "hy3d_vulkan.h"
 
 #if VULKAN_VALIDATION_LAYERS_ON
-function VKAPI_ATTR VkBool32 VKAPI_CALL
-Vulkan::DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-                      VkDebugUtilsMessageTypeFlagsEXT messageType,
-                      const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
-                      void *pUserData)
+function VKAPI_ATTR VkBool32 VKAPI_CALL Vulkan::
+DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData)
 {
     bool isError = false;
     char *type;
@@ -82,7 +79,8 @@ if (!(func))                                                       \
 {                                                                  \
 return false;                                                  \
 }
-function bool Vulkan::LoadGlobalFunctions()
+function bool Vulkan::
+LoadGlobalFunctions()
 {
     //test
     VulkanLoadGlobalFunc(vkCreateInstance);
@@ -100,7 +98,8 @@ if (!(func))                                                               \
 {                                                                          \
 return false;                                                          \
 }
-function bool Vulkan::LoadInstanceFunctions()
+function bool Vulkan::
+LoadInstanceFunctions()
 {
     VulkanLoadInstanceFunc(vkDestroyInstance);
     
@@ -134,7 +133,8 @@ if (!(func))                                                           \
 {                                                                      \
 return false;                                                      \
 }
-function bool Vulkan::LoadDeviceFunctions()
+function bool Vulkan::
+LoadDeviceFunctions()
 {
     VulkanLoadDeviceFunc(vkDeviceWaitIdle);
     VulkanLoadDeviceFunc(vkDestroyDevice);
@@ -193,13 +193,15 @@ function bool Vulkan::LoadDeviceFunctions()
     VulkanLoadDeviceFunc(vkCmdDraw);
     VulkanLoadDeviceFunc(vkCmdSetViewport);
     VulkanLoadDeviceFunc(vkCmdSetScissor);
+    VulkanLoadDeviceFunc(vkCmdCopyBuffer);
     
     DebugPrint("Loaded Device Functions\n");
     
     return true;
 }
 
-function bool Vulkan::FindMemoryProperties(u32 reqMemType, VkMemoryPropertyFlags reqMemProperties, u32 &memoryIndexOut)
+function bool Vulkan::
+FindMemoryProperties(u32 reqMemType, VkMemoryPropertyFlags reqMemProperties, u32 &memoryIndexOut)
 {
     // NOTE(heyyod): We assume we have already set the memory properties during creation.
     u32 memoryCount = vulkan.memoryProperties.memoryTypeCount;
@@ -218,14 +220,16 @@ function bool Vulkan::FindMemoryProperties(u32 reqMemType, VkMemoryPropertyFlags
     return false;
 }
 
-function void Vulkan::GetVertexBindingDesc(vertex2 &v, VkVertexInputBindingDescription &bindingDesc)
+function void Vulkan::
+GetVertexBindingDesc(vertex2 &v, VkVertexInputBindingDescription &bindingDesc)
 {
     bindingDesc.binding = 0;
     bindingDesc.stride = sizeof(v);
     bindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 }
 
-function void Vulkan::GetVertexAttributeDesc(vertex2 &v, VkVertexInputAttributeDescription *attributeDescs)
+function void Vulkan::
+GetVertexAttributeDesc(vertex2 &v, VkVertexInputAttributeDescription *attributeDescs)
 {
     //Assert(ArrayCount(attributeDescs) == 2); // for pos and color
     attributeDescs[0].binding = 0;
@@ -240,7 +244,8 @@ function void Vulkan::GetVertexAttributeDesc(vertex2 &v, VkVertexInputAttributeD
 }
 
 // TODO: make this cross-platform
-function bool Vulkan::Win32LoadDLL()
+function bool Vulkan::
+Win32LoadDLL()
 {
     vulkan.dll = LoadLibraryA("vulkan-1.dll");
     if (!vulkan.dll)
@@ -254,7 +259,8 @@ function bool Vulkan::Win32LoadDLL()
 
 
 // TODO: Make it cross-platform
-function bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
+function bool Vulkan::
+Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
 {
     DebugPrint("Initialize Vulkan\n");
     if (!Win32LoadDLL())
@@ -557,24 +563,6 @@ function bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, c
     vkGetDeviceQueue(vulkan.device, vulkan.graphicsQueueFamilyIndex, 0, &vulkan.graphicsQueue);
     vkGetDeviceQueue(vulkan.device, vulkan.presentQueueFamilyIndex, 0, &vulkan.presentQueue);
     
-    // NOTE: Create semaphores and fences
-    {
-        VkSemaphoreCreateInfo semaphoreInfo = {};
-        semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-        
-        VkFenceCreateInfo fenceInfo = {};
-        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-        
-        for(u32 i = 0; i < NUM_RESOURCES; i++)
-        {
-            AssertSuccess(vkCreateSemaphore(vulkan.device, &semaphoreInfo, 0, &vulkan.resources[i].imgAvailableSem));
-            AssertSuccess(vkCreateSemaphore(vulkan.device, &semaphoreInfo, 0, &vulkan.resources[i].frameReadySem));
-            AssertSuccess(vkCreateFence(vulkan.device, &fenceInfo, 0, &vulkan.resources[i].fence));
-        }
-        DebugPrint("Created Semaphores and Fence\n");
-    }
-    
     // NOTE: Create a depth buffer
     // TODO: extract it in a function and update it OnWindowSizeChange
     /*{
@@ -725,52 +713,58 @@ function bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, c
         DebugPrint("Created a renderpass\n");
     }
     
-    if (!CreateCommandBuffers())
+    // NOTE(heyyod): Create the rendering resources
     {
-        Assert("Failed to create command buffers");
+        VkCommandPoolCreateInfo cmdPoolInfo = {};
+        cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        cmdPoolInfo.queueFamilyIndex = vulkan.presentQueueFamilyIndex;
+        cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT | VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+        AssertSuccess(vkCreateCommandPool(vulkan.device, &cmdPoolInfo, 0, &vulkan.cmdPool));
+        
+        VkCommandBufferAllocateInfo cmdBufferAllocInfo = {};
+        cmdBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        cmdBufferAllocInfo.commandPool = vulkan.cmdPool;
+        cmdBufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        cmdBufferAllocInfo.commandBufferCount = 1;
+        
+        VkSemaphoreCreateInfo semaphoreInfo = {};
+        semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        
+        VkFenceCreateInfo fenceInfo = {};
+        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+        
+        
+        for(u32 i = 0; i < NUM_RESOURCES; i++)
+        {
+            AssertSuccess(vkAllocateCommandBuffers(vulkan.device, &cmdBufferAllocInfo, &vulkan.resources[i].cmdBuffer));
+            AssertSuccess(vkCreateSemaphore(vulkan.device, &semaphoreInfo, 0, &vulkan.resources[i].imgAvailableSem));
+            AssertSuccess(vkCreateSemaphore(vulkan.device, &semaphoreInfo, 0, &vulkan.resources[i].frameReadySem));
+            AssertSuccess(vkCreateFence(vulkan.device, &fenceInfo, 0, &vulkan.resources[i].fence));
+        }
+        DebugPrint("Created rendering resources.\n");
+    }
+    
+    // NOTE(heyyod): Make a reusable staging buffer
+    if(!CreateBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, MEGABYTES(10), VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, vulkan.stagingBuffer))
+    {
+        Assert("Could not create staging buffer");
         return false;
     }
+    AssertSuccess(vkMapMemory(vulkan.device, vulkan.stagingBuffer.memoryHandle, 0, vulkan.stagingBuffer.size, 0, &vulkan.stagingBuffer.data));
+    
+    // NOTE(heyyod): Make vertex buffer in gpu memory
+    if(!CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, /*MEGABYTES(10)*/ MEGABYTES(500), VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vulkan.vertexBuffer))
+    {
+        Assert("Could not create vertex buffer");
+        return false;
+    }
+    
     
     if(!CreatePipeline())
     {
         Assert("Could not create pipeline");
         return false;
-    }
-    
-    // NOTE(heyyod): Make a vertex buffer
-    // TODO(heyyod): Should make this a function!!
-    if(!(VulkanIsValidHandle(vulkan.vertexBuffer)))
-    {
-        vulkan.vertexBufferSize = sizeof(vertex2) * 3; // TODO(heyyod): FOR NOW!!!!
-        
-        VkBufferCreateInfo bufferInfo = {};
-        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bufferInfo.size = vulkan.vertexBufferSize;
-        bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        AssertSuccess(vkCreateBuffer(vulkan.device, &bufferInfo, 0, &vulkan.vertexBuffer));
-        
-        VkMemoryRequirements vertexBufferMemReq = {};
-        vkGetBufferMemoryRequirements(vulkan.device, vulkan.vertexBuffer, &vertexBufferMemReq);
-        
-        u32 memIndex = 0;
-        if(Vulkan::FindMemoryProperties(vertexBufferMemReq.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, memIndex))
-        {
-            VkMemoryAllocateInfo allocInfo = {};
-            allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-            allocInfo.allocationSize = vertexBufferMemReq.size;
-            allocInfo.memoryTypeIndex = memIndex;
-            
-            AssertSuccess(vkAllocateMemory(vulkan.device, &allocInfo, 0, &vulkan.vertexBufferMemory));
-            AssertSuccess(vkBindBufferMemory(vulkan.device, vulkan.vertexBuffer, vulkan.vertexBufferMemory, 0));
-            
-            vkMapMemory(vulkan.device, vulkan.vertexBufferMemory, 0, vulkan.vertexBufferSize, 0, &vulkan.gpuMemory);
-        }
-        else
-        {
-            Assert("Could not allocate vertex buffer memory");
-            return false;
-        }
     }
     
     // NOTE(heyyod): It looks like window always sends a WM_SIZE message
@@ -793,7 +787,8 @@ function bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, c
     return true;
 }
 
-function void Vulkan::ClearFrameBuffers()
+function void Vulkan::
+ClearFrameBuffers()
 {
     if (VulkanIsValidHandle(vulkan.device))
     {
@@ -809,41 +804,8 @@ function void Vulkan::ClearFrameBuffers()
     }
 }
 
-function bool Vulkan::CreateCommandBuffers()
-{
-    VkCommandPoolCreateInfo cmdPoolInfo = {};
-    cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    cmdPoolInfo.queueFamilyIndex = vulkan.presentQueueFamilyIndex;
-    cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT | VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-    AssertSuccess(vkCreateCommandPool(vulkan.device, &cmdPoolInfo, 0, &vulkan.cmdPool));
-    
-    VkCommandBufferAllocateInfo cmdBufferAllocInfo = {};
-    cmdBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    cmdBufferAllocInfo.commandPool = vulkan.cmdPool;
-    cmdBufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    cmdBufferAllocInfo.commandBufferCount = 1;
-    for(u32 i = 0; i < NUM_RESOURCES; i++)
-    {
-        AssertSuccess(vkAllocateCommandBuffers(vulkan.device, &cmdBufferAllocInfo, &vulkan.resources[i].cmdBuffer));
-    }
-    DebugPrint("Created Command Pool and Command Buffers\n");
-    
-    return true;
-}
-
-function bool Vulkan::ResetCommandBuffers()
-{
-    if (VulkanIsValidHandle(vulkan.device) && VulkanIsValidHandle(vulkan.cmdPool))
-    {
-        vkDeviceWaitIdle(vulkan.device);
-        vkResetCommandPool(vulkan.device, vulkan.cmdPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
-        DebugPrint("Reseted Command Buffers\n");
-        return true;
-    }
-    return false;
-}
-
-function bool Vulkan::CreateSwapchain()
+function bool Vulkan::
+CreateSwapchain()
 {
     if (VulkanIsValidHandle(vulkan.device))
         vkDeviceWaitIdle(vulkan.device);
@@ -1010,7 +972,8 @@ function bool Vulkan::CreateSwapchain()
     return true;
 }
 
-function void Vulkan::ClearSwapchainImages()
+function void Vulkan::
+ClearSwapchainImages()
 {
     if (VulkanIsValidHandle(vulkan.device))
     {
@@ -1026,7 +989,31 @@ function void Vulkan::ClearSwapchainImages()
     }
 }
 
-function bool Vulkan::CreatePipeline()
+function bool Vulkan::
+LoadShader(char *filepath, VkShaderModule *shaderOut)
+{
+    debug_read_file_result shaderCode = platformAPI.DEBUGReadFile(filepath);
+    Assert(shaderCode.size < SHADER_CODE_BUFFER_SIZE);
+    if(shaderCode.content)
+    {
+        VkShaderModuleCreateInfo shaderInfo = {};
+        shaderInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        shaderInfo.codeSize = shaderCode.size;
+        shaderInfo.pCode = (u32 *)shaderCode.content;
+        VkResult res = vkCreateShaderModule(vulkan.device, &shaderInfo, 0, shaderOut);
+        platformAPI.DEBUGFreeFileMemory(shaderCode.content);
+        if (res == VK_SUCCESS)
+        {
+            DebugPrint("Loaded Shader\n");
+            return true;
+        }
+    }
+    return false;
+    
+}
+
+function bool Vulkan::
+CreatePipeline()
 {
     ClearPipeline();
     
@@ -1213,7 +1200,8 @@ function bool Vulkan::CreatePipeline()
     return true;
 }
 
-function void Vulkan::ClearPipeline()
+function void Vulkan::
+ClearPipeline()
 {
     if(VulkanIsValidHandle(vulkan.device))
     {
@@ -1232,7 +1220,49 @@ function void Vulkan::ClearPipeline()
     }
 }
 
-function void Vulkan::Destroy()
+
+#define CreateVertexBuffer(usage, nVertices, vertexType, properties, bufferOut) \
+CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | usage, sizeof(vertexType) * nVertices, properties, bufferOut)
+
+function bool Vulkan::
+CreateBuffer(VkBufferUsageFlags usage, u64 size, VkMemoryPropertyFlags properties, vulkan_buffer &bufferOut)
+{
+    if(!(VulkanIsValidHandle(bufferOut.handle)))
+    {
+        bufferOut.size = size;
+        
+        VkBufferCreateInfo bufferInfo = {};
+        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferInfo.usage = usage;
+        bufferInfo.size = size;
+        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        AssertSuccess(vkCreateBuffer(vulkan.device, &bufferInfo, 0, &bufferOut.handle));
+        
+        VkMemoryRequirements memoryReq= {};
+        vkGetBufferMemoryRequirements(vulkan.device, bufferOut.handle, &memoryReq);
+        
+        u32 memIndex = 0;
+        if(Vulkan::FindMemoryProperties(memoryReq.memoryTypeBits, properties, memIndex))
+        {
+            VkMemoryAllocateInfo allocInfo = {};
+            allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+            allocInfo.allocationSize = memoryReq.size;
+            allocInfo.memoryTypeIndex = memIndex;
+            
+            AssertSuccess(vkAllocateMemory(vulkan.device, &allocInfo, 0, &bufferOut.memoryHandle));
+            AssertSuccess(vkBindBufferMemory(vulkan.device, bufferOut.handle, bufferOut.memoryHandle, 0));
+        }
+        else
+        {
+            Assert("Could not allocate vertex buffer memory");
+            return false;
+        }
+    }
+    return true;
+}
+
+function void Vulkan::
+Destroy()
 {
     if (VulkanIsValidHandle(vulkan.device))
     {
@@ -1241,24 +1271,33 @@ function void Vulkan::Destroy()
         ClearPipeline();
         
         
-        if(VulkanIsValidHandle(vulkan.vertexBuffer))
-            vkDestroyBuffer(vulkan.device, vulkan.vertexBuffer, 0);
-        if(VulkanIsValidHandle(vulkan.vertexBufferMemory))
+        if(VulkanIsValidHandle(vulkan.stagingBuffer.handle))
+            vkDestroyBuffer(vulkan.device, vulkan.stagingBuffer.handle, 0);
+        if(VulkanIsValidHandle(vulkan.stagingBuffer.memoryHandle))
         {
-            vkUnmapMemory(vulkan.device, vulkan.vertexBufferMemory); // optional???
-            vkFreeMemory(vulkan.device, vulkan.vertexBufferMemory, 0);
+            vkUnmapMemory(vulkan.device, vulkan.stagingBuffer.memoryHandle);
+            vkFreeMemory(vulkan.device, vulkan.stagingBuffer.memoryHandle, 0);
+        }
+        
+        if(VulkanIsValidHandle(vulkan.vertexBuffer.handle))
+            vkDestroyBuffer(vulkan.device, vulkan.vertexBuffer.handle, 0);
+        if(VulkanIsValidHandle(vulkan.vertexBuffer.memoryHandle))
+        {
+            vkFreeMemory(vulkan.device, vulkan.vertexBuffer.memoryHandle, 0);
         }
         
         ClearFrameBuffers();
         if (VulkanIsValidHandle(vulkan.renderPass))
             vkDestroyRenderPass(vulkan.device, vulkan.renderPass, 0);
         
-        if (VulkanIsValidHandle(vulkan.depthMemory))
-            vkFreeMemory(vulkan.device, vulkan.depthMemory, 0);
-        if (VulkanIsValidHandle(vulkan.depthImageView))
-            vkDestroyImageView(vulkan.device, vulkan.depthImageView, 0);
-        if (VulkanIsValidHandle(vulkan.depthImage))
-            vkDestroyImage(vulkan.device, vulkan.depthImage, 0);
+        /* 
+                if (VulkanIsValidHandle(vulkan.depthMemory))
+                    vkFreeMemory(vulkan.device, vulkan.depthMemory, 0);
+                if (VulkanIsValidHandle(vulkan.depthImageView))
+                    vkDestroyImageView(vulkan.device, vulkan.depthImageView, 0);
+                if (VulkanIsValidHandle(vulkan.depthImage))
+                    vkDestroyImage(vulkan.device, vulkan.depthImage, 0);
+                 */
         
         ClearSwapchainImages();
         if (VulkanIsValidHandle(vulkan.swapchain))
@@ -1300,68 +1339,8 @@ function void Vulkan::Destroy()
     return;
 }
 
-function bool Vulkan::Update(update_data *data, u32 imgIndex, frame_prep_resource *res)
-{
-    memcpy(vulkan.gpuMemory, data->verts, vulkan.vertexBufferSize);
-    
-    VkFramebufferCreateInfo framebufferInfo = {};
-    framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    framebufferInfo.renderPass = vulkan.renderPass;
-    framebufferInfo.attachmentCount = 1;
-    framebufferInfo.width = vulkan.windowExtent.width;
-    framebufferInfo.height = vulkan.windowExtent.height;
-    framebufferInfo.layers = 1;
-    framebufferInfo.pAttachments = &vulkan.swapchainImageViews[imgIndex];
-    if(VulkanIsValidHandle(res->framebuffer))
-    {
-        vkDestroyFramebuffer(vulkan.device, res->framebuffer, 0);
-        res->framebuffer = VK_NULL_HANDLE;
-    }
-    AssertSuccess(vkCreateFramebuffer(vulkan.device, &framebufferInfo, 0, &res->framebuffer));
-    
-    VkCommandBufferBeginInfo commandBufferBeginInfo = {};
-    commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    
-    VkClearValue clearValue = {};
-    clearValue.color = VulkanClearColor(data->clearColor[0], data->clearColor[1], data->clearColor[2], 0.0f);
-    
-    VkRenderPassBeginInfo renderpassInfo = {};
-    renderpassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderpassInfo.renderPass = vulkan.renderPass;
-    renderpassInfo.renderArea.extent = vulkan.windowExtent;
-    renderpassInfo.clearValueCount = 1;
-    renderpassInfo.pClearValues = &clearValue;
-    renderpassInfo.framebuffer = res->framebuffer;
-    
-    VkViewport viewport = {};
-    //viewport.x = 0.0f;
-    //viewport.y = 0.0f;
-    viewport.width = (f32) vulkan.windowExtent.width;
-    viewport.height = (f32) vulkan.windowExtent.height;
-    //viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
-    
-    VkRect2D scissor = {};
-    //scissor.offset = {0, 0};
-    scissor.extent = vulkan.windowExtent;
-    
-    VkDeviceSize bufferOffset = 0;
-    
-    AssertSuccess(vkBeginCommandBuffer(res->cmdBuffer, &commandBufferBeginInfo));
-    vkCmdBeginRenderPass(res->cmdBuffer, &renderpassInfo, VK_SUBPASS_CONTENTS_INLINE);
-    vkCmdBindPipeline(res->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan.pipeline);
-    vkCmdSetViewport(res->cmdBuffer, 0, 1, &viewport);
-    vkCmdSetScissor(res->cmdBuffer, 0, 1, &scissor);
-    vkCmdBindVertexBuffers(res->cmdBuffer, 0, 1, &vulkan.vertexBuffer, &bufferOffset);
-    vkCmdDraw(res->cmdBuffer, ArrayCount(data->verts), 1, 0, 0);
-    vkCmdEndRenderPass(res->cmdBuffer);
-    AssertSuccess(vkEndCommandBuffer(res->cmdBuffer));
-    
-    return true;
-}
-
-function bool Vulkan::Draw(update_data *data)
+function bool Vulkan::
+Draw(update_data *data)
 {
     // NOTE(heyyod): Get the resource tha we'll use to prepare the next frame
     frame_prep_resource *renderingRes = &vulkan.resources[vulkan.currentResource];
@@ -1372,98 +1351,214 @@ function bool Vulkan::Draw(update_data *data)
     AssertSuccess(vkWaitForFences(vulkan.device, 1, &renderingRes->fence, true, UINT64_MAX));
     AssertSuccess(vkResetFences(vulkan.device, 1, &renderingRes->fence));
     
+    if (data->updateVertexBuffer)
+    {
+        // NOTE(heyyod): copy staging buffer to vertex buffer
+        VkCommandBufferBeginInfo cmdBufferBeginInfo= {};
+        cmdBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        cmdBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        
+        VkBufferCopy bufferCopyInfo = {};
+        bufferCopyInfo.size = vulkan.stagingBuffer.size;
+        
+        VkBufferMemoryBarrier bufferMemoryBarrier = {};
+        bufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        bufferMemoryBarrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+        bufferMemoryBarrier.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+        bufferMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        bufferMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        bufferMemoryBarrier.buffer = vulkan.vertexBuffer.handle;
+        bufferMemoryBarrier.size = VK_WHOLE_SIZE;
+        
+        AssertSuccess(vkBeginCommandBuffer(renderingRes->cmdBuffer, &cmdBufferBeginInfo));
+        vkCmdCopyBuffer(renderingRes->cmdBuffer, vulkan.stagingBuffer.handle, vulkan.vertexBuffer.handle, 1, &bufferCopyInfo);
+        vkCmdPipelineBarrier(renderingRes->cmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, 0, 1, &bufferMemoryBarrier, 0, 0);
+        AssertSuccess(vkEndCommandBuffer(renderingRes->cmdBuffer));
+        
+        VkSubmitInfo submitInfo = {};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &renderingRes->cmdBuffer;
+        
+        AssertSuccess(vkQueueSubmit(vulkan.graphicsQueue, 1, &submitInfo, renderingRes->fence));
+        
+        AssertSuccess(vkWaitForFences(vulkan.device, 1, &renderingRes->fence, true, UINT64_MAX));
+        AssertSuccess(vkResetFences(vulkan.device, 1, &renderingRes->fence));
+        
+        data->updateVertexBuffer = false;
+    }
+    
+    
     // NOTE: Get the next image that we'll use to create the frame and draw it
     // Signal the semaphore when it's available
-    u32 nextImage = 0;
-    VkResult result = vkAcquireNextImageKHR(vulkan.device, vulkan.swapchain, UINT64_MAX, renderingRes->imgAvailableSem, 0, &nextImage);
-    
-    if (result == VK_ERROR_OUT_OF_DATE_KHR)
+    local u32 nextImage = 0;
+    local VkResult result = {}; 
     {
-        if (!CreateSwapchain())
-            return false;
-    }
-    else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
-    {
-        Assert("Could not aquire next image");
-        return false;
-    }
-    
-    if(!Update(data, nextImage, renderingRes))
-        return false;
-    
-    // NOTE: Wait on imageAvailableSem and submit the command buffer and signal renderFinishedSem
-    VkPipelineStageFlags waitDestStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    VkSubmitInfo submitInfo = {};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.pWaitDstStageMask = &waitDestStageMask;
-    submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores = &renderingRes->imgAvailableSem;
-    submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = &renderingRes->frameReadySem;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &renderingRes->cmdBuffer;
-    AssertSuccess(vkQueueSubmit(vulkan.graphicsQueue, 1, &submitInfo, renderingRes->fence));
-    
-    if (result == VK_ERROR_OUT_OF_DATE_KHR)
-    {
-        if (!CreateSwapchain())
+        result = vkAcquireNextImageKHR(vulkan.device, vulkan.swapchain, UINT64_MAX, renderingRes->imgAvailableSem, 0, &nextImage);
+        
+        if (result == VK_ERROR_OUT_OF_DATE_KHR)
         {
-            Assert("Could not recreate after queue sumbit.\n");
+            if (!CreateSwapchain())
+                return false;
+        }
+        else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
+        {
+            Assert("Could not aquire next image");
             return false;
         }
     }
-    else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
+    
+    // NOTE(heyyod): Prepare the frame using the selected resources
     {
-        Assert("Couldn't submit draw.\n");
-        return false;
+        local VkFramebufferCreateInfo framebufferInfo = {};
+        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebufferInfo.renderPass = vulkan.renderPass;
+        framebufferInfo.attachmentCount = 1;
+        framebufferInfo.width = vulkan.windowExtent.width;
+        framebufferInfo.height = vulkan.windowExtent.height;
+        framebufferInfo.layers = 1;
+        framebufferInfo.pAttachments = &vulkan.swapchainImageViews[nextImage];
+        if(VulkanIsValidHandle(renderingRes->framebuffer))
+        {
+            vkDestroyFramebuffer(vulkan.device, renderingRes->framebuffer, 0);
+            renderingRes->framebuffer = VK_NULL_HANDLE;
+        }
+        AssertSuccess(vkCreateFramebuffer(vulkan.device, &framebufferInfo, 0, &renderingRes->framebuffer));
+        
+        local VkCommandBufferBeginInfo commandBufferBeginInfo = {};
+        commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        
+        local VkClearValue clearValue = {};
+        clearValue.color = VulkanClearColor(data->clearColor[0], data->clearColor[1], data->clearColor[2], 0.0f);
+        
+        local VkRenderPassBeginInfo renderpassInfo = {};
+        renderpassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        renderpassInfo.renderPass = vulkan.renderPass;
+        renderpassInfo.renderArea.extent = vulkan.windowExtent;
+        renderpassInfo.clearValueCount = 1;
+        renderpassInfo.pClearValues = &clearValue;
+        renderpassInfo.framebuffer = renderingRes->framebuffer;
+        
+        local VkViewport viewport = {};
+        //viewport.x = 0.0f;
+        //viewport.y = 0.0f;
+        viewport.width = (f32) vulkan.windowExtent.width;
+        viewport.height = (f32) vulkan.windowExtent.height;
+        //viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
+        
+        local VkRect2D scissor = {};
+        //scissor.offset = {0, 0};
+        scissor.extent = vulkan.windowExtent;
+        
+        local VkDeviceSize bufferOffset = 0;
+        
+        AssertSuccess(vkBeginCommandBuffer(renderingRes->cmdBuffer, &commandBufferBeginInfo));
+        vkCmdBeginRenderPass(renderingRes->cmdBuffer, &renderpassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(renderingRes->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan.pipeline);
+        vkCmdSetViewport(renderingRes->cmdBuffer, 0, 1, &viewport);
+        vkCmdSetScissor(renderingRes->cmdBuffer, 0, 1, &scissor);
+        vkCmdBindVertexBuffers(renderingRes->cmdBuffer, 0, 1, &vulkan.vertexBuffer.handle, &bufferOffset);
+        vkCmdDraw(renderingRes->cmdBuffer, data->testMesh.nVertices, 1, 0, 0);
+        vkCmdEndRenderPass(renderingRes->cmdBuffer);
+        AssertSuccess(vkEndCommandBuffer(renderingRes->cmdBuffer));
+    }
+    
+    // NOTE: Wait on imageAvailableSem and submit the command buffer and signal renderFinishedSem
+    {
+        local VkPipelineStageFlags waitDestStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        local VkSubmitInfo submitInfo = {};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submitInfo.pWaitDstStageMask = &waitDestStageMask;
+        submitInfo.waitSemaphoreCount = 1;
+        submitInfo.pWaitSemaphores = &renderingRes->imgAvailableSem;
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.pSignalSemaphores = &renderingRes->frameReadySem;
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &renderingRes->cmdBuffer;
+        AssertSuccess(vkQueueSubmit(vulkan.graphicsQueue, 1, &submitInfo, renderingRes->fence));
+        
+        if (result == VK_ERROR_OUT_OF_DATE_KHR)
+        {
+            if (!CreateSwapchain())
+            {
+                Assert("Could not recreate after queue sumbit.\n");
+                return false;
+            }
+        }
+        else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
+        {
+            Assert("Couldn't submit draw.\n");
+            return false;
+        }
     }
     
     // NOTE: Submit image to present when signaled by renderFinishedSem
-    VkPresentInfoKHR presentInfo = {};
-    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores = &renderingRes->frameReadySem;
-    presentInfo.swapchainCount = 1;
-    presentInfo.pSwapchains = &vulkan.swapchain;
-    presentInfo.pImageIndices = &nextImage;
-    result = vkQueuePresentKHR(vulkan.presentQueue, &presentInfo);
-    
-    
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
     {
-        if (!CreateSwapchain())
+        local VkPresentInfoKHR presentInfo = {};
+        presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+        presentInfo.waitSemaphoreCount = 1;
+        presentInfo.pWaitSemaphores = &renderingRes->frameReadySem;
+        presentInfo.swapchainCount = 1;
+        presentInfo.pSwapchains = &vulkan.swapchain;
+        presentInfo.pImageIndices = &nextImage;
+        result = vkQueuePresentKHR(vulkan.presentQueue, &presentInfo);
+        
+        
+        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
         {
-            Assert("Could not recreate after queue present.\n");
+            if (!CreateSwapchain())
+            {
+                Assert("Could not recreate after queue present.\n");
+                return false;
+            }
+        }
+        else if (result != VK_SUCCESS)
+        {
+            Assert("Couldn't present image.\n");
             return false;
         }
+        
+        return true;
     }
-    else if (result != VK_SUCCESS)
+}
+
+#if 0
+function bool Vulkan::
+CreateCommandBuffers()
+{
+    VkCommandPoolCreateInfo cmdPoolInfo = {};
+    cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    cmdPoolInfo.queueFamilyIndex = vulkan.presentQueueFamilyIndex;
+    cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT | VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+    AssertSuccess(vkCreateCommandPool(vulkan.device, &cmdPoolInfo, 0, &vulkan.cmdPool));
+    
+    VkCommandBufferAllocateInfo cmdBufferAllocInfo = {};
+    cmdBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    cmdBufferAllocInfo.commandPool = vulkan.cmdPool;
+    cmdBufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    cmdBufferAllocInfo.commandBufferCount = 1;
+    for(u32 i = 0; i < NUM_RESOURCES; i++)
     {
-        Assert("Couldn't present image.\n");
-        return false;
+        AssertSuccess(vkAllocateCommandBuffers(vulkan.device, &cmdBufferAllocInfo, &vulkan.resources[i].cmdBuffer));
     }
+    DebugPrint("Created Command Pool and Command Buffers\n");
     
     return true;
 }
 
-function bool Vulkan::LoadShader(char *filepath, VkShaderModule *shaderOut)
+
+function bool Vulkan::
+ResetCommandBuffers()
 {
-    debug_read_file_result shaderCode = platformAPI.DEBUGReadFile(filepath);
-    Assert(shaderCode.size < SHADER_CODE_BUFFER_SIZE);
-    if(shaderCode.content)
+    if (VulkanIsValidHandle(vulkan.device) && VulkanIsValidHandle(vulkan.cmdPool))
     {
-        VkShaderModuleCreateInfo shaderInfo = {};
-        shaderInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-        shaderInfo.codeSize = shaderCode.size;
-        shaderInfo.pCode = (u32 *)shaderCode.content;
-        VkResult res = vkCreateShaderModule(vulkan.device, &shaderInfo, 0, shaderOut);
-        platformAPI.DEBUGFreeFileMemory(shaderCode.content);
-        if (res == VK_SUCCESS)
-        {
-            DebugPrint("Loaded Shader\n");
-            return true;
-        }
+        vkDeviceWaitIdle(vulkan.device);
+        vkResetCommandPool(vulkan.device, vulkan.cmdPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);
+        DebugPrint("Reseted Command Buffers\n");
+        return true;
     }
     return false;
-    
 }
+#endif

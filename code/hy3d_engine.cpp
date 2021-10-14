@@ -30,12 +30,13 @@ function void Initialize(hy3d_engine *e, engine_state *state, engine_memory *mem
     state->updateData.clearColor[0] = 0.1f;
     state->updateData.clearColor[1] = 0.3f;
     state->updateData.clearColor[2] = 0.6f;
-    state->updateData.verts[0].pos = {-1.0f, 1.0f };
-    state->updateData.verts[1].pos = { 0.0f, -1.0 };
-    state->updateData.verts[2].pos = { 1.0f, 1.0f };
-    state->updateData.verts[0].color = {1.0f, 0.0f, 0.0f};
-    state->updateData.verts[1].color = {0.0f, 1.0f, 0.0f};
-    state->updateData.verts[2].color = {0.0f, 0.0f, 1.0f};
+    
+    state->updateData.testMesh.vertices = (vertex *)memory->stagingMemory;
+    state->updateData.testMesh.vertices[0] = { {-1.0f,  1.0f}, {1.0f, 0.0f, 0.0f} };
+    state->updateData.testMesh.vertices[1] = { { 0.0f, -1.0f}, {0.0f, 1.0f, 0.0f} };
+    state->updateData.testMesh.vertices[2] = { { 1.0f,  1.0f}, {0.0f, 0.0f, 1.0f} };
+    state->updateData.testMesh.nVertices = 3;
+    state->updateData.updateVertexBuffer = true;
     
     state->clearColorChange[0] = 1.0f;
     state->clearColorChange[1] = 1.5f;
@@ -45,7 +46,8 @@ function void Initialize(hy3d_engine *e, engine_state *state, engine_memory *mem
     e->frameStart = std::chrono::steady_clock::now();
 }
 
-extern "C" UPDATE_AND_RENDER(UpdateAndRender)
+extern "C"
+UPDATE_AND_RENDER(UpdateAndRender)
 {
     platformAPI = memory->platformAPI_;
     engine_state *state = (engine_state *)memory->permanentMemory;
@@ -58,11 +60,10 @@ extern "C" UPDATE_AND_RENDER(UpdateAndRender)
     f32 dt = frameTime.count();
     e.frameStart = frameEnd;
     
-    
     // NOTE: UPDATE
-    float min = 0.0f;
-    float max = 1.0f;
-    for (int i = 0; i < ArrayCount(state->updateData.clearColor); i++)
+    f32 min = 0.5f;
+    f32 max = 1.0f;
+    for (u8 i = 0; i < ArrayCount(state->updateData.clearColor); i++)
     {
         if (state->updateData.clearColor[i] >= max)
         {
@@ -74,17 +75,8 @@ extern "C" UPDATE_AND_RENDER(UpdateAndRender)
             state->clearColorChange[i] *= -1.0f;
             state->updateData.clearColor[i] = min;
         }
-        state->updateData.clearColor[i] += state->clearColorChange[i] * dt * 0.3f;
+        state->updateData.clearColor[i] += state->clearColorChange[i] * dt * 1.3f;
     }
-    state->updateData.verts[0].pos.x = -state->updateData.clearColor[1];
-    state->updateData.verts[0].pos.y = state->updateData.clearColor[0];
-    state->updateData.verts[1].pos.x =  state->updateData.clearColor[0];
-    state->updateData.verts[1].pos.y = -state->updateData.clearColor[2];
-    state->updateData.verts[2].pos.x = state->updateData.clearColor[2];
-    state->updateData.verts[2].pos.y = state->updateData.clearColor[1];
-    state->updateData.verts[0].color.pos[0] = state->updateData.clearColor[0];
-    state->updateData.verts[1].color.pos[1] = state->updateData.clearColor[1];
-    state->updateData.verts[2].color.pos[2] = state->updateData.clearColor[2];
     
     platformAPI.Draw(&state->updateData);
 }

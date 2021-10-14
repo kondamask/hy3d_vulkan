@@ -535,7 +535,10 @@ function bool Win32InitializeMemory(engine_memory &memory)
 	u64 totalSize = memory.permanentMemorySize + memory.transientMemorySize;
 	memory.permanentMemory = VirtualAlloc(baseAddress, totalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 	memory.transientMemory = (u8 *)memory.permanentMemory + memory.permanentMemorySize;
-	memory.isInitialized = false;
+	
+    memory.stagingMemory = vulkan.stagingBuffer.data;
+    
+    memory.isInitialized = false;
     
 	memory.platformAPI_.Draw = Vulkan::Draw;
     
@@ -580,28 +583,27 @@ int CALLBACK WinMain(
 	openFilename.lpstrDefExt = "obj";
 	GetOpenFileNameA(&openFilename);*/
     
-	engine_memory engineMemory = {};
-	if (!Win32InitializeMemory(engineMemory))
-	{
-		return 3;
-	}
-    
     win32_engine_code engineCode = {};
 	// TODO: make this less explicit
 	char *sourceDLLPath = "..\\build\\hy3d_engine.dll";
 	char *sourceDLLCopyPath = "..\\build\\hy3d_engine_copy.dll";
 	Win32LoadEngineCode(&engineCode, sourceDLLPath, sourceDLLCopyPath);
-	
+    
+    engine_memory engineMemory = {};
+	if (!Win32InitializeMemory(engineMemory))
+	{
+		return 3;
+	}
+    
     if (!Vulkan::Win32Initialize(window.instance, window.handle, window.name))
 	{
 		return 4;
 	}
-    
-    FILETIME shadersWriteTime = Win32GetWriteTime(shaderFiles[0]);
-    
-    hy3d_engine engine = {};
+    engineMemory.stagingMemory = vulkan.stagingBuffer.data;
 	
-    i32 quitMessage = -1;
+    FILETIME shadersWriteTime = Win32GetWriteTime(shaderFiles[0]);
+    hy3d_engine engine = {};
+	i32 quitMessage = -1;
 	while (Win32ProcessMessages(window, engine.input, quitMessage))
 	{
 		if (Win32FileUpdated(sourceDLLPath, engineCode.writeTime))

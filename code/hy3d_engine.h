@@ -2,7 +2,7 @@
 #define HY3D_ENGINE_H 1
 
 #include "hy3d_base.h"
-#include "hy3d_math.h"
+#include "hy3d_mesh.h"
 
 #include <chrono>
 
@@ -28,8 +28,9 @@ typedef DEBUG_FREE_FILE(debug_free_file);
 
 struct update_data
 {
+    mesh testMesh;
     float clearColor[3];
-    vertex2 verts[3];
+    bool updateVertexBuffer;
 };
 #define VULKAN_DRAW_FUNC(name) bool name(update_data *data)
 typedef VULKAN_DRAW_FUNC(vulkan_draw_func);
@@ -47,13 +48,15 @@ struct platform_api
 
 struct engine_memory
 {
-    bool isInitialized;
     u64 permanentMemorySize;
     void *permanentMemory;
     u64 transientMemorySize;
     void *transientMemory;
+    void *stagingMemory;
     
     platform_api platformAPI_;
+    
+    bool isInitialized;
 };
 global platform_api platformAPI;
 
