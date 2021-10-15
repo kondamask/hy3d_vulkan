@@ -128,9 +128,10 @@ namespace Vulkan
     
     function bool FindMemoryProperties(u32 memoryType, VkMemoryPropertyFlags requiredProperties, u32 &memoryIndexOut);
     
+    /*
     function void GetVertexBindingDesc(vertex2 &v, VkVertexInputBindingDescription &bindingDesc);
     function void GetVertexAttributeDesc(vertex2 &v, VkVertexInputAttributeDescription *attributeDescs);
-    
+    */
 #if VULKAN_VALIDATION_LAYERS_ON
     function VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData);
 #endif

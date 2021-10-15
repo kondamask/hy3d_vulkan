@@ -3,7 +3,7 @@
 #ifndef HY3D_MESH_H
 #define HY3D_MESH_H
 
-#include "hy3d_math.h"
+#include "hy3d_handmade_math.h"
 
 struct vertex
 {
@@ -11,6 +11,8 @@ struct vertex
     //vec3 normal;
     vec3 color;
 };
+
+typedef vertex vertex2; // TODO(heyyod): REMOVE THIS!
 
 // NOTE(heyyod): SWITCH BETWEEN INDEX TYPES:
 // INDEX_TYPE_U16

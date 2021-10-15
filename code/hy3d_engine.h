@@ -3,6 +3,7 @@
 
 #include "hy3d_base.h"
 #include "hy3d_mesh.h"
+#include "hy3d_handmade_math.h"
 
 #include <chrono>
 
@@ -25,6 +26,11 @@ typedef DEBUG_WRITE_FILE(debug_write_file);
 
 #define DEBUG_FREE_FILE(name) void name(void *memory)
 typedef DEBUG_FREE_FILE(debug_free_file);
+
+struct model_view_proj
+{
+    
+};
 
 struct update_data
 {

@@ -223,29 +223,6 @@ FindMemoryProperties(u32 reqMemType, VkMemoryPropertyFlags reqMemProperties, u32
     return false;
 }
 
-function void Vulkan::
-GetVertexBindingDesc(vertex2 &v, VkVertexInputBindingDescription &bindingDesc)
-{
-    bindingDesc.binding = 0;
-    bindingDesc.stride = sizeof(v);
-    bindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-}
-
-function void Vulkan::
-GetVertexAttributeDesc(vertex2 &v, VkVertexInputAttributeDescription *attributeDescs)
-{
-    //Assert(ArrayCount(attributeDescs) == 2); // for pos and color
-    attributeDescs[0].binding = 0;
-    attributeDescs[0].location = 0;
-    attributeDescs[0].format = VK_FORMAT_R32G32_SFLOAT;
-    attributeDescs[0].offset = offsetof(vertex2, pos);
-    
-    attributeDescs[1].binding = 0;
-    attributeDescs[1].location = 1;
-    attributeDescs[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-    attributeDescs[1].offset = offsetof(vertex2, color);
-}
-
 // TODO: make this cross-platform
 function bool Vulkan::
 Win32LoadDLL()
@@ -1030,6 +1007,11 @@ CreatePipeline()
 {
     ClearPipeline();
     
+    VkDescriptorSetLayoutBinding uboLayoutBinding = {};
+    uboLayoutBinding.binding = 0;
+    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    uboLayoutBinding.descriptorCount = 1;
+    
     VkShaderModule triangleVertShader = {};
     VkShaderModule triangleFragShader = {};
     if(!LoadShader("..\\build\\shaders\\triangle.frag.spv", &triangleFragShader) ||
@@ -1621,4 +1603,28 @@ ResetCommandBuffers()
     }
     return false;
 }
+
+function void Vulkan::
+GetVertexBindingDesc(vertex2 &v, VkVertexInputBindingDescription &bindingDesc)
+{
+    bindingDesc.binding = 0;
+    bindingDesc.stride = sizeof(v);
+    bindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+}
+
+function void Vulkan::
+GetVertexAttributeDesc(vertex2 &v, VkVertexInputAttributeDescription *attributeDescs)
+{
+    //Assert(ArrayCount(attributeDescs) == 2); // for pos and color
+    attributeDescs[0].binding = 0;
+    attributeDescs[0].location = 0;
+    attributeDescs[0].format = VK_FORMAT_R32G32_SFLOAT;
+    attributeDescs[0].offset = offsetof(vertex2, pos);
+    
+    attributeDescs[1].binding = 0;
+    attributeDescs[1].location = 1;
+    attributeDescs[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+    attributeDescs[1].offset = offsetof(vertex2, color);
+}
+
 #endif
