@@ -20,17 +20,15 @@ struct vertex
 #if INDEX_TYPE_U16
 #define index_ u16
 #endif
-
 #if INDEX_TYPE_U32
 #define index_ u32
 #endif
 typedef index_ index;
 
-#define MESH_VERTICES_SIZE(m) \
-sizeof(vertex) * m.nVertices
-
-#define MESH_INDICES_SIZE(m) \
-sizeof(index) * m.nIndices
+#define MESH_VERTICES_SIZE(m) sizeof(vertex) * m.nVertices
+#define MESH_INDICES_SIZE(m) sizeof(index) * m.nIndices
+#define MESH_TOTAL_SIZE(m) MESH_VERTICES_SIZE(m) + MESH_INDICES_SIZE(m)
+#define MESH_VERTICES_END_ADDR(m) &m.vertices[m.nVertices]
 
 struct mesh
 {

@@ -1380,16 +1380,33 @@ Draw(update_data *data)
         VkCommandBufferBeginInfo cmdBufferBeginInfo= {};
         cmdBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         cmdBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        AssertSuccess(vkBeginCommandBuffer(renderingRes->cmdBuffer, &cmdBufferBeginInfo));
         
+        u64 meshSize = 0;
+        u64 verticesSize = 0;
+        u64 indicesSize = 0;
         VkBufferCopy vertexBufferCopyInfo = {};
-        vertexBufferCopyInfo.srcOffset = 0;
-        //vertexBufferCopyInfo.dstOffset = after end of vertices of last mesh;
-        vertexBufferCopyInfo.size = MESH_VERTICES_SIZE(data->testMesh);
-        
         VkBufferCopy indexBufferCopyInfo = {};
-        indexBufferCopyInfo.srcOffset = vertexBufferCopyInfo.size;
-        //indexBufferCopyInfo.dstOffset = after end of indices of last mesh;
-        indexBufferCopyInfo.size = MESH_INDICES_SIZE(data->testMesh);
+        //for(u32 meshId = 0; meshId < 1; meshId++)
+        for(u32 meshId = 0; meshId < ArrayCount(data->meshes); meshId++)
+        {
+            meshSize = MESH_TOTAL_SIZE(data->meshes[meshId]);
+            verticesSize =  MESH_VERTICES_SIZE(data->meshes[meshId]);
+            indicesSize =  MESH_INDICES_SIZE(data->meshes[meshId]);
+            
+            if (meshId > 0)
+            {
+                vertexBufferCopyInfo.srcOffset += meshSize;
+                vertexBufferCopyInfo.dstOffset += verticesSize;
+                indexBufferCopyInfo.dstOffset += indicesSize;
+            }
+            indexBufferCopyInfo.srcOffset = vertexBufferCopyInfo.srcOffset + verticesSize;
+            vertexBufferCopyInfo.size = verticesSize;
+            indexBufferCopyInfo.size = indicesSize;
+            
+            vkCmdCopyBuffer(renderingRes->cmdBuffer, vulkan.stagingBuffer.handle, vulkan.vertexBuffer.handle, 1, &vertexBufferCopyInfo);
+            vkCmdCopyBuffer(renderingRes->cmdBuffer, vulkan.stagingBuffer.handle, vulkan.indexBuffer.handle, 1, &indexBufferCopyInfo);
+        }
         
         VkBufferMemoryBarrier bufferMemoryBarrier = {};
         bufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
@@ -1399,11 +1416,7 @@ Draw(update_data *data)
         bufferMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         bufferMemoryBarrier.buffer = vulkan.vertexBuffer.handle;
         bufferMemoryBarrier.offset = 0; 
-        bufferMemoryBarrier.size = vertexBufferCopyInfo.size + indexBufferCopyInfo.size;
-        
-        AssertSuccess(vkBeginCommandBuffer(renderingRes->cmdBuffer, &cmdBufferBeginInfo));
-        vkCmdCopyBuffer(renderingRes->cmdBuffer, vulkan.stagingBuffer.handle, vulkan.vertexBuffer.handle, 1, &vertexBufferCopyInfo);
-        vkCmdCopyBuffer(renderingRes->cmdBuffer, vulkan.stagingBuffer.handle, vulkan.indexBuffer.handle, 1, &indexBufferCopyInfo);
+        bufferMemoryBarrier.size = VK_WHOLE_SIZE;
         vkCmdPipelineBarrier(renderingRes->cmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, 0, 1, &bufferMemoryBarrier, 0, 0);
         AssertSuccess(vkEndCommandBuffer(renderingRes->cmdBuffer));
         
@@ -1417,7 +1430,7 @@ Draw(update_data *data)
         AssertSuccess(vkWaitForFences(vulkan.device, 1, &renderingRes->fence, true, UINT64_MAX));
         AssertSuccess(vkResetFences(vulkan.device, 1, &renderingRes->fence));
         
-        memset(vulkan.stagingBuffer.data, 0, vulkan.stagingBuffer.size);
+        //memset(vulkan.stagingBuffer.data, 0, vulkan.stagingBuffer.size);
         data->updateVertexBuffer = false;
     }
     
@@ -1495,10 +1508,18 @@ Draw(update_data *data)
         
         vkCmdBindVertexBuffers(renderingRes->cmdBuffer, 0, 1, &vulkan.vertexBuffer.handle, &bufferOffset);
         vkCmdBindIndexBuffer(renderingRes->cmdBuffer, vulkan.indexBuffer.handle, 0, VULKAN_INDEX_TYPE);
-        vkCmdDrawIndexed(renderingRes->cmdBuffer, data->testMesh.nIndices, 1, 0, 0, 0);
-        //                                                             |
-        // NOTE(heyyod): This specifies the offset of the fitst vertex in the vertex buffer
-        // that these indices refer to. (probably)
+        
+        u32 firstIndex = 0;
+        u32 indexOffset = 0;
+        for(u32 meshId = 0; meshId < ArrayCount(data->meshes); meshId++)
+        {
+            vkCmdDrawIndexed(renderingRes->cmdBuffer, data->meshes[meshId].nIndices, 1,
+                             firstIndex, indexOffset, 0);
+            
+            firstIndex += data->meshes[meshId].nIndices;
+            indexOffset += data->meshes[meshId].nVertices;
+        }
+        
         
         vkCmdEndRenderPass(renderingRes->cmdBuffer);
         AssertSuccess(vkEndCommandBuffer(renderingRes->cmdBuffer));

@@ -28,7 +28,7 @@ typedef DEBUG_FREE_FILE(debug_free_file);
 
 struct update_data
 {
-    mesh testMesh;
+    mesh meshes[2];
     float clearColor[3];
     bool updateVertexBuffer;
 };
@@ -52,7 +52,9 @@ struct engine_memory
     void *permanentMemory;
     u64 transientMemorySize;
     void *transientMemory;
+    
     void *stagingMemory;
+    void *nextStagingAddr;
     
     platform_api platformAPI_;
     

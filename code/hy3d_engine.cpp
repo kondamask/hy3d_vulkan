@@ -31,22 +31,42 @@ function void Initialize(hy3d_engine *e, engine_state *state, engine_memory *mem
     state->updateData.clearColor[1] = 0.3f;
     state->updateData.clearColor[2] = 0.6f;
     
-    mesh &m = state->updateData.testMesh;
+    memory->nextStagingAddr = memory->stagingMemory;
     
-    m.nVertices = 4;
-    m.nIndices = 6;
-    m.vertices = (vertex *)memory->stagingMemory;
-    m.indices = (index *)(&m.vertices[m.nVertices]);
-    m.vertices[0] = { {-0.5f, -0.5f}, {1.0f, 1.0f, 0.0f} };
-    m.vertices[1] = { { 0.5f, -0.5f}, {0.0f, 1.0f, 1.0f} };
-    m.vertices[2] = { { 0.5f,  0.5f}, {1.0f, 0.0f, 1.0f} };
-    m.vertices[3] = { {-0.5f,  0.5f}, {1.0f, 1.0f, 1.0f} };
-    m.indices[0] = 0;
-    m.indices[1] = 1;
-    m.indices[2] = 2;
-    m.indices[3] = 2;
-    m.indices[4] = 3;
-    m.indices[5] = 0;
+    mesh *m = state->updateData.meshes;
+    m[0].nVertices = 4;
+    m[0].nIndices = 6;
+    m[0].vertices = (vertex *)memory->nextStagingAddr;
+    m[0].indices = (index *)(MESH_VERTICES_END_ADDR(m[0]));
+    m[0].vertices[0] = { { 0.3f,  0.0f}, {1.0f, 0.0f, 0.0f} };
+    m[0].vertices[1] = { { 0.8f,  0.0f}, {0.0f, 1.0f, 0.0f} };
+    m[0].vertices[2] = { { 0.8f,  0.8f}, {0.0f, 0.0f, 1.0f} };
+    m[0].vertices[3] = { { 0.3f,  0.8f}, {0.0f, 0.0f, 0.0f} };
+    m[0].indices[0] = 0;
+    m[0].indices[1] = 1;
+    m[0].indices[2] = 2;
+    m[0].indices[3] = 2;
+    m[0].indices[4] = 3;
+    m[0].indices[5] = 0;
+    
+    // NOTE(heyyod): I'll have something like LoadMesh(...) and it will also update the 
+    // nextStagingAddr
+    memory->nextStagingAddr = (u8 *)memory->stagingMemory + MESH_TOTAL_SIZE(m[0]);
+    
+    m[1].nVertices = 4;
+    m[1].nIndices = 6;
+    m[1].vertices = (vertex *)memory->nextStagingAddr;
+    m[1].indices = (index *)(MESH_VERTICES_END_ADDR(m[1]));
+    m[1].vertices[0] = { {-0.8f, -0.8f}, {1.0f, 1.0f, 0.0f} };
+    m[1].vertices[1] = { {-0.3f, -0.8f}, {0.0f, 1.0f, 1.0f} };
+    m[1].vertices[2] = { {-0.3f,  0.0f}, {1.0f, 0.0f, 1.0f} };
+    m[1].vertices[3] = { {-0.8f,  0.0f}, {1.0f, 1.0f, 1.0f} };
+    m[1].indices[0] = 0;
+    m[1].indices[1] = 1;
+    m[1].indices[2] = 2;
+    m[1].indices[3] = 2;
+    m[1].indices[4] = 3;
+    m[1].indices[5] = 0;
     
     state->updateData.updateVertexBuffer = true;
     
