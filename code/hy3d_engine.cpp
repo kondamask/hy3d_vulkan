@@ -31,11 +31,23 @@ function void Initialize(hy3d_engine *e, engine_state *state, engine_memory *mem
     state->updateData.clearColor[1] = 0.3f;
     state->updateData.clearColor[2] = 0.6f;
     
-    state->updateData.testMesh.vertices = (vertex *)memory->stagingMemory;
-    state->updateData.testMesh.vertices[0] = { {-1.0f,  1.0f}, {1.0f, 0.0f, 0.0f} };
-    state->updateData.testMesh.vertices[1] = { { 0.0f, -1.0f}, {0.0f, 1.0f, 0.0f} };
-    state->updateData.testMesh.vertices[2] = { { 1.0f,  1.0f}, {0.0f, 0.0f, 1.0f} };
-    state->updateData.testMesh.nVertices = 3;
+    mesh &m = state->updateData.testMesh;
+    
+    m.nVertices = 4;
+    m.nIndices = 6;
+    m.vertices = (vertex *)memory->stagingMemory;
+    m.indices = (index *)(&m.vertices[m.nVertices]);
+    m.vertices[0] = { {-0.5f, -0.5f}, {1.0f, 1.0f, 0.0f} };
+    m.vertices[1] = { { 0.5f, -0.5f}, {0.0f, 1.0f, 1.0f} };
+    m.vertices[2] = { { 0.5f,  0.5f}, {1.0f, 0.0f, 1.0f} };
+    m.vertices[3] = { {-0.5f,  0.5f}, {1.0f, 1.0f, 1.0f} };
+    m.indices[0] = 0;
+    m.indices[1] = 1;
+    m.indices[2] = 2;
+    m.indices[3] = 2;
+    m.indices[4] = 3;
+    m.indices[5] = 0;
+    
     state->updateData.updateVertexBuffer = true;
     
     state->clearColorChange[0] = 1.0f;

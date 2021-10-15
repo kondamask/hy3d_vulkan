@@ -16,6 +16,13 @@
 #define SURFACE_FORMAT_COLOR_SPACE VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
 #define SURFACE_FORMAT_FORMAT VK_FORMAT_B8G8R8A8_UNORM
 
+#if INDEX_TYPE_U16
+#define VULKAN_INDEX_TYPE VK_INDEX_TYPE_UINT16
+#endif
+#if INDEX_TYPE_U32
+#define VULKAN_INDEX_TYPE VK_INDEX_TYPE_UINT32
+#endif
+
 struct frame_prep_resource
 {
     VkCommandBuffer cmdBuffer;
@@ -70,11 +77,14 @@ struct vulkan_engine
         VkImage depthImage;
         VkImageView depthImageView;
         VkDeviceMemory depthMemory;
-         */
+        */
     
+    // NOTE(heyyod): cpu accessible
     vulkan_buffer stagingBuffer;
+    
+    // NOTE(heyyod): in gpu
     vulkan_buffer vertexBuffer;
-    bool vertexBufferUpdated;
+    vulkan_buffer indexBuffer;
     
     bool canRender;
     
@@ -109,6 +119,7 @@ namespace Vulkan
     function void ClearFrameBuffers();
     function void ClearSwapchainImages();
     function void ClearPipeline();
+    function void ClearBuffer(vulkan_buffer buffer);
     function void Destroy();
     
     function bool Draw(update_data *data);
@@ -233,6 +244,7 @@ VulkanDeclareFunction(vkGetBufferMemoryRequirements);
 VulkanDeclareFunction(vkBindBufferMemory);
 VulkanDeclareFunction(vkMapMemory);
 VulkanDeclareFunction(vkUnmapMemory);
+VulkanDeclareFunction(vkFlushMappedMemoryRanges);
 
 VulkanDeclareFunction(vkCmdPipelineBarrier);
 VulkanDeclareFunction(vkCmdClearColorImage);
@@ -240,7 +252,9 @@ VulkanDeclareFunction(vkCmdEndRenderPass);
 VulkanDeclareFunction(vkCmdBeginRenderPass);
 VulkanDeclareFunction(vkCmdBindPipeline);
 VulkanDeclareFunction(vkCmdBindVertexBuffers);
+VulkanDeclareFunction(vkCmdBindIndexBuffer);
 VulkanDeclareFunction(vkCmdDraw);
+VulkanDeclareFunction(vkCmdDrawIndexed);
 VulkanDeclareFunction(vkCmdSetViewport);
 VulkanDeclareFunction(vkCmdSetScissor);
 VulkanDeclareFunction(vkCmdCopyBuffer);

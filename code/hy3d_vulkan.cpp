@@ -183,6 +183,7 @@ LoadDeviceFunctions()
     VulkanLoadDeviceFunc(vkBindBufferMemory);
     VulkanLoadDeviceFunc(vkMapMemory);
     VulkanLoadDeviceFunc(vkUnmapMemory);
+    VulkanLoadDeviceFunc(vkFlushMappedMemoryRanges);
     
     VulkanLoadDeviceFunc(vkCmdBeginRenderPass);
     VulkanLoadDeviceFunc(vkCmdEndRenderPass);
@@ -190,7 +191,9 @@ LoadDeviceFunctions()
     VulkanLoadDeviceFunc(vkCmdClearColorImage);
     VulkanLoadDeviceFunc(vkCmdBindPipeline);
     VulkanLoadDeviceFunc(vkCmdBindVertexBuffers);
+    VulkanLoadDeviceFunc(vkCmdBindIndexBuffer);
     VulkanLoadDeviceFunc(vkCmdDraw);
+    VulkanLoadDeviceFunc(vkCmdDrawIndexed);
     VulkanLoadDeviceFunc(vkCmdSetViewport);
     VulkanLoadDeviceFunc(vkCmdSetScissor);
     VulkanLoadDeviceFunc(vkCmdCopyBuffer);
@@ -745,19 +748,29 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         DebugPrint("Created rendering resources.\n");
     }
     
-    // NOTE(heyyod): Make a reusable staging buffer
-    if(!CreateBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, MEGABYTES(10), VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, vulkan.stagingBuffer))
+    // NOTE(heyyod): Make a buffers
     {
-        Assert("Could not create staging buffer");
-        return false;
-    }
-    AssertSuccess(vkMapMemory(vulkan.device, vulkan.stagingBuffer.memoryHandle, 0, vulkan.stagingBuffer.size, 0, &vulkan.stagingBuffer.data));
-    
-    // NOTE(heyyod): Make vertex buffer in gpu memory
-    if(!CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, /*MEGABYTES(10)*/ MEGABYTES(500), VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vulkan.vertexBuffer))
-    {
-        Assert("Could not create vertex buffer");
-        return false;
+        u32 vertexBufferSize = MEGABYTES(100);
+        u32 indexBufferSize = MEGABYTES(100);
+        u32 stagingBufferSize = vertexBufferSize + indexBufferSize;
+        if(!CreateBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, stagingBufferSize, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, vulkan.stagingBuffer))
+        {
+            Assert("Could not create staging buffer");
+            return false;
+        }
+        AssertSuccess(vkMapMemory(vulkan.device, vulkan.stagingBuffer.memoryHandle, 0, vulkan.stagingBuffer.size, 0, &vulkan.stagingBuffer.data));
+        
+        if(!CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, vertexBufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vulkan.vertexBuffer))
+        {
+            Assert("Could not create vertex buffer");
+            return false;
+        }
+        
+        if(!CreateBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, indexBufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vulkan.indexBuffer))
+        {
+            Assert("Could not create index buffer");
+            return false;
+        }
     }
     
     
@@ -1262,6 +1275,20 @@ CreateBuffer(VkBufferUsageFlags usage, u64 size, VkMemoryPropertyFlags propertie
 }
 
 function void Vulkan::
+ClearBuffer(vulkan_buffer buffer)
+{
+    if(VulkanIsValidHandle(vulkan.device))
+    {
+        if(VulkanIsValidHandle(buffer.handle))
+            vkDestroyBuffer(vulkan.device, buffer.handle, 0);
+        if(VulkanIsValidHandle(buffer.memoryHandle))
+        {
+            vkFreeMemory(vulkan.device, buffer.memoryHandle, 0);
+        }
+    }
+}
+
+function void Vulkan::
 Destroy()
 {
     if (VulkanIsValidHandle(vulkan.device))
@@ -1270,21 +1297,10 @@ Destroy()
         
         ClearPipeline();
         
-        
-        if(VulkanIsValidHandle(vulkan.stagingBuffer.handle))
-            vkDestroyBuffer(vulkan.device, vulkan.stagingBuffer.handle, 0);
-        if(VulkanIsValidHandle(vulkan.stagingBuffer.memoryHandle))
-        {
-            vkUnmapMemory(vulkan.device, vulkan.stagingBuffer.memoryHandle);
-            vkFreeMemory(vulkan.device, vulkan.stagingBuffer.memoryHandle, 0);
-        }
-        
-        if(VulkanIsValidHandle(vulkan.vertexBuffer.handle))
-            vkDestroyBuffer(vulkan.device, vulkan.vertexBuffer.handle, 0);
-        if(VulkanIsValidHandle(vulkan.vertexBuffer.memoryHandle))
-        {
-            vkFreeMemory(vulkan.device, vulkan.vertexBuffer.memoryHandle, 0);
-        }
+        ClearBuffer(vulkan.stagingBuffer);
+        //vkUnmapMemory(vulkan.device, vulkan.stagingBuffer.memoryHandle);
+        ClearBuffer(vulkan.vertexBuffer);
+        ClearBuffer(vulkan.indexBuffer);
         
         ClearFrameBuffers();
         if (VulkanIsValidHandle(vulkan.renderPass))
@@ -1353,13 +1369,27 @@ Draw(update_data *data)
     
     if (data->updateVertexBuffer)
     {
+        VkMappedMemoryRange flushRange = {};
+        flushRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE; 
+        flushRange.memory = vulkan.stagingBuffer.memoryHandle;
+        flushRange.size = vulkan.stagingBuffer.size;
+        
+        vkFlushMappedMemoryRanges(vulkan.device, 1, &flushRange );
+        
         // NOTE(heyyod): copy staging buffer to vertex buffer
         VkCommandBufferBeginInfo cmdBufferBeginInfo= {};
         cmdBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         cmdBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
         
-        VkBufferCopy bufferCopyInfo = {};
-        bufferCopyInfo.size = vulkan.stagingBuffer.size;
+        VkBufferCopy vertexBufferCopyInfo = {};
+        vertexBufferCopyInfo.srcOffset = 0;
+        //vertexBufferCopyInfo.dstOffset = after end of vertices of last mesh;
+        vertexBufferCopyInfo.size = MESH_VERTICES_SIZE(data->testMesh);
+        
+        VkBufferCopy indexBufferCopyInfo = {};
+        indexBufferCopyInfo.srcOffset = vertexBufferCopyInfo.size;
+        //indexBufferCopyInfo.dstOffset = after end of indices of last mesh;
+        indexBufferCopyInfo.size = MESH_INDICES_SIZE(data->testMesh);
         
         VkBufferMemoryBarrier bufferMemoryBarrier = {};
         bufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
@@ -1368,10 +1398,12 @@ Draw(update_data *data)
         bufferMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         bufferMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         bufferMemoryBarrier.buffer = vulkan.vertexBuffer.handle;
-        bufferMemoryBarrier.size = VK_WHOLE_SIZE;
+        bufferMemoryBarrier.offset = 0; 
+        bufferMemoryBarrier.size = vertexBufferCopyInfo.size + indexBufferCopyInfo.size;
         
         AssertSuccess(vkBeginCommandBuffer(renderingRes->cmdBuffer, &cmdBufferBeginInfo));
-        vkCmdCopyBuffer(renderingRes->cmdBuffer, vulkan.stagingBuffer.handle, vulkan.vertexBuffer.handle, 1, &bufferCopyInfo);
+        vkCmdCopyBuffer(renderingRes->cmdBuffer, vulkan.stagingBuffer.handle, vulkan.vertexBuffer.handle, 1, &vertexBufferCopyInfo);
+        vkCmdCopyBuffer(renderingRes->cmdBuffer, vulkan.stagingBuffer.handle, vulkan.indexBuffer.handle, 1, &indexBufferCopyInfo);
         vkCmdPipelineBarrier(renderingRes->cmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, 0, 1, &bufferMemoryBarrier, 0, 0);
         AssertSuccess(vkEndCommandBuffer(renderingRes->cmdBuffer));
         
@@ -1385,6 +1417,7 @@ Draw(update_data *data)
         AssertSuccess(vkWaitForFences(vulkan.device, 1, &renderingRes->fence, true, UINT64_MAX));
         AssertSuccess(vkResetFences(vulkan.device, 1, &renderingRes->fence));
         
+        memset(vulkan.stagingBuffer.data, 0, vulkan.stagingBuffer.size);
         data->updateVertexBuffer = false;
     }
     
@@ -1459,8 +1492,14 @@ Draw(update_data *data)
         vkCmdBindPipeline(renderingRes->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan.pipeline);
         vkCmdSetViewport(renderingRes->cmdBuffer, 0, 1, &viewport);
         vkCmdSetScissor(renderingRes->cmdBuffer, 0, 1, &scissor);
+        
         vkCmdBindVertexBuffers(renderingRes->cmdBuffer, 0, 1, &vulkan.vertexBuffer.handle, &bufferOffset);
-        vkCmdDraw(renderingRes->cmdBuffer, data->testMesh.nVertices, 1, 0, 0);
+        vkCmdBindIndexBuffer(renderingRes->cmdBuffer, vulkan.indexBuffer.handle, 0, VULKAN_INDEX_TYPE);
+        vkCmdDrawIndexed(renderingRes->cmdBuffer, data->testMesh.nIndices, 1, 0, 0, 0);
+        //                                                             |
+        // NOTE(heyyod): This specifies the offset of the fitst vertex in the vertex buffer
+        // that these indices refer to. (probably)
+        
         vkCmdEndRenderPass(renderingRes->cmdBuffer);
         AssertSuccess(vkEndCommandBuffer(renderingRes->cmdBuffer));
     }
