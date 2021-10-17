@@ -7,6 +7,9 @@
 #include "win32_resource.h"
 #include "hy3d_vulkan.h"
 
+#define WIN32_WINDOW_Y_BORDER 39
+#define WIN32_WINDOW_X_BORDER 23
+
 #define VK_CODE unsigned char
 
 struct wnd_dim

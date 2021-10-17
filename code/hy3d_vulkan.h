@@ -16,6 +16,12 @@
 #define SURFACE_FORMAT_COLOR_SPACE VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
 #define SURFACE_FORMAT_FORMAT VK_FORMAT_B8G8R8A8_UNORM
 
+// NOTE(heyyod): THIS IS IMPORTANT! INDICES WE USE TO ACCESS THE UBs
+// ARE DEPENDING ON THE CURRENT AQUIRED IMAGE IN THE DRAW LOOP
+#define NUM_UNIFORM_BUFFERS NUM_SWAPCHAIN_IMAGES
+
+#define MAP_BUFFER_TRUE true
+
 #if INDEX_TYPE_U16
 #define VULKAN_INDEX_TYPE VK_INDEX_TYPE_UINT16
 #endif
@@ -69,6 +75,11 @@ struct vulkan_engine
     u32 swapchainImageCount;
     u32 currentResource;
     
+    vulkan_buffer mvp[NUM_UNIFORM_BUFFERS]; // NOTE(heyyod): uniform buffer
+    VkDescriptorSetLayout mvpDescSetLayout;
+    VkDescriptorPool mvpDescPool;
+    VkDescriptorSet mvpDescSets[NUM_UNIFORM_BUFFERS];
+    
     VkPipelineLayout pipelineLayout;
     VkPipeline pipeline;
     
@@ -114,7 +125,7 @@ namespace Vulkan
     
     function bool CreateSwapchain();
     function bool CreatePipeline();
-    function bool CreateBuffer(VkBufferUsageFlags usage, VkDeviceSize size, VkMemoryPropertyFlags properties, vulkan_buffer &buffer);
+    function bool CreateBuffer(VkBufferUsageFlags usage, VkDeviceSize size, VkMemoryPropertyFlags properties, vulkan_buffer &buffer, bool mapBuffer = false);
     
     function void ClearFrameBuffers();
     function void ClearSwapchainImages();
@@ -246,6 +257,12 @@ VulkanDeclareFunction(vkBindBufferMemory);
 VulkanDeclareFunction(vkMapMemory);
 VulkanDeclareFunction(vkUnmapMemory);
 VulkanDeclareFunction(vkFlushMappedMemoryRanges);
+VulkanDeclareFunction(vkCreateDescriptorSetLayout);
+VulkanDeclareFunction(vkDestroyDescriptorSetLayout);
+VulkanDeclareFunction(vkCreateDescriptorPool);
+VulkanDeclareFunction(vkDestroyDescriptorPool);
+VulkanDeclareFunction(vkAllocateDescriptorSets);
+VulkanDeclareFunction(vkUpdateDescriptorSets);
 
 VulkanDeclareFunction(vkCmdPipelineBarrier);
 VulkanDeclareFunction(vkCmdClearColorImage);
@@ -259,5 +276,6 @@ VulkanDeclareFunction(vkCmdDrawIndexed);
 VulkanDeclareFunction(vkCmdSetViewport);
 VulkanDeclareFunction(vkCmdSetScissor);
 VulkanDeclareFunction(vkCmdCopyBuffer);
+VulkanDeclareFunction(vkCmdBindDescriptorSets);
 
 #endif

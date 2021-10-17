@@ -9,8 +9,8 @@
 
 #define WINDOW_WIDTH 640
 #define WINDOW_HEIGHT 480
-#define WINDOW_WIDTH_MIN 256
-#define WINDOW_HEIGHT_MIN 144
+#define WINDOW_WIDTH_MIN 255
+#define WINDOW_HEIGHT_MIN 255
 
 struct debug_read_file_result
 {
@@ -27,16 +27,18 @@ typedef DEBUG_WRITE_FILE(debug_write_file);
 #define DEBUG_FREE_FILE(name) void name(void *memory)
 typedef DEBUG_FREE_FILE(debug_free_file);
 
-struct model_view_proj
-{
-    
-};
-
 struct update_data
 {
-    mesh meshes[2];
+    // NOTE(heyyod): ENGINE -> VULKAN
+    mesh meshes[1];
     float clearColor[3];
     bool updateVertexBuffer;
+    
+    // NOTE(heyyod): VULKAN -> ENGINE
+    // We have multiple uniform buffers that we uses to pass the matrices into
+    // the vertex shader. We cycle them as we change the current swapchain image.
+    // So vulkan will update the newMVP pointer and the engine will redirect it's mvp
+    void *newMVP;
 };
 #define VULKAN_DRAW_FUNC(name) bool name(update_data *data)
 typedef VULKAN_DRAW_FUNC(vulkan_draw_func);
@@ -52,6 +54,13 @@ struct platform_api
     //#endif
 };
 
+struct model_view_proj
+{
+    mat4 model;
+    mat4 view;
+    mat4 proj;
+};
+
 struct engine_memory
 {
     u64 permanentMemorySize;
@@ -61,6 +70,10 @@ struct engine_memory
     
     void *stagingMemory;
     void *nextStagingAddr;
+    
+    // NOTE(heyyod): uniform buffer allocated from vulkan.
+    // Linked in os layer for now.
+    model_view_proj *mvp;
     
     platform_api platformAPI_;
     
@@ -77,24 +90,27 @@ struct memory_arena
 
 enum KEYBOARD_BUTTON
 {
-    UP, LEFT, DOWN, RIGHT,
-    W, A, S, D, Q, E, R, F, Z, X, C, V, I, J, K, L, U, O,
-    SHIFT, CTRL, ALT, F4,
-    ZERO, ONE, TWO, THREE, FOUR, FIVE,
-    SIX, SEVEN, EIGHT, NINE,
-    COUNT, INVALID
+    KEY_UP, KEY_LEFT, KEY_DOWN, KEY_RIGHT,
+    KEY_W, KEY_A, KEY_S, KEY_D,
+    KEY_Q, KEY_E, KEY_R, KEY_F,
+    KEY_Z, KEY_X, KEY_C, KEY_V,
+    KEY_I, KEY_J, KEY_K, KEY_L, KEY_U, KEY_O,
+    KEY_SHIFT, KEY_CTRL, KEY_ALT, KEY_F4,
+    KEY_ZERO, KEY_ONE, KEY_TWO, KEY_THREE, KEY_FOUR, KEY_FIVE,
+    KEY_SIX, KEY_SEVEN, KEY_EIGHT, KEY_NINE,
+    KEY_COUNT, KEY_INVALID
 };
 
-struct keyboard
+struct keyboard_t
 {
     // TODO: USE A SINGLE VARIABLE INSTEAD OF A BOOL ARRAY
     // WE ONLY NEED 1 BIT FOR A KEY
     bool autoRepeatEnabled = false;
-    bool isPressed[KEYBOARD_BUTTON::COUNT];
+    bool isPressed[KEY_COUNT];
     
     inline void Clear()
     {
-        for (int i = 0; i < KEYBOARD_BUTTON::COUNT; i++)
+        for (int i = 0; i < KEY_COUNT; i++)
             isPressed[i] = false;
     }
     
@@ -104,7 +120,7 @@ struct keyboard
     }
 };
 
-struct mouse
+struct mouse_t
 {
     i16 x;
     i16 y;
@@ -137,15 +153,17 @@ struct mouse
 
 struct engine_input
 {
-    mouse mouse;
-    keyboard keyboard;
+    mouse_t mouse;
+    keyboard_t keyboard;
 };
 
 struct engine_state
 {
     memory_arena memoryArena;
     update_data updateData;
+    vec3 camPos;
     float clearColorChange[3];
+    float time;
 };
 
 struct hy3d_engine
@@ -153,6 +171,8 @@ struct hy3d_engine
     engine_input input;
     std::chrono::steady_clock::time_point frameStart;
     bool onResize;
+    u32 windowWidth;
+    u32 windowHeight;
 };
 
 #define UPDATE_AND_RENDER(name) void name(hy3d_engine &e, engine_memory *memory)

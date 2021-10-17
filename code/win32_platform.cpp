@@ -93,8 +93,8 @@ function LRESULT Win32MainWindowProc(HWND handle, UINT message, WPARAM wParam, L
         case WM_GETMINMAXINFO:
         {
             LPMINMAXINFO lpMMI = (LPMINMAXINFO)lParam;
-            lpMMI->ptMinTrackSize.x = WINDOW_WIDTH_MIN;
-            lpMMI->ptMinTrackSize.y = WINDOW_HEIGHT_MIN;
+            lpMMI->ptMinTrackSize.x = WINDOW_WIDTH_MIN + WIN32_WINDOW_X_BORDER;
+            lpMMI->ptMinTrackSize.y = WINDOW_HEIGHT_MIN + WIN32_WINDOW_Y_BORDER;
             break;
         }
         case WM_SIZE:
@@ -160,116 +160,116 @@ function KEYBOARD_BUTTON Win32TranslateKeyInput(VK_CODE code)
 	switch (code)
 	{
         case VK_UP:
-		return UP;
+		return KEY_UP;
 		break;
         case VK_LEFT:
-		return LEFT;
+		return KEY_LEFT;
 		break;
         case VK_DOWN:
-		return DOWN;
+		return KEY_DOWN;
 		break;
         case VK_RIGHT:
-		return RIGHT;
+		return KEY_RIGHT;
 		break;
         case 0x57:
-		return W;
+		return KEY_W;
 		break;
         case 0x41:
-		return A;
+		return KEY_A;
 		break;
         case 0x53:
-		return S;
+		return KEY_S;
 		break;
         case 0x44:
-		return D;
+		return KEY_D;
 		break;
         case 0x51:
-		return Q;
+		return KEY_Q;
 		break;
         case 0x45:
-		return E;
+		return KEY_E;
 		break;
         case 0x52:
-		return R;
+		return KEY_R;
 		break;
         case 0x46:
-		return F;
+		return KEY_F;
 		break;
         case 0x5A:
-		return Z;
+		return KEY_Z;
 		break;
         case 0x58:
-		return X;
+		return KEY_X;
 		break;
         case 0x43:
-		return C;
+		return KEY_C;
 		break;
         case 0x56:
-		return V;
+		return KEY_V;
 		break;
         case 0x49:
-		return I;
+		return KEY_I;
 		break;
         case 0x4A:
-		return J;
+		return KEY_J;
 		break;
         case 0x4B:
-		return K;
+		return KEY_K;
 		break;
         case 0x4C:
-		return L;
+		return KEY_L;
 		break;
         case 0x55:
-		return U;
+		return KEY_U;
 		break;
         case 0x4F:
-		return O;
+		return KEY_O;
 		break;
         case VK_SHIFT:
-		return SHIFT;
+		return KEY_SHIFT;
 		break;
         case VK_CONTROL:
-		return CTRL;
+		return KEY_CTRL;
 		break;
         case VK_MENU:
-		return ALT;
+		return KEY_ALT;
 		break;
         case VK_F4:
-		return F4;
+		return KEY_F4;
 		break;
         case 0x30:
-		return ZERO;
+		return KEY_ZERO;
 		break;
         case 0x31:
-		return ONE;
+		return KEY_ONE;
 		break;
         case 0x32:
-		return TWO;
+		return KEY_TWO;
 		break;
         case 0x33:
-		return THREE;
+		return KEY_THREE;
 		break;
         case 0x34:
-		return FOUR;
+		return KEY_FOUR;
 		break;
         case 0x35:
-		return FIVE;
+		return KEY_FIVE;
 		break;
         case 0x36:
-		return SIX;
+		return KEY_SIX;
 		break;
         case 0x37:
-		return SEVEN;
+		return KEY_SEVEN;
 		break;
         case 0x38:
-		return EIGHT;
+		return KEY_EIGHT;
 		break;
         case 0x39:
-		return NINE;
+		return KEY_NINE;
 		break;
         
         default:
-		return INVALID;
+		return KEY_INVALID;
 		break;
 	}
 }
@@ -314,10 +314,10 @@ function bool Win32ProcessMessages(win32_window &window, engine_input &input, i3
                 if (!wasDown || input.keyboard.autoRepeatEnabled)
                 {
                     KEYBOARD_BUTTON key = Win32TranslateKeyInput((VK_CODE)message.wParam);
-                    if (key < KEYBOARD_BUTTON::COUNT)
+                    if (key < KEY_COUNT)
                         input.keyboard.ToggleKey(key);
                 }
-                if (input.keyboard.isPressed[F4] && input.keyboard.isPressed[ALT])
+                if (input.keyboard.isPressed[KEY_F4] && input.keyboard.isPressed[KEY_ALT])
                 {
                     PostQuitMessage(0);
                     return 0;
@@ -328,7 +328,7 @@ function bool Win32ProcessMessages(win32_window &window, engine_input &input, i3
             case WM_KEYUP:
             {
                 KEYBOARD_BUTTON key = Win32TranslateKeyInput((VK_CODE)message.wParam);
-                if (key < KEYBOARD_BUTTON::COUNT)
+                if (key < KEY_COUNT)
                     input.keyboard.ToggleKey(key);
                 break;
             }
@@ -600,7 +600,11 @@ int CALLBACK WinMain(
 		return 4;
 	}
     engineMemory.stagingMemory = vulkan.stagingBuffer.data;
-	
+    
+    // TODO(heyyod): This assumed that the first image we aquire in vulkan will always have index 0
+    // Mayby bad
+    engineMemory.mvp = (model_view_proj *)vulkan.mvp[0].data;
+    
     FILETIME shadersWriteTime = Win32GetWriteTime(shaderFiles[0]);
     hy3d_engine engine = {};
 	i32 quitMessage = -1;
@@ -625,7 +629,9 @@ int CALLBACK WinMain(
 			{
                 return 6;
 			}
-			window.onResize = false;
+            window.onResize = false;
+            engine.windowWidth = vulkan.windowExtent.width;
+            engine.windowHeight = vulkan.windowExtent.height;
 		}
 		if (vulkan.canRender)
 			engineCode.UpdateAndRender(engine, &engineMemory);

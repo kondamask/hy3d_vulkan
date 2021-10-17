@@ -184,6 +184,12 @@ LoadDeviceFunctions()
     VulkanLoadDeviceFunc(vkMapMemory);
     VulkanLoadDeviceFunc(vkUnmapMemory);
     VulkanLoadDeviceFunc(vkFlushMappedMemoryRanges);
+    VulkanLoadDeviceFunc(vkCreateDescriptorSetLayout);
+    VulkanLoadDeviceFunc(vkDestroyDescriptorSetLayout);
+    VulkanLoadDeviceFunc(vkCreateDescriptorPool);
+    VulkanLoadDeviceFunc(vkDestroyDescriptorPool);
+    VulkanLoadDeviceFunc(vkAllocateDescriptorSets);
+    VulkanLoadDeviceFunc(vkUpdateDescriptorSets);
     
     VulkanLoadDeviceFunc(vkCmdBeginRenderPass);
     VulkanLoadDeviceFunc(vkCmdEndRenderPass);
@@ -197,6 +203,7 @@ LoadDeviceFunctions()
     VulkanLoadDeviceFunc(vkCmdSetViewport);
     VulkanLoadDeviceFunc(vkCmdSetScissor);
     VulkanLoadDeviceFunc(vkCmdCopyBuffer);
+    VulkanLoadDeviceFunc(vkCmdBindDescriptorSets);
     
     DebugPrint("Loaded Device Functions\n");
     
@@ -730,12 +737,11 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         u32 vertexBufferSize = MEGABYTES(100);
         u32 indexBufferSize = MEGABYTES(100);
         u32 stagingBufferSize = vertexBufferSize + indexBufferSize;
-        if(!CreateBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, stagingBufferSize, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, vulkan.stagingBuffer))
+        if(!CreateBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, stagingBufferSize, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, vulkan.stagingBuffer, MAP_BUFFER_TRUE))
         {
             Assert("Could not create staging buffer");
             return false;
         }
-        AssertSuccess(vkMapMemory(vulkan.device, vulkan.stagingBuffer.memoryHandle, 0, vulkan.stagingBuffer.size, 0, &vulkan.stagingBuffer.data));
         
         if(!CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, vertexBufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vulkan.vertexBuffer))
         {
@@ -750,11 +756,80 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         }
     }
     
+    // NOTE(heyyod): Create uniform buffers and their descriptor 
+    {
+        //model, view and projection matrices
+        for (u32 i = 0; i < ArrayCount(vulkan.mvp); i++)
+        {
+            if (!CreateBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(model_view_proj), VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vulkan.mvp[i], MAP_BUFFER_TRUE))
+            {
+                Assert("Could not create uniform buffers");
+                return false;
+            }
+        }
+        
+        VkDescriptorSetLayoutBinding mvpDescSetLayoutBinding = {};
+        mvpDescSetLayoutBinding.binding = 0;
+        mvpDescSetLayoutBinding.descriptorCount = 1;
+        mvpDescSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        mvpDescSetLayoutBinding.pImmutableSamplers = 0;
+        mvpDescSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        
+        VkDescriptorSetLayoutCreateInfo mvpDescSetLayoutInfo = {};
+        mvpDescSetLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        mvpDescSetLayoutInfo.bindingCount = 1;
+        mvpDescSetLayoutInfo.pBindings = &mvpDescSetLayoutBinding;
+        AssertSuccess(vkCreateDescriptorSetLayout(vulkan.device, &mvpDescSetLayoutInfo, 0, &vulkan.mvpDescSetLayout));
+        
+        
+        VkDescriptorPoolSize mvpDescPoolSize = {};
+        mvpDescPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        mvpDescPoolSize.descriptorCount = NUM_UNIFORM_BUFFERS;
+        
+        VkDescriptorPoolCreateInfo mvpDescPoolInfo = {};
+        mvpDescPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        mvpDescPoolInfo.poolSizeCount = 1;
+        mvpDescPoolInfo.pPoolSizes = &mvpDescPoolSize;
+        mvpDescPoolInfo.maxSets = NUM_UNIFORM_BUFFERS;
+        AssertSuccess(vkCreateDescriptorPool(vulkan.device, &mvpDescPoolInfo, 0, &vulkan.mvpDescPool));
+        
+        VkDescriptorSetLayout mvpDescSetLayouts[NUM_UNIFORM_BUFFERS] = {
+            vulkan.mvpDescSetLayout, vulkan.mvpDescSetLayout};
+        
+        VkDescriptorSetAllocateInfo mvpDescAllocInfo = {};
+        mvpDescAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        mvpDescAllocInfo.descriptorPool = vulkan.mvpDescPool;
+        mvpDescAllocInfo.descriptorSetCount = ArrayCount(mvpDescSetLayouts);
+        mvpDescAllocInfo.pSetLayouts = mvpDescSetLayouts;
+        AssertSuccess(vkAllocateDescriptorSets(vulkan.device, &mvpDescAllocInfo, vulkan.mvpDescSets));
+        
+        VkDescriptorBufferInfo bufferInfo = {};
+        bufferInfo.offset = 0;
+        bufferInfo.range = sizeof(model_view_proj); // VK_WHOLE_SIZE
+        
+        VkWriteDescriptorSet mvpDescWrite = {};
+        mvpDescWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        mvpDescWrite.dstBinding = 0;
+        mvpDescWrite.dstArrayElement = 0;
+        mvpDescWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        mvpDescWrite.descriptorCount = 1;
+        mvpDescWrite.pBufferInfo = &bufferInfo;
+        
+        for (u8 i = 0; i < NUM_UNIFORM_BUFFERS; i++)
+        {
+            bufferInfo.buffer = vulkan.mvp[i].handle;
+            mvpDescWrite.dstSet = vulkan.mvpDescSets[i];
+            vkUpdateDescriptorSets(vulkan.device, 1, &mvpDescWrite, 0, 0);
+        }
+    }
+    
+    
     
     if(!CreatePipeline())
     {
         Assert("Could not create pipeline");
         return false;
+        
     }
     
     // NOTE(heyyod): It looks like window always sends a WM_SIZE message
@@ -1007,11 +1082,6 @@ CreatePipeline()
 {
     ClearPipeline();
     
-    VkDescriptorSetLayoutBinding uboLayoutBinding = {};
-    uboLayoutBinding.binding = 0;
-    uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    uboLayoutBinding.descriptorCount = 1;
-    
     VkShaderModule triangleVertShader = {};
     VkShaderModule triangleFragShader = {};
     if(!LoadShader("..\\build\\shaders\\triangle.frag.spv", &triangleFragShader) ||
@@ -1102,7 +1172,7 @@ CreatePipeline()
     //rasterizerInfo.rasterizerDiscardEnable = VK_FALSE;
     rasterizerInfo.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizerInfo.lineWidth = 1.0f;
-    rasterizerInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterizerInfo.cullMode = VK_CULL_MODE_NONE; //VK_CULL_MODE_BACK_BIT;
     rasterizerInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
     //rasterizerInfo.depthBiasEnable = VK_FALSE;
     //rasterizerInfo.depthBiasConstantFactor = 0.0f; // Optional
@@ -1148,7 +1218,7 @@ CreatePipeline()
     VkDynamicState dynamicStates[] = {
         VK_DYNAMIC_STATE_VIEWPORT,
         VK_DYNAMIC_STATE_SCISSOR,
-        VK_DYNAMIC_STATE_LINE_WIDTH
+        //VK_DYNAMIC_STATE_LINE_WIDTH
     };
     
     VkPipelineDynamicStateCreateInfo dynamicStateInfo = {};
@@ -1156,16 +1226,14 @@ CreatePipeline()
     dynamicStateInfo.dynamicStateCount = ArrayCount(dynamicStates);
     dynamicStateInfo.pDynamicStates = dynamicStates;
     
-    
     //-
     
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    //pipelineLayoutInfo.setLayoutCount = 0; // Optional
-    //pipelineLayoutInfo.pSetLayouts = nullptr; // Optional
-    //pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
-    //pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
-    
+    pipelineLayoutInfo.setLayoutCount = 1;
+    pipelineLayoutInfo.pSetLayouts = &vulkan.mvpDescSetLayout;
+    //pipelineLayoutInfo.pushConstantRangeCount = 0;
+    //pipelineLayoutInfo.pPushConstantRanges = nullptr;
     AssertSuccess(vkCreatePipelineLayout(vulkan.device, &pipelineLayoutInfo, 0, &vulkan.pipelineLayout));
     
     VkGraphicsPipelineCreateInfo pipelineInfo{};
@@ -1183,10 +1251,8 @@ CreatePipeline()
     pipelineInfo.layout = vulkan.pipelineLayout;
     pipelineInfo.renderPass = vulkan.renderPass;
     pipelineInfo.subpass = 0;
-    
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
     pipelineInfo.basePipelineIndex = -1; // Optional
-    
     AssertSuccess(vkCreateGraphicsPipelines(vulkan.device, VK_NULL_HANDLE, 1, &pipelineInfo, 0, &vulkan.pipeline));
     
     DebugPrint("Created Pipeline\n");
@@ -1211,7 +1277,6 @@ ClearPipeline()
         {
             vkDestroyPipelineLayout(vulkan.device, vulkan.pipelineLayout, 0);
         }
-        
     }
 }
 
@@ -1220,7 +1285,7 @@ ClearPipeline()
 CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | usage, sizeof(vertexType) * nVertices, properties, bufferOut)
 
 function bool Vulkan::
-CreateBuffer(VkBufferUsageFlags usage, u64 size, VkMemoryPropertyFlags properties, vulkan_buffer &bufferOut)
+CreateBuffer(VkBufferUsageFlags usage, u64 size, VkMemoryPropertyFlags properties, vulkan_buffer &bufferOut, bool mapBuffer)
 {
     if(!(VulkanIsValidHandle(bufferOut.handle)))
     {
@@ -1246,6 +1311,9 @@ CreateBuffer(VkBufferUsageFlags usage, u64 size, VkMemoryPropertyFlags propertie
             
             AssertSuccess(vkAllocateMemory(vulkan.device, &allocInfo, 0, &bufferOut.memoryHandle));
             AssertSuccess(vkBindBufferMemory(vulkan.device, bufferOut.handle, bufferOut.memoryHandle, 0));
+            
+            if(mapBuffer)
+                AssertSuccess(vkMapMemory(vulkan.device, bufferOut.memoryHandle, 0, bufferOut.size, 0, &bufferOut.data));
         }
         else
         {
@@ -1279,8 +1347,21 @@ Destroy()
         
         ClearPipeline();
         
+        if(VulkanIsValidHandle(vulkan.mvpDescSetLayout))
+        {
+            vkDestroyDescriptorSetLayout(vulkan.device, vulkan.mvpDescSetLayout, 0);
+        }
+        
+        for(u32 i = 0; i < ArrayCount(vulkan.mvp); i++)
+        {
+            ClearBuffer(vulkan.mvp[i]);
+        }
+        
+        if(VulkanIsValidHandle(vulkan.mvpDescPool))
+            vkDestroyDescriptorPool(vulkan.device, vulkan.mvpDescPool, 0);
+        
+        vkUnmapMemory(vulkan.device, vulkan.stagingBuffer.memoryHandle);
         ClearBuffer(vulkan.stagingBuffer);
-        //vkUnmapMemory(vulkan.device, vulkan.stagingBuffer.memoryHandle);
         ClearBuffer(vulkan.vertexBuffer);
         ClearBuffer(vulkan.indexBuffer);
         
@@ -1490,6 +1571,7 @@ Draw(update_data *data)
         
         vkCmdBindVertexBuffers(renderingRes->cmdBuffer, 0, 1, &vulkan.vertexBuffer.handle, &bufferOffset);
         vkCmdBindIndexBuffer(renderingRes->cmdBuffer, vulkan.indexBuffer.handle, 0, VULKAN_INDEX_TYPE);
+        vkCmdBindDescriptorSets(renderingRes->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan.pipelineLayout, 0, 1, &vulkan.mvpDescSets[nextImage], 0, 0);
         
         u32 firstIndex = 0;
         u32 indexOffset = 0;
@@ -1562,8 +1644,15 @@ Draw(update_data *data)
             return false;
         }
         
-        return true;
     }
+    
+    // NOTE(heyyod): Update data for the engine
+    {
+        u32 nextUniformBuffer = (nextImage + 1) % NUM_UNIFORM_BUFFERS;
+        data->newMVP = vulkan.mvp[nextUniformBuffer].data;
+    }
+    
+    return true;
 }
 
 #if 0
