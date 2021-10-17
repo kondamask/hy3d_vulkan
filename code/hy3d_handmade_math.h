@@ -3,7 +3,7 @@
 #ifndef HY3D_HANDMADE_MATH_H
 #define HY3D_HANDMADE_MATH_H
 
-#include "HandmadeMath.h"
+#include "libs/HandmadeMath.h"
 
 typedef hmm_vec2 vec2;
 typedef hmm_vec3 vec3;

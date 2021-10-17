@@ -45,16 +45,17 @@ UPDATE_AND_RENDER(UpdateAndRender)
         m[0].nIndices = 6;
         m[0].vertices = (vertex *)memory->nextStagingAddr;
         m[0].indices = (index *)(MESH_VERTICES_END_ADDR(m[0]));
-        m[0].vertices[0] = { {-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f} };
-        m[0].vertices[1] = { { 0.5f, -0.5f}, {0.0f, 1.0f, 0.0f} };
-        m[0].vertices[2] = { { 0.5f,  0.5f}, {0.0f, 0.0f, 1.0f} };
-        m[0].vertices[3] = { {-0.5f,  0.5f}, {0.0f, 0.0f, 0.0f} };
+        m[0].vertices[0] = { {-1.0f, -1.0f, 0.0f}, {1.0f, 1.0f, 0.0f} };
+        m[0].vertices[1] = { { 1.0f, -1.0f, 0.0f}, {0.0f, 1.0f, 1.0f} };
+        m[0].vertices[2] = { { 1.0f,  1.0f, 0.0f}, {1.0f, 0.0f, 1.0f} };
+        m[0].vertices[3] = { {-1.0f,  1.0f, 0.0f}, {1.0f, 1.0f, 1.0f} };
         m[0].indices[0] = 0;
         m[0].indices[1] = 1;
         m[0].indices[2] = 2;
         m[0].indices[3] = 2;
         m[0].indices[4] = 3;
         m[0].indices[5] = 0;
+        
         
         // NOTE(heyyod): I'll have something like LoadMesh(...) and it will also update the 
         // nextStagingAddr
@@ -83,7 +84,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
         
         memory->isInitialized = true;
         state->time = 0;
-        state->camPos = {0.0f, 0.0f, 2.0f};
+        state->camPos = {0.0f, 0.0f, 5.0f};
         e.frameStart = std::chrono::steady_clock::now();
     }
     
@@ -94,8 +95,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
     e.frameStart = frameEnd;
     
     // NOTE: UPDATE
-    f32 min = 0.5f;
-    f32 max = 1.0f;
+    f32 min = 0.2f;
+    f32 max = 0.6f;
     for (u8 i = 0; i < ArrayCount(state->updateData.clearColor); i++)
     {
         if (update.clearColor[i] >= max)
@@ -108,7 +109,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
             state->clearColorChange[i] *= -1.0f;
             update.clearColor[i] = min;
         }
-        update.clearColor[i] += state->clearColorChange[i] * dt * 1.3f;
+        update.clearColor[i] += state->clearColorChange[i] * dt * 0.1f;
     }
     
     f32 zChange = 0.0f;
@@ -122,9 +123,13 @@ UPDATE_AND_RENDER(UpdateAndRender)
     }
     state->camPos.Z += zChange;
     
+    vec3 pos = {};
+    pos.X = SinF(2.0f * state->time);
+    //pos.Y = CosF(state->time);
     
     memory->mvp->model = Rotate(state->time * 90.0f, Vec3(1.0f, 0.0f, 0.0f));
-    memory->mvp->view = LookAt(state->camPos, Vec3(0.0f, 0.0f, 0.0f), Vec3(0.0f, 1.0f, 0.0f));
+    memory->mvp->model = memory->mvp->model * Translate(pos);
+    memory->mvp->view = LookAt(state->camPos, Vec3(0.0f, 0.0f, 0.0f), Vec3(0.0f, -1.0f, 0.0f));
     memory->mvp->proj = Perspective(45.0f, e.windowWidth / (f32) e.windowHeight, 0.1f, 10.0f);
     //memory->mvp->proj[1][1] *= -1.0f;
     platformAPI.Draw(&state->updateData);

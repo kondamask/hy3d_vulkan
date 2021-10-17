@@ -1102,7 +1102,7 @@ CreatePipeline()
     // NOTE(heyyod): specify the inPosition format in vertex shader
     vertexAttributeDescs[0].binding = 0;
     vertexAttributeDescs[0].location = 0;// NOTE(heyyod): this maches the value in the shader
-    vertexAttributeDescs[0].format = VK_FORMAT_R32G32_SFLOAT;
+    vertexAttributeDescs[0].format = VK_FORMAT_R32G32B32_SFLOAT;
     vertexAttributeDescs[0].offset = offsetof(vertex2, pos);
     // NOTE(heyyod): spesify the inColor format in vertex shader
     vertexAttributeDescs[1].binding = 0;

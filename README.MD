@@ -14,9 +14,8 @@
 * https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugYvd
 * the internet
 
-## Previews (recent to older):
+## Progress (most recent first):
 * 17/10/21:
-
   * Push mesh in gpu memory
   * Draw indexed triangles
   * Pass model, view and projection matrices in vertex shader.
