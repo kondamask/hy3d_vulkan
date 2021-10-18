@@ -1,8 +1,23 @@
 #ifndef HY3D_BASE_H
 #define HY3D_BASE_H 1
 
+// NOTE(heyyod): This produces a compilation error all of a sudden. wtf???? 
 #include <cstdint>
-#include <math.h>
+
+typedef int8_t    i8;
+typedef int16_t   i16;
+typedef int32_t   i32;
+typedef int64_t   i64;
+typedef uint8_t   u8;
+typedef uint16_t  u16;
+typedef uint32_t  u32;
+typedef uint64_t  u64;
+typedef float     f32;
+typedef double    f64;
+
+#define global_var static
+#define local_var static
+#define function static
 
 #define KILOBYTES(val) (val * 1024ULL)
 #define MEGABYTES(val) (KILOBYTES(val) * 1024ULL)
@@ -38,30 +53,10 @@ AssertBreak()
 #define AssertArraySize(array, count)
 #endif
 
+#define AdvancePointer(ptr, bytes) ptr = (u8*)ptr + bytes
 
-typedef int8_t i8;
-typedef int16_t i16;
-typedef int32_t i32;
-typedef int64_t i64;
-typedef uint8_t u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
-typedef float f32;
-typedef double f64;
-
-#define global static
-#define local static
-#define function static
-
-inline i16 RoundF32toI16(f32 in)
+int main()
 {
-    return (i16)(ceilf(in - 0.5f));
+    return 0;
 }
-
-inline i8 RoundF32toI8(f32 in)
-{
-    return (i8)(ceilf(in - 0.5f));
-}
-
 #endif

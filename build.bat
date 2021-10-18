@@ -27,7 +27,8 @@ rc /fo win32_hy3d.res /nologo ..\code\win32_resource.rc
 
 del *.pdb > NUL 2> NUL
 set EXPOTED_FUNCS=-EXPORT:UpdateAndRender
-cl  %COMPILER_FLAGS% ..\code\hy3d_engine.cpp -Fmhy3d_engine.map -LD -link -incremental:no -opt:ref  -PDB:hy3d_engine_%RANDOM%.pdb %EXPOTED_FUNCS%
+
+cl  %COMPILER_FLAGS% ..\code\hy3d_engine.cpp -Fmhy3d_engine.map -LD -link -incremental:no -opt:ref -PDB:hy3d_engine_%RANDOM%.pdb %EXPOTED_FUNCS%
 
 rem set INCLUDES=/I%VULKAN_SDK%\Include
 

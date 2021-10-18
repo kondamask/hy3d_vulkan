@@ -20,6 +20,8 @@
 // ARE DEPENDING ON THE CURRENT AQUIRED IMAGE IN THE DRAW LOOP
 #define NUM_UNIFORM_BUFFERS NUM_SWAPCHAIN_IMAGES
 
+#define MAX_MESHES 10
+
 #define MAP_BUFFER_TRUE true
 
 #if INDEX_TYPE_U16
@@ -44,6 +46,13 @@ struct vulkan_buffer
     VkDeviceMemory memoryHandle;
     void *data;
     u64 size;
+};
+
+struct vulkan_saved_meshes
+{
+    u32 nVertices[MAX_MESHES];
+    u32 nIndices[MAX_MESHES];
+    u32 count;
 };
 
 struct vulkan_engine
@@ -96,6 +105,9 @@ struct vulkan_engine
     // NOTE(heyyod): in gpu
     vulkan_buffer vertexBuffer;
     vulkan_buffer indexBuffer;
+    vulkan_saved_meshes savedMeshes;
+    u64 vertexBufferWriteOffset;
+    u64 indexBufferWriteOffset;
     
     bool canRender;
     
@@ -107,9 +119,9 @@ struct vulkan_engine
     HMODULE dll;
 #endif
 };
-global vulkan_engine vulkan;
+global_var vulkan_engine vulkan;
 
-global char* shaderFiles[2] = {
+global_var char* shaderFiles[2] = {
     "..\\build\\shaders\\triangle.vert.spv",
     "..\\build\\shaders\\triangle.frag.spv"
 };
@@ -133,12 +145,15 @@ namespace Vulkan
     function void ClearBuffer(vulkan_buffer buffer);
     function void Destroy();
     
+    
     function bool Draw(update_data *data);
     
+    function bool PushStaged(staged_resources &stagedResources);
     function bool LoadShader(char *filepath, VkShaderModule *shaderOut);
     
     function bool FindMemoryProperties(u32 memoryType, VkMemoryPropertyFlags requiredProperties, u32 &memoryIndexOut);
     
+    function frame_prep_resource *GetNextAvailableResource();
     /*
     function void GetVertexBindingDesc(vertex2 &v, VkVertexInputBindingDescription &bindingDesc);
     function void GetVertexAttributeDesc(vertex2 &v, VkVertexInputAttributeDescription *attributeDescs);

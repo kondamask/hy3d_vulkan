@@ -409,12 +409,4 @@ vec3 operator*=(vec3 &v, mat3 m)
 
 //~ NOTE(heyyod): Colors defs
 typedef vec3 colorRGB;
-
-//~ NOTE(heyyod): Vertex2d
-struct vertex2
-{
-    vec2 pos;
-    colorRGB color;
-};
-
 #endif

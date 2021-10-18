@@ -1418,92 +1418,128 @@ Destroy()
     return;
 }
 
+function frame_prep_resource * Vulkan::
+GetNextAvailableResource()
+{
+    frame_prep_resource *result= &vulkan.resources[vulkan.currentResource];
+    vulkan.currentResource = (vulkan.currentResource + 1) % NUM_RESOURCES;
+    
+    AssertSuccess(vkWaitForFences(vulkan.device, 1, &result->fence, true, UINT64_MAX));
+    AssertSuccess(vkResetFences(vulkan.device, 1, &result->fence));
+    
+    return result;
+}
+
+function bool Vulkan::
+PushStaged(staged_resources &stagedResources)
+{
+    frame_prep_resource *res = GetNextAvailableResource();
+    
+    VkMappedMemoryRange flushRange = {};
+    flushRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE; 
+    flushRange.memory = vulkan.stagingBuffer.memoryHandle;
+    flushRange.size = vulkan.stagingBuffer.size;
+    vkFlushMappedMemoryRanges(vulkan.device, 1, &flushRange);
+    
+    VkCommandBufferBeginInfo cmdBufferBeginInfo= {};
+    cmdBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    cmdBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    AssertSuccess(vkBeginCommandBuffer(res->cmdBuffer, &cmdBufferBeginInfo));
+    
+    bool pushedMesh = false;
+    
+    u64 vertexBufferStartOffset = vulkan.vertexBufferWriteOffset;
+    u64 indexBufferStartOffset = vulkan.indexBufferWriteOffset;
+    
+    for(u32 resourceId = 0; resourceId < stagedResources.count; resourceId++)
+    {
+        switch (stagedResources.types[resourceId])
+        {
+            case RESOURCE_MESH:
+            {
+                pushedMesh = true;
+                mesh *m = (mesh *)stagedResources.resources[resourceId];
+                
+                // NOTE(heyyod): Set where to read and where to copy the vertices
+                VkBufferCopy vertexBufferCopyInfo = {};
+                vertexBufferCopyInfo.srcOffset = stagedResources.offsets[resourceId];
+                vertexBufferCopyInfo.dstOffset = vulkan.vertexBufferWriteOffset;
+                vertexBufferCopyInfo.size =  MESH_PTR_VERTICES_SIZE(m);
+                
+                // NOTE(heyyod): Set where to read and where to copy the indices
+                VkBufferCopy indexBufferCopyInfo = {};
+                indexBufferCopyInfo.srcOffset = vertexBufferCopyInfo.srcOffset + vertexBufferCopyInfo.size;
+                indexBufferCopyInfo.dstOffset = vulkan.indexBufferWriteOffset;
+                indexBufferCopyInfo.size =  MESH_PTR_INDICES_SIZE(m);
+                // NOTE(heyyod): Update the next read and write adresses
+                vulkan.vertexBufferWriteOffset += vertexBufferCopyInfo.size;
+                vulkan.indexBufferWriteOffset += indexBufferCopyInfo.size;
+                
+                vulkan.savedMeshes.nVertices[vulkan.savedMeshes.count] = m->nVertices;
+                vulkan.savedMeshes.nIndices[vulkan.savedMeshes.count] = m->nIndices;
+                vulkan.savedMeshes.count++;
+                
+                vkCmdCopyBuffer(res->cmdBuffer, vulkan.stagingBuffer.handle, vulkan.vertexBuffer.handle, 1, &vertexBufferCopyInfo);
+                vkCmdCopyBuffer(res->cmdBuffer, vulkan.stagingBuffer.handle, vulkan.indexBuffer.handle, 1, &indexBufferCopyInfo);
+            }break;
+            
+            case RESOURCE_TEXTURE:
+            {
+                
+            }break;
+            
+            default:
+            {
+                DebugPrint("ERROR: Trying to push unknown resource ata type.\n");
+                //return false;
+            }
+        }
+    }
+    
+    if (pushedMesh)
+    {
+        VkBufferMemoryBarrier bufferBarrier = {};
+        bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        bufferBarrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+        bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        
+        bufferBarrier.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+        bufferBarrier.buffer = vulkan.vertexBuffer.handle;
+        bufferBarrier.offset = vertexBufferStartOffset;
+        bufferBarrier.size = vulkan.vertexBufferWriteOffset - vertexBufferStartOffset;
+        vkCmdPipelineBarrier(res->cmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, 0, 1, &bufferBarrier, 0, 0);
+        
+        bufferBarrier.dstAccessMask = VK_ACCESS_INDEX_READ_BIT;
+        bufferBarrier.buffer = vulkan.indexBuffer.handle;
+        bufferBarrier.offset = indexBufferStartOffset;
+        bufferBarrier.size = vulkan.indexBufferWriteOffset - indexBufferStartOffset;
+        vkCmdPipelineBarrier(res->cmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, 0, 1, &bufferBarrier, 0, 0);
+    }
+    
+    AssertSuccess(vkEndCommandBuffer(res->cmdBuffer));
+    
+    VkSubmitInfo submitInfo = {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &res->cmdBuffer;
+    AssertSuccess(vkQueueSubmit(vulkan.graphicsQueue, 1, &submitInfo, res->fence));
+    
+    return true;
+}
+
+
 function bool Vulkan::
 Draw(update_data *data)
 {
-    // NOTE(heyyod): Get the resource tha we'll use to prepare the next frame
-    frame_prep_resource *renderingRes = &vulkan.resources[vulkan.currentResource];
-    // NOTE(heyyod): update the currentResource for the next call (next draw loop)
-    vulkan.currentResource = (vulkan.currentResource + 1) % NUM_RESOURCES;
-    
-    // NOTE(heyyod): Wait for the resource to be available;
-    AssertSuccess(vkWaitForFences(vulkan.device, 1, &renderingRes->fence, true, UINT64_MAX));
-    AssertSuccess(vkResetFences(vulkan.device, 1, &renderingRes->fence));
-    
-    if (data->updateVertexBuffer)
-    {
-        VkMappedMemoryRange flushRange = {};
-        flushRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE; 
-        flushRange.memory = vulkan.stagingBuffer.memoryHandle;
-        flushRange.size = vulkan.stagingBuffer.size;
-        
-        vkFlushMappedMemoryRanges(vulkan.device, 1, &flushRange );
-        
-        // NOTE(heyyod): copy staging buffer to vertex buffer
-        VkCommandBufferBeginInfo cmdBufferBeginInfo= {};
-        cmdBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        cmdBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-        AssertSuccess(vkBeginCommandBuffer(renderingRes->cmdBuffer, &cmdBufferBeginInfo));
-        
-        u64 meshSize = 0;
-        u64 verticesSize = 0;
-        u64 indicesSize = 0;
-        VkBufferCopy vertexBufferCopyInfo = {};
-        VkBufferCopy indexBufferCopyInfo = {};
-        //for(u32 meshId = 0; meshId < 1; meshId++)
-        for(u32 meshId = 0; meshId < ArrayCount(data->meshes); meshId++)
-        {
-            meshSize = MESH_TOTAL_SIZE(data->meshes[meshId]);
-            verticesSize =  MESH_VERTICES_SIZE(data->meshes[meshId]);
-            indicesSize =  MESH_INDICES_SIZE(data->meshes[meshId]);
-            
-            if (meshId > 0)
-            {
-                vertexBufferCopyInfo.srcOffset += meshSize;
-                vertexBufferCopyInfo.dstOffset += verticesSize;
-                indexBufferCopyInfo.dstOffset += indicesSize;
-            }
-            indexBufferCopyInfo.srcOffset = vertexBufferCopyInfo.srcOffset + verticesSize;
-            vertexBufferCopyInfo.size = verticesSize;
-            indexBufferCopyInfo.size = indicesSize;
-            
-            vkCmdCopyBuffer(renderingRes->cmdBuffer, vulkan.stagingBuffer.handle, vulkan.vertexBuffer.handle, 1, &vertexBufferCopyInfo);
-            vkCmdCopyBuffer(renderingRes->cmdBuffer, vulkan.stagingBuffer.handle, vulkan.indexBuffer.handle, 1, &indexBufferCopyInfo);
-        }
-        
-        VkBufferMemoryBarrier bufferMemoryBarrier = {};
-        bufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-        bufferMemoryBarrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
-        bufferMemoryBarrier.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
-        bufferMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        bufferMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        bufferMemoryBarrier.buffer = vulkan.vertexBuffer.handle;
-        bufferMemoryBarrier.offset = 0; 
-        bufferMemoryBarrier.size = VK_WHOLE_SIZE;
-        vkCmdPipelineBarrier(renderingRes->cmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, 0, 1, &bufferMemoryBarrier, 0, 0);
-        AssertSuccess(vkEndCommandBuffer(renderingRes->cmdBuffer));
-        
-        VkSubmitInfo submitInfo = {};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &renderingRes->cmdBuffer;
-        
-        AssertSuccess(vkQueueSubmit(vulkan.graphicsQueue, 1, &submitInfo, renderingRes->fence));
-        
-        AssertSuccess(vkWaitForFences(vulkan.device, 1, &renderingRes->fence, true, UINT64_MAX));
-        AssertSuccess(vkResetFences(vulkan.device, 1, &renderingRes->fence));
-        
-        //memset(vulkan.stagingBuffer.data, 0, vulkan.stagingBuffer.size);
-        data->updateVertexBuffer = false;
-    }
-    
+    frame_prep_resource *res = GetNextAvailableResource();
     
     // NOTE: Get the next image that we'll use to create the frame and draw it
     // Signal the semaphore when it's available
-    local u32 nextImage = 0;
-    local VkResult result = {}; 
+    local_var u32 nextImage = 0;
+    local_var VkResult result = {}; 
     {
-        result = vkAcquireNextImageKHR(vulkan.device, vulkan.swapchain, UINT64_MAX, renderingRes->imgAvailableSem, 0, &nextImage);
+        result = vkAcquireNextImageKHR(vulkan.device, vulkan.swapchain, UINT64_MAX, res->imgAvailableSem, 0, &nextImage);
         
         if (result == VK_ERROR_OUT_OF_DATE_KHR)
         {
@@ -1519,7 +1555,7 @@ Draw(update_data *data)
     
     // NOTE(heyyod): Prepare the frame using the selected resources
     {
-        local VkFramebufferCreateInfo framebufferInfo = {};
+        local_var VkFramebufferCreateInfo framebufferInfo = {};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         framebufferInfo.renderPass = vulkan.renderPass;
         framebufferInfo.attachmentCount = 1;
@@ -1527,29 +1563,29 @@ Draw(update_data *data)
         framebufferInfo.height = vulkan.windowExtent.height;
         framebufferInfo.layers = 1;
         framebufferInfo.pAttachments = &vulkan.swapchainImageViews[nextImage];
-        if(VulkanIsValidHandle(renderingRes->framebuffer))
+        if(VulkanIsValidHandle(res->framebuffer))
         {
-            vkDestroyFramebuffer(vulkan.device, renderingRes->framebuffer, 0);
-            renderingRes->framebuffer = VK_NULL_HANDLE;
+            vkDestroyFramebuffer(vulkan.device, res->framebuffer, 0);
+            res->framebuffer = VK_NULL_HANDLE;
         }
-        AssertSuccess(vkCreateFramebuffer(vulkan.device, &framebufferInfo, 0, &renderingRes->framebuffer));
+        AssertSuccess(vkCreateFramebuffer(vulkan.device, &framebufferInfo, 0, &res->framebuffer));
         
-        local VkCommandBufferBeginInfo commandBufferBeginInfo = {};
+        local_var VkCommandBufferBeginInfo commandBufferBeginInfo = {};
         commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
         
-        local VkClearValue clearValue = {};
+        local_var VkClearValue clearValue = {};
         clearValue.color = VulkanClearColor(data->clearColor[0], data->clearColor[1], data->clearColor[2], 0.0f);
         
-        local VkRenderPassBeginInfo renderpassInfo = {};
+        local_var VkRenderPassBeginInfo renderpassInfo = {};
         renderpassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         renderpassInfo.renderPass = vulkan.renderPass;
         renderpassInfo.renderArea.extent = vulkan.windowExtent;
         renderpassInfo.clearValueCount = 1;
         renderpassInfo.pClearValues = &clearValue;
-        renderpassInfo.framebuffer = renderingRes->framebuffer;
+        renderpassInfo.framebuffer = res->framebuffer;
         
-        local VkViewport viewport = {};
+        local_var VkViewport viewport = {};
         //viewport.x = 0.0f;
         //viewport.y = 0.0f;
         viewport.width = (f32) vulkan.windowExtent.width;
@@ -1557,51 +1593,50 @@ Draw(update_data *data)
         //viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
         
-        local VkRect2D scissor = {};
+        local_var VkRect2D scissor = {};
         //scissor.offset = {0, 0};
         scissor.extent = vulkan.windowExtent;
         
-        local VkDeviceSize bufferOffset = 0;
+        local_var VkDeviceSize bufferOffset = 0;
         
-        AssertSuccess(vkBeginCommandBuffer(renderingRes->cmdBuffer, &commandBufferBeginInfo));
-        vkCmdBeginRenderPass(renderingRes->cmdBuffer, &renderpassInfo, VK_SUBPASS_CONTENTS_INLINE);
-        vkCmdBindPipeline(renderingRes->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan.pipeline);
-        vkCmdSetViewport(renderingRes->cmdBuffer, 0, 1, &viewport);
-        vkCmdSetScissor(renderingRes->cmdBuffer, 0, 1, &scissor);
+        AssertSuccess(vkBeginCommandBuffer(res->cmdBuffer, &commandBufferBeginInfo));
+        vkCmdBeginRenderPass(res->cmdBuffer, &renderpassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(res->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan.pipeline);
+        vkCmdSetViewport(res->cmdBuffer, 0, 1, &viewport);
+        vkCmdSetScissor(res->cmdBuffer, 0, 1, &scissor);
         
-        vkCmdBindVertexBuffers(renderingRes->cmdBuffer, 0, 1, &vulkan.vertexBuffer.handle, &bufferOffset);
-        vkCmdBindIndexBuffer(renderingRes->cmdBuffer, vulkan.indexBuffer.handle, 0, VULKAN_INDEX_TYPE);
-        vkCmdBindDescriptorSets(renderingRes->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan.pipelineLayout, 0, 1, &vulkan.mvpDescSets[nextImage], 0, 0);
+        vkCmdBindVertexBuffers(res->cmdBuffer, 0, 1, &vulkan.vertexBuffer.handle, &bufferOffset);
+        vkCmdBindIndexBuffer(res->cmdBuffer, vulkan.indexBuffer.handle, 0, VULKAN_INDEX_TYPE);
+        vkCmdBindDescriptorSets(res->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan.pipelineLayout, 0, 1, &vulkan.mvpDescSets[nextImage], 0, 0);
         
         u32 firstIndex = 0;
         u32 indexOffset = 0;
-        for(u32 meshId = 0; meshId < ArrayCount(data->meshes); meshId++)
+        for(u32 meshId = 0; meshId < vulkan.savedMeshes.count; meshId++)
         {
-            vkCmdDrawIndexed(renderingRes->cmdBuffer, data->meshes[meshId].nIndices, 1,
+            vkCmdDrawIndexed(res->cmdBuffer, vulkan.savedMeshes.nIndices[meshId], 1,
                              firstIndex, indexOffset, 0);
             
-            firstIndex += data->meshes[meshId].nIndices;
-            indexOffset += data->meshes[meshId].nVertices;
+            firstIndex +=  vulkan.savedMeshes.nIndices[meshId];
+            indexOffset +=  vulkan.savedMeshes.nVertices[meshId];
         }
         
-        
-        vkCmdEndRenderPass(renderingRes->cmdBuffer);
-        AssertSuccess(vkEndCommandBuffer(renderingRes->cmdBuffer));
+        vkCmdEndRenderPass(res->cmdBuffer);
+        AssertSuccess(vkEndCommandBuffer(res->cmdBuffer));
     }
     
     // NOTE: Wait on imageAvailableSem and submit the command buffer and signal renderFinishedSem
     {
-        local VkPipelineStageFlags waitDestStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        local VkSubmitInfo submitInfo = {};
+        local_var VkPipelineStageFlags waitDestStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        local_var VkSubmitInfo submitInfo = {};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         submitInfo.pWaitDstStageMask = &waitDestStageMask;
         submitInfo.waitSemaphoreCount = 1;
-        submitInfo.pWaitSemaphores = &renderingRes->imgAvailableSem;
+        submitInfo.pWaitSemaphores = &res->imgAvailableSem;
         submitInfo.signalSemaphoreCount = 1;
-        submitInfo.pSignalSemaphores = &renderingRes->frameReadySem;
+        submitInfo.pSignalSemaphores = &res->frameReadySem;
         submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &renderingRes->cmdBuffer;
-        AssertSuccess(vkQueueSubmit(vulkan.graphicsQueue, 1, &submitInfo, renderingRes->fence));
+        submitInfo.pCommandBuffers = &res->cmdBuffer;
+        AssertSuccess(vkQueueSubmit(vulkan.graphicsQueue, 1, &submitInfo, res->fence));
         
         if (result == VK_ERROR_OUT_OF_DATE_KHR)
         {
@@ -1620,10 +1655,10 @@ Draw(update_data *data)
     
     // NOTE: Submit image to present when signaled by renderFinishedSem
     {
-        local VkPresentInfoKHR presentInfo = {};
+        local_var VkPresentInfoKHR presentInfo = {};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
         presentInfo.waitSemaphoreCount = 1;
-        presentInfo.pWaitSemaphores = &renderingRes->frameReadySem;
+        presentInfo.pWaitSemaphores = &res->frameReadySem;
         presentInfo.swapchainCount = 1;
         presentInfo.pSwapchains = &vulkan.swapchain;
         presentInfo.pImageIndices = &nextImage;

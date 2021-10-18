@@ -2,6 +2,7 @@
 #define HY3D_ENGINE_H 1
 
 #include "hy3d_base.h"
+#include "hy3d_image.h"
 #include "hy3d_mesh.h"
 #include "hy3d_handmade_math.h"
 
@@ -11,6 +12,8 @@
 #define WINDOW_HEIGHT 480
 #define WINDOW_WIDTH_MIN 255
 #define WINDOW_HEIGHT_MIN 255
+
+#define MAX_STAGE_BUFFER_SLOTS 16
 
 struct debug_read_file_result
 {
@@ -27,12 +30,32 @@ typedef DEBUG_WRITE_FILE(debug_write_file);
 #define DEBUG_FREE_FILE(name) void name(void *memory)
 typedef DEBUG_FREE_FILE(debug_free_file);
 
+enum RESOURCE_TYPE
+{
+    RESOURCE_EMPTY,
+    
+    RESOURCE_MESH,
+    RESOURCE_TEXTURE,
+    
+    RESOURCE_INVALID
+};
+
+struct staged_resources
+{
+    void *resources[MAX_STAGE_BUFFER_SLOTS];
+    RESOURCE_TYPE types[MAX_STAGE_BUFFER_SLOTS];
+    u64 offsets[MAX_STAGE_BUFFER_SLOTS]; //bytes from the start of the staging buffer
+    u32 count;
+    void *nextWriteAddr;
+};
+
+#define VULKAN_PUSH_STAGED_FUNC(name) bool name(staged_resources &)
+typedef VULKAN_PUSH_STAGED_FUNC(vulkan_push_staged_func);
+
 struct update_data
 {
     // NOTE(heyyod): ENGINE -> VULKAN
-    mesh meshes[1];
     float clearColor[3];
-    bool updateVertexBuffer;
     
     // NOTE(heyyod): VULKAN -> ENGINE
     // We have multiple uniform buffers that we uses to pass the matrices into
@@ -40,12 +63,14 @@ struct update_data
     // So vulkan will update the newMVP pointer and the engine will redirect it's mvp
     void *newMVP;
 };
+
 #define VULKAN_DRAW_FUNC(name) bool name(update_data *data)
 typedef VULKAN_DRAW_FUNC(vulkan_draw_func);
 
 struct platform_api
 {
     vulkan_draw_func *Draw;
+    vulkan_push_staged_func *PushStaged;
     
     //#if HY3D_DEBUG
     debug_read_file *DEBUGReadFile;
@@ -79,7 +104,7 @@ struct engine_memory
     
     bool isInitialized;
 };
-global platform_api platformAPI;
+global_var platform_api platformAPI;
 
 struct memory_arena
 {

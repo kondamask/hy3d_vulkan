@@ -4,6 +4,7 @@
 #define HY3D_MESH_H
 
 #include "hy3d_handmade_math.h"
+#include "hy3d_base.h"
 
 struct vertex
 {
@@ -28,9 +29,18 @@ typedef vertex vertex2; // TODO(heyyod): REMOVE THIS!
 typedef index_ index;
 
 #define MESH_VERTICES_SIZE(m) sizeof(vertex) * m.nVertices
+#define MESH_PTR_VERTICES_SIZE(m) sizeof(vertex) * m->nVertices
+
 #define MESH_INDICES_SIZE(m) sizeof(index) * m.nIndices
-#define MESH_TOTAL_SIZE(m) MESH_VERTICES_SIZE(m) + MESH_INDICES_SIZE(m)
-#define MESH_VERTICES_END_ADDR(m) &m.vertices[m.nVertices]
+#define MESH_PTR_INDICES_SIZE(m) sizeof(index) * m->nIndices
+
+#define MESH_TOTAL_SIZE(m) MESH_VERTICES_SIZE(m) + MESH_INDICES_SIZE(m) + sizeof(m->nVertices) + sizeof(m->nIndices)
+#define MESH_PTR_TOTAL_SIZE(m) sizeof(mesh) + MESH_PTR_VERTICES_SIZE(m) + MESH_PTR_INDICES_SIZE(m)
+
+#define MESH_PTR_VERTICES_START_ADDR(m) (vertex *)((u8 *)m + sizeof(mesh))
+#define MESH_PTR_INDICES_START_ADDR(m) (index *)(&m->vertices[m->nVertices])
+
+#define MESH_PTR_DATA_START_OFFSET sizeof(mesh)
 
 struct mesh
 {
