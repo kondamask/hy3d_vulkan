@@ -15,13 +15,22 @@
 * the internet
 
 ## Progress (most recent first):
+* 20/10/21:
+  
+  * Stage multiple resources and push the into memory in a batch
+  
+  * Texture!
+  
+    ![](previews/6_201021.gif)
+  
 * 17/10/21:
+  
   * Push mesh in gpu memory
   * Draw indexed triangles
   * Pass model, view and projection matrices in vertex shader.
-
+  
   ![](previews/5_171021.gif)
-
+  
 * 12/10/21: Drawing a simple vertex buffer that I'm updating.
 
   ![](previews/4_121021.gif)

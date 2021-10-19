@@ -117,6 +117,7 @@ LoadInstanceFunctions()
     VulkanLoadInstanceFunc(vkGetPhysicalDeviceSurfaceCapabilitiesKHR);
     VulkanLoadInstanceFunc(vkGetPhysicalDeviceFormatProperties);
     VulkanLoadInstanceFunc(vkGetPhysicalDeviceMemoryProperties);
+    VulkanLoadInstanceFunc(vkGetPhysicalDeviceProperties);
     VulkanLoadInstanceFunc(vkGetPhysicalDeviceSurfacePresentModesKHR);
     VulkanLoadInstanceFunc(vkEnumerateDeviceExtensionProperties);
     VulkanLoadInstanceFunc(vkCreateDevice);
@@ -179,10 +180,10 @@ LoadDeviceFunctions()
     VulkanLoadDeviceFunc(vkDestroyPipeline);
     VulkanLoadDeviceFunc(vkCreateBuffer);
     VulkanLoadDeviceFunc(vkDestroyBuffer);
-    VulkanLoadDeviceFunc(vkGetBufferMemoryRequirements);
     VulkanLoadDeviceFunc(vkBindBufferMemory);
     VulkanLoadDeviceFunc(vkMapMemory);
     VulkanLoadDeviceFunc(vkUnmapMemory);
+    VulkanLoadDeviceFunc(vkGetBufferMemoryRequirements);
     VulkanLoadDeviceFunc(vkFlushMappedMemoryRanges);
     VulkanLoadDeviceFunc(vkCreateDescriptorSetLayout);
     VulkanLoadDeviceFunc(vkDestroyDescriptorSetLayout);
@@ -190,6 +191,8 @@ LoadDeviceFunctions()
     VulkanLoadDeviceFunc(vkDestroyDescriptorPool);
     VulkanLoadDeviceFunc(vkAllocateDescriptorSets);
     VulkanLoadDeviceFunc(vkUpdateDescriptorSets);
+    VulkanLoadDeviceFunc(vkCreateSampler);
+    VulkanLoadDeviceFunc(vkDestroySampler);
     
     VulkanLoadDeviceFunc(vkCmdBeginRenderPass);
     VulkanLoadDeviceFunc(vkCmdEndRenderPass);
@@ -204,6 +207,7 @@ LoadDeviceFunctions()
     VulkanLoadDeviceFunc(vkCmdSetScissor);
     VulkanLoadDeviceFunc(vkCmdCopyBuffer);
     VulkanLoadDeviceFunc(vkCmdBindDescriptorSets);
+    VulkanLoadDeviceFunc(vkCmdCopyBufferToImage);
     
     DebugPrint("Loaded Device Functions\n");
     
@@ -419,6 +423,7 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         // TODO: ACTUALY CHECK WHICH GPU IS BEST TO USE BY CHECKING THEIR QUEUES
         //For now it's ok since I only have 1 gpu.
         
+        vkGetPhysicalDeviceProperties(vulkan.gpu, &vulkan.properties);
         vkGetPhysicalDeviceMemoryProperties(vulkan.gpu, &vulkan.memoryProperties);
         
         DebugPrint("Selected a GPU\n");
@@ -530,12 +535,17 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
             }
         }
         
+        // TODO(heyyod): Check if these features are supported;
+        VkPhysicalDeviceFeatures desiredFeatures = {};
+        desiredFeatures.samplerAnisotropy = VK_TRUE;
+        
         VkDeviceCreateInfo deviceInfo = {};
         deviceInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
         deviceInfo.queueCreateInfoCount = 1; // NOTE: Only if graphicsQueueFamilyIndex == presentQueueFamilyIndex
         deviceInfo.pQueueCreateInfos = &queueInfo;
         deviceInfo.enabledExtensionCount = ArrayCount(desiredDeviceExtensions);
         deviceInfo.ppEnabledExtensionNames = desiredDeviceExtensions;
+        deviceInfo.pEnabledFeatures = &desiredFeatures;
         AssertSuccess(vkCreateDevice(vulkan.gpu, &deviceInfo, 0, &vulkan.device));
         DebugPrint("\nCreated a Vulkan Device\n");
         
@@ -549,68 +559,6 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
     // NOTE: Get the queues and save it into our vulkan object
     vkGetDeviceQueue(vulkan.device, vulkan.graphicsQueueFamilyIndex, 0, &vulkan.graphicsQueue);
     vkGetDeviceQueue(vulkan.device, vulkan.presentQueueFamilyIndex, 0, &vulkan.presentQueue);
-    
-    // NOTE: Create a depth buffer
-    // TODO: extract it in a function and update it OnWindowSizeChange
-    /*{
-        VkImageCreateInfo depthImageInfo = {};
-        vulkan.depthFormat = VK_FORMAT_D16_UNORM;
-        VkFormatProperties props;
-        vkGetPhysicalDeviceFormatProperties(vulkan.gpu, vulkan.depthFormat, &props);
-        if (props.linearTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
-            depthImageInfo.tiling = VK_IMAGE_TILING_LINEAR;
-        else if (props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
-            depthImageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-        else
-        {
-            Assert(0);
-            return false;
-        }
-        depthImageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        depthImageInfo.imageType = VK_IMAGE_TYPE_2D;
-        depthImageInfo.format = VK_FORMAT_D16_UNORM;
-        depthImageInfo.extent.width = WINDOW_WIDTH;
-        depthImageInfo.extent.height = WINDOW_HEIGHT;
-        depthImageInfo.extent.depth = 1;
-        depthImageInfo.mipLevels = 1;
-        depthImageInfo.arrayLayers = 1;
-        depthImageInfo.samples = NUM_SAMPLES;
-        depthImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        depthImageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-        depthImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-        VkMemoryRequirements depthMemoryReq = {};
-        AssertSuccess(vkCreateImage(vulkan.device, &depthImageInfo, 0, &vulkan.depthImage));
-        vkGetImageMemoryRequirements(vulkan.device, vulkan.depthImage, &depthMemoryReq);
-
-        u32 memoryIndex = 0; // no use for now
-        if (!FindMemoryProperties(vulkan.memoryProperties, depthMemoryReq.memoryTypeBits,
-                                          VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memoryIndex))
-            return false;
-
-        VkMemoryAllocateInfo depthMemAllocInfo = {};
-        depthMemAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        depthMemAllocInfo.allocationSize = depthMemoryReq.size;
-
-        AssertSuccess(vkAllocateMemory(vulkan.device, &depthMemAllocInfo, 0, &vulkan.depthMemory));
-        AssertSuccess(vkBindImageMemory(vulkan.device, vulkan.depthImage, vulkan.depthMemory, 0));
-
-        VkImageViewCreateInfo depthImageViewInfo = {};
-        depthImageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        depthImageViewInfo.image = vulkan.depthImage;
-        depthImageViewInfo.format = vulkan.depthFormat;
-        depthImageViewInfo.components.r = VK_COMPONENT_SWIZZLE_R;
-        depthImageViewInfo.components.g = VK_COMPONENT_SWIZZLE_G;
-        depthImageViewInfo.components.b = VK_COMPONENT_SWIZZLE_B;
-        depthImageViewInfo.components.a = VK_COMPONENT_SWIZZLE_A;
-        depthImageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-        depthImageViewInfo.subresourceRange.baseMipLevel = 0;
-        depthImageViewInfo.subresourceRange.levelCount = 1;
-        depthImageViewInfo.subresourceRange.baseArrayLayer = 0;
-        depthImageViewInfo.subresourceRange.layerCount = 1;
-        depthImageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        AssertSuccess(vkCreateImageView(vulkan.device, &depthImageViewInfo, 0, &vulkan.depthImageView));
-    }*/
     
     // NOTE: Set a proper surface format
     {
@@ -767,62 +715,146 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
                 return false;
             }
         }
-        
-        VkDescriptorSetLayoutBinding mvpDescSetLayoutBinding = {};
-        mvpDescSetLayoutBinding.binding = 0;
-        mvpDescSetLayoutBinding.descriptorCount = 1;
-        mvpDescSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        mvpDescSetLayoutBinding.pImmutableSamplers = 0;
-        mvpDescSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        
-        VkDescriptorSetLayoutCreateInfo mvpDescSetLayoutInfo = {};
-        mvpDescSetLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        mvpDescSetLayoutInfo.bindingCount = 1;
-        mvpDescSetLayoutInfo.pBindings = &mvpDescSetLayoutBinding;
-        AssertSuccess(vkCreateDescriptorSetLayout(vulkan.device, &mvpDescSetLayoutInfo, 0, &vulkan.mvpDescSetLayout));
-        
-        
-        VkDescriptorPoolSize mvpDescPoolSize = {};
-        mvpDescPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        mvpDescPoolSize.descriptorCount = NUM_UNIFORM_BUFFERS;
-        
-        VkDescriptorPoolCreateInfo mvpDescPoolInfo = {};
-        mvpDescPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        mvpDescPoolInfo.poolSizeCount = 1;
-        mvpDescPoolInfo.pPoolSizes = &mvpDescPoolSize;
-        mvpDescPoolInfo.maxSets = NUM_UNIFORM_BUFFERS;
-        AssertSuccess(vkCreateDescriptorPool(vulkan.device, &mvpDescPoolInfo, 0, &vulkan.mvpDescPool));
-        
-        VkDescriptorSetLayout mvpDescSetLayouts[NUM_UNIFORM_BUFFERS] = {
-            vulkan.mvpDescSetLayout, vulkan.mvpDescSetLayout};
-        
-        VkDescriptorSetAllocateInfo mvpDescAllocInfo = {};
-        mvpDescAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        mvpDescAllocInfo.descriptorPool = vulkan.mvpDescPool;
-        mvpDescAllocInfo.descriptorSetCount = ArrayCount(mvpDescSetLayouts);
-        mvpDescAllocInfo.pSetLayouts = mvpDescSetLayouts;
-        AssertSuccess(vkAllocateDescriptorSets(vulkan.device, &mvpDescAllocInfo, vulkan.mvpDescSets));
-        
-        VkDescriptorBufferInfo bufferInfo = {};
-        bufferInfo.offset = 0;
-        bufferInfo.range = sizeof(model_view_proj); // VK_WHOLE_SIZE
-        
-        VkWriteDescriptorSet mvpDescWrite = {};
-        mvpDescWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        mvpDescWrite.dstBinding = 0;
-        mvpDescWrite.dstArrayElement = 0;
-        mvpDescWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        mvpDescWrite.descriptorCount = 1;
-        mvpDescWrite.pBufferInfo = &bufferInfo;
-        
-        for (u8 i = 0; i < NUM_UNIFORM_BUFFERS; i++)
+    }
+    
+    // NOTE(heyyod): Create texture sampler
+    {
+        VkSamplerCreateInfo samplerInfo{};
+        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        samplerInfo.magFilter = VK_FILTER_LINEAR;
+        samplerInfo.minFilter = VK_FILTER_LINEAR;
+        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.anisotropyEnable = VK_TRUE;
+        samplerInfo.maxAnisotropy = vulkan.properties.limits.maxSamplerAnisotropy;
+        samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+        samplerInfo.unnormalizedCoordinates = VK_FALSE;
+        samplerInfo.compareEnable = VK_FALSE;
+        samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        samplerInfo.mipLodBias = 0.0f;
+        samplerInfo.minLod = 0.0f;
+        samplerInfo.maxLod = 0.0f;
+        AssertSuccess(vkCreateSampler(vulkan.device, &samplerInfo, 0, &vulkan.textureSampler));
+    }
+    
+    // NOTE(heyyod): Create descriptors
+    {
+        // NOTE(heyyod): layout
         {
-            bufferInfo.buffer = vulkan.mvp[i].handle;
-            mvpDescWrite.dstSet = vulkan.mvpDescSets[i];
-            vkUpdateDescriptorSets(vulkan.device, 1, &mvpDescWrite, 0, 0);
+            VkDescriptorSetLayoutBinding mvpLayoutBinding = {};
+            mvpLayoutBinding.binding = 0;
+            mvpLayoutBinding.descriptorCount = 1;
+            mvpLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            mvpLayoutBinding.pImmutableSamplers = 0;
+            mvpLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+            
+            VkDescriptorSetLayoutBinding samplerLayoutBinding = {};
+            samplerLayoutBinding.binding = 1;
+            samplerLayoutBinding.descriptorCount = 1;
+            samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            samplerLayoutBinding.pImmutableSamplers = 0;
+            samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+            
+            VkDescriptorSetLayoutBinding bindings[2] = {mvpLayoutBinding, samplerLayoutBinding};
+            
+            VkDescriptorSetLayoutCreateInfo layoutInfo{};
+            layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+            layoutInfo.bindingCount = ArrayCount(bindings);
+            layoutInfo.pBindings = bindings;
+            AssertSuccess(vkCreateDescriptorSetLayout(vulkan.device, &layoutInfo, 0, &vulkan.descSetLayout));
+        }
+        // NOTE(heyyod): pool
+        {
+            VkDescriptorPoolSize poolSizes[2] = {};
+            poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            poolSizes[0].descriptorCount = NUM_DESCRIPTORS;
+            poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            poolSizes[1].descriptorCount = NUM_DESCRIPTORS;
+            
+            VkDescriptorPoolCreateInfo poolInfo = {};
+            poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+            poolInfo.poolSizeCount = ArrayCount(poolSizes);
+            poolInfo.pPoolSizes = poolSizes;
+            poolInfo.maxSets = NUM_DESCRIPTORS;
+            AssertSuccess(vkCreateDescriptorPool(vulkan.device, &poolInfo, 0, &vulkan.descPool));
+        }
+        // NOTE(heyyod): Allocate the descriptor sets
+        // We'll update them when it's needed
+        {
+            VkDescriptorSetLayout descSetLayouts[NUM_DESCRIPTORS] = {vulkan.descSetLayout, vulkan.descSetLayout};
+            
+            VkDescriptorSetAllocateInfo descAllocInfo = {};
+            descAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+            descAllocInfo.descriptorPool = vulkan.descPool;
+            descAllocInfo.descriptorSetCount = NUM_DESCRIPTORS;
+            descAllocInfo.pSetLayouts = descSetLayouts;
+            AssertSuccess(vkAllocateDescriptorSets(vulkan.device, &descAllocInfo, vulkan.descSets));
         }
     }
     
+    // NOTE: Create a depth buffer
+    // TODO: extract it in a function and update it OnWindowSizeChange
+    /*{
+        VkImageCreateInfo depthImageInfo = {};
+        vulkan.depthFormat = VK_FORMAT_D16_UNORM;
+        VkFormatProperties props;
+        vkGetPhysicalDeviceFormatProperties(vulkan.gpu, vulkan.depthFormat, &props);
+        if (props.linearTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
+            depthImageInfo.tiling = VK_IMAGE_TILING_LINEAR;
+        else if (props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
+            depthImageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        else
+        {
+            Assert(0);
+            return false;
+        }
+        depthImageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        depthImageInfo.imageType = VK_IMAGE_TYPE_2D;
+        depthImageInfo.format = VK_FORMAT_D16_UNORM;
+        depthImageInfo.extent.width = WINDOW_WIDTH;
+        depthImageInfo.extent.height = WINDOW_HEIGHT;
+        depthImageInfo.extent.depth = 1;
+        depthImageInfo.mipLevels = 1;
+        depthImageInfo.arrayLayers = 1;
+        depthImageInfo.samples = NUM_SAMPLES;
+        depthImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        depthImageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        depthImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        VkMemoryRequirements depthMemoryReq = {};
+        AssertSuccess(vkCreateImage(vulkan.device, &depthImageInfo, 0, &vulkan.depthImage));
+        vkGetImageMemoryRequirements(vulkan.device, vulkan.depthImage, &depthMemoryReq);
+
+        u32 memoryIndex = 0; // no use for now
+        if (!FindMemoryProperties(vulkan.memoryProperties, depthMemoryReq.memoryTypeBits,
+                                          VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memoryIndex))
+            return false;
+
+        VkMemoryAllocateInfo depthMemAllocInfo = {};
+        depthMemAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        depthMemAllocInfo.allocationSize = depthMemoryReq.size;
+
+        AssertSuccess(vkAllocateMemory(vulkan.device, &depthMemAllocInfo, 0, &vulkan.depthMemory));
+        AssertSuccess(vkBindImageMemory(vulkan.device, vulkan.depthImage, vulkan.depthMemory, 0));
+
+        VkImageViewCreateInfo depthImageViewInfo = {};
+        depthImageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        depthImageViewInfo.image = vulkan.depthImage;
+        depthImageViewInfo.format = vulkan.depthFormat;
+        depthImageViewInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+        depthImageViewInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+        depthImageViewInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+        depthImageViewInfo.components.a = VK_COMPONENT_SWIZZLE_A;
+        depthImageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        depthImageViewInfo.subresourceRange.baseMipLevel = 0;
+        depthImageViewInfo.subresourceRange.levelCount = 1;
+        depthImageViewInfo.subresourceRange.baseArrayLayer = 0;
+        depthImageViewInfo.subresourceRange.layerCount = 1;
+        depthImageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        AssertSuccess(vkCreateImageView(vulkan.device, &depthImageViewInfo, 0, &vulkan.depthImageView));
+    }*/
     
     
     if(!CreatePipeline())
@@ -1082,6 +1114,27 @@ CreatePipeline()
 {
     ClearPipeline();
     
+    // NOTE(heyyod): Update the descriptor set for the uniform buffer
+    VkDescriptorBufferInfo descMvpInfo = {};
+    descMvpInfo.offset = 0;
+    descMvpInfo.range = sizeof(model_view_proj); // VK_WHOLE_SIZE
+    
+    VkWriteDescriptorSet descWriteSet = {};
+    descWriteSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descWriteSet.dstBinding = 0;
+    descWriteSet.dstArrayElement = 0;
+    descWriteSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    descWriteSet.descriptorCount = 1;
+    descWriteSet.pBufferInfo = &descMvpInfo;
+    descWriteSet.dstSet = vulkan.descSets[0];
+    
+    for (u8 i = 0; i < NUM_DESCRIPTORS; i++)
+    {
+        descMvpInfo.buffer = vulkan.mvp[i].handle;
+        descWriteSet.dstSet = vulkan.descSets[i];
+        vkUpdateDescriptorSets(vulkan.device, 1, &descWriteSet, 0, 0);
+    }
+    
     VkShaderModule triangleVertShader = {};
     VkShaderModule triangleFragShader = {};
     if(!LoadShader("..\\build\\shaders\\triangle.frag.spv", &triangleFragShader) ||
@@ -1095,20 +1148,25 @@ CreatePipeline()
     // the vertex buffer we'll be reading from
     VkVertexInputBindingDescription vertexBindingDesc;
     vertexBindingDesc.binding = 0;
-    vertexBindingDesc.stride = sizeof(vertex2);
+    vertexBindingDesc.stride = sizeof(vertex);
     vertexBindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
     
-    VkVertexInputAttributeDescription vertexAttributeDescs[2];
+    VkVertexInputAttributeDescription vertexAttributeDescs[3];
     // NOTE(heyyod): specify the inPosition format in vertex shader
     vertexAttributeDescs[0].binding = 0;
     vertexAttributeDescs[0].location = 0;// NOTE(heyyod): this maches the value in the shader
     vertexAttributeDescs[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-    vertexAttributeDescs[0].offset = offsetof(vertex2, pos);
+    vertexAttributeDescs[0].offset = offsetof(vertex, pos);
     // NOTE(heyyod): spesify the inColor format in vertex shader
     vertexAttributeDescs[1].binding = 0;
     vertexAttributeDescs[1].location = 1;
     vertexAttributeDescs[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-    vertexAttributeDescs[1].offset = offsetof(vertex2, color);
+    vertexAttributeDescs[1].offset = offsetof(vertex, color);
+    // NOTE(heyyod): spesify the inTexCoord format in vertex shader
+    vertexAttributeDescs[2].binding = 0;
+    vertexAttributeDescs[2].location = 2;
+    vertexAttributeDescs[2].format = VK_FORMAT_R32G32_SFLOAT;
+    vertexAttributeDescs[2].offset = offsetof(vertex, texCoord);
     
     VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -1231,7 +1289,7 @@ CreatePipeline()
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &vulkan.mvpDescSetLayout;
+    pipelineLayoutInfo.pSetLayouts = &vulkan.descSetLayout;
     //pipelineLayoutInfo.pushConstantRangeCount = 0;
     //pipelineLayoutInfo.pPushConstantRanges = nullptr;
     AssertSuccess(vkCreatePipelineLayout(vulkan.device, &pipelineLayoutInfo, 0, &vulkan.pipelineLayout));
@@ -1345,20 +1403,27 @@ Destroy()
     {
         vkDeviceWaitIdle(vulkan.device);
         
+        if(VulkanIsValidHandle(vulkan.textureSampler))
+            vkDestroySampler(vulkan.device, vulkan.textureSampler, 0);
+        
+        if(VulkanIsValidHandle(vulkan.textureView))
+            vkDestroyImageView(vulkan.device, vulkan.textureView, 0);
+        if(VulkanIsValidHandle(vulkan.texture))
+            vkDestroyImage(vulkan.device, vulkan.texture, 0);
+        if(VulkanIsValidHandle(vulkan.textureMemory))
+            vkFreeMemory(vulkan.device, vulkan.textureMemory, 0);
+        
         ClearPipeline();
         
-        if(VulkanIsValidHandle(vulkan.mvpDescSetLayout))
-        {
-            vkDestroyDescriptorSetLayout(vulkan.device, vulkan.mvpDescSetLayout, 0);
-        }
+        if(VulkanIsValidHandle(vulkan.descSetLayout))
+            vkDestroyDescriptorSetLayout(vulkan.device, vulkan.descSetLayout, 0);
+        
         
         for(u32 i = 0; i < ArrayCount(vulkan.mvp); i++)
-        {
             ClearBuffer(vulkan.mvp[i]);
-        }
         
-        if(VulkanIsValidHandle(vulkan.mvpDescPool))
-            vkDestroyDescriptorPool(vulkan.device, vulkan.mvpDescPool, 0);
+        if(VulkanIsValidHandle(vulkan.descPool))
+            vkDestroyDescriptorPool(vulkan.device, vulkan.descPool, 0);
         
         vkUnmapMemory(vulkan.device, vulkan.stagingBuffer.memoryHandle);
         ClearBuffer(vulkan.stagingBuffer);
@@ -1431,7 +1496,7 @@ GetNextAvailableResource()
 }
 
 function bool Vulkan::
-PushStaged(staged_resources &stagedResources)
+PushStaged(staged_resources &staged)
 {
     frame_prep_resource *res = GetNextAvailableResource();
     
@@ -1447,45 +1512,150 @@ PushStaged(staged_resources &stagedResources)
     AssertSuccess(vkBeginCommandBuffer(res->cmdBuffer, &cmdBufferBeginInfo));
     
     bool pushedMesh = false;
+    bool pushedImage = false;
     
     u64 vertexBufferStartOffset = vulkan.vertexBufferWriteOffset;
     u64 indexBufferStartOffset = vulkan.indexBufferWriteOffset;
     
-    for(u32 resourceId = 0; resourceId < stagedResources.count; resourceId++)
+    
+    for(u32 resourceId = 0; resourceId < staged.count; resourceId++)
     {
-        switch (stagedResources.types[resourceId])
+        
+        switch (staged.types[resourceId])
         {
+            //-
             case RESOURCE_MESH:
             {
                 pushedMesh = true;
-                mesh *m = (mesh *)stagedResources.resources[resourceId];
+                mesh *m = (mesh *)staged.resources[resourceId];
                 
                 // NOTE(heyyod): Set where to read and where to copy the vertices
-                VkBufferCopy vertexBufferCopyInfo = {};
-                vertexBufferCopyInfo.srcOffset = stagedResources.offsets[resourceId];
-                vertexBufferCopyInfo.dstOffset = vulkan.vertexBufferWriteOffset;
-                vertexBufferCopyInfo.size =  MESH_PTR_VERTICES_SIZE(m);
+                VkBufferCopy bufferCopyInfo = {};
+                bufferCopyInfo.srcOffset = staged.offsets[resourceId];
+                bufferCopyInfo.dstOffset = vulkan.vertexBufferWriteOffset;
+                bufferCopyInfo.size =  MESH_PTR_VERTICES_SIZE(m);
+                vulkan.vertexBufferWriteOffset += bufferCopyInfo.size; //set next write offset in vertex buffer
+                vkCmdCopyBuffer(res->cmdBuffer, vulkan.stagingBuffer.handle, vulkan.vertexBuffer.handle, 1, &bufferCopyInfo);
+                
                 
                 // NOTE(heyyod): Set where to read and where to copy the indices
-                VkBufferCopy indexBufferCopyInfo = {};
-                indexBufferCopyInfo.srcOffset = vertexBufferCopyInfo.srcOffset + vertexBufferCopyInfo.size;
-                indexBufferCopyInfo.dstOffset = vulkan.indexBufferWriteOffset;
-                indexBufferCopyInfo.size =  MESH_PTR_INDICES_SIZE(m);
-                // NOTE(heyyod): Update the next read and write adresses
-                vulkan.vertexBufferWriteOffset += vertexBufferCopyInfo.size;
-                vulkan.indexBufferWriteOffset += indexBufferCopyInfo.size;
+                bufferCopyInfo.srcOffset = bufferCopyInfo.srcOffset + bufferCopyInfo.size;
+                bufferCopyInfo.dstOffset = vulkan.indexBufferWriteOffset;
+                bufferCopyInfo.size =  MESH_PTR_INDICES_SIZE(m);
+                vulkan.indexBufferWriteOffset += bufferCopyInfo.size; //set next write offset in index buffer
+                vkCmdCopyBuffer(res->cmdBuffer, vulkan.stagingBuffer.handle, vulkan.indexBuffer.handle, 1, &bufferCopyInfo);
                 
-                vulkan.savedMeshes.nVertices[vulkan.savedMeshes.count] = m->nVertices;
-                vulkan.savedMeshes.nIndices[vulkan.savedMeshes.count] = m->nIndices;
-                vulkan.savedMeshes.count++;
+                vulkan.savedMeshes[vulkan.savedMeshesCount].nVertices = m->nVertices;
+                vulkan.savedMeshes[vulkan.savedMeshesCount].nIndices = m->nIndices;
+                vulkan.savedMeshesCount++;
                 
-                vkCmdCopyBuffer(res->cmdBuffer, vulkan.stagingBuffer.handle, vulkan.vertexBuffer.handle, 1, &vertexBufferCopyInfo);
-                vkCmdCopyBuffer(res->cmdBuffer, vulkan.stagingBuffer.handle, vulkan.indexBuffer.handle, 1, &indexBufferCopyInfo);
             }break;
-            
+            //-
             case RESOURCE_TEXTURE:
             {
+                pushedImage = true;
+                image *img = (image *)staged.resources[resourceId];
                 
+                VkImageCreateInfo imageInfo = {};
+                imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+                imageInfo.imageType = VK_IMAGE_TYPE_2D;
+                imageInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+                imageInfo.extent = {img->width, img->height, 1};
+                imageInfo.mipLevels = 1;
+                imageInfo.arrayLayers = 1;
+                imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+                imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+                imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+                imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+                imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+                AssertSuccess(vkCreateImage(vulkan.device, &imageInfo, 0, &vulkan.texture));
+                
+                VkMemoryRequirements memoryReq= {};
+                vkGetImageMemoryRequirements(vulkan.device, vulkan.texture, &memoryReq);
+                
+                u32 memIndex = 0;
+                if(Vulkan::FindMemoryProperties(memoryReq.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memIndex))
+                {
+                    VkMemoryAllocateInfo allocInfo = {};
+                    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+                    allocInfo.allocationSize = memoryReq.size;
+                    allocInfo.memoryTypeIndex = memIndex;
+                    
+                    AssertSuccess(vkAllocateMemory(vulkan.device, &allocInfo, 0, &vulkan.textureMemory));
+                    AssertSuccess(vkBindImageMemory(vulkan.device, vulkan.texture, vulkan.textureMemory, 0));
+                }
+                
+                VkImageViewCreateInfo imageViewInfo = {};
+                imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+                imageViewInfo.image = vulkan.texture;
+                imageViewInfo.viewType= VK_IMAGE_VIEW_TYPE_2D;
+                imageViewInfo.format = imageInfo.format; //VK_FORMAT_R8G8B8A8_UNORM;
+                imageViewInfo.components = {
+                    VK_COMPONENT_SWIZZLE_IDENTITY,
+                    VK_COMPONENT_SWIZZLE_IDENTITY,
+                    VK_COMPONENT_SWIZZLE_IDENTITY,
+                    VK_COMPONENT_SWIZZLE_IDENTITY};
+                imageViewInfo.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+                AssertSuccess(vkCreateImageView(vulkan.device, &imageViewInfo, 0, &vulkan.textureView));
+                
+                // NOTE(heyyod): We need to write into the image from the stage buffer.
+                // So we change the layout.
+                VkImageMemoryBarrier undefinedToTransfer = {};
+                undefinedToTransfer.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+                undefinedToTransfer.srcAccessMask = 0;
+                undefinedToTransfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+                undefinedToTransfer.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+                undefinedToTransfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+                undefinedToTransfer.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                undefinedToTransfer.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                undefinedToTransfer.image = vulkan.texture;
+                undefinedToTransfer.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+                vkCmdPipelineBarrier(res->cmdBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0,
+                                     1, &undefinedToTransfer);
+                
+                
+                VkBufferImageCopy bufferToImageCopy = {};
+                bufferToImageCopy.bufferOffset = staged.offsets[resourceId];
+                bufferToImageCopy.bufferRowLength = 0;
+                bufferToImageCopy.bufferImageHeight = 0;
+                bufferToImageCopy.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}; //aspectMask, mipLevel, baseArrayLayer, layerCount
+                bufferToImageCopy.imageOffset = {0, 0, 0};
+                bufferToImageCopy.imageExtent = {img->width, img->height, 1};
+                vkCmdCopyBufferToImage(res->cmdBuffer, vulkan.stagingBuffer.handle, vulkan.texture, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &bufferToImageCopy);
+                
+                // NOTE(heyyod): Since it will be used in shaders we again need to change the layout
+                VkImageMemoryBarrier transferToShader = {};
+                transferToShader.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+                transferToShader.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+                transferToShader.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                transferToShader.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+                transferToShader.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                transferToShader.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                transferToShader.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                transferToShader.image = vulkan.texture;
+                transferToShader.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+                vkCmdPipelineBarrier(res->cmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0,
+                                     1, &transferToShader);
+                
+                // NOTE(heyyod): Update the descriptor set
+                VkDescriptorImageInfo descImageInfo = {};
+                descImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                descImageInfo.imageView = vulkan.textureView;
+                descImageInfo.sampler = vulkan.textureSampler;
+                
+                VkWriteDescriptorSet descWriteSet = {};
+                descWriteSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                descWriteSet.dstBinding = 1;
+                descWriteSet.dstArrayElement = 0;
+                descWriteSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                descWriteSet.descriptorCount = 1;
+                descWriteSet.pImageInfo = &descImageInfo;
+                
+                for (u8 i = 0; i < NUM_DESCRIPTORS; i++)
+                {
+                    descWriteSet.dstSet = vulkan.descSets[i];
+                    vkUpdateDescriptorSets(vulkan.device, 1, &descWriteSet, 0, 0);
+                }
             }break;
             
             default:
@@ -1498,27 +1668,34 @@ PushStaged(staged_resources &stagedResources)
     
     if (pushedMesh)
     {
-        VkBufferMemoryBarrier bufferBarrier = {};
-        bufferBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-        bufferBarrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
-        bufferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        bufferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        VkBufferMemoryBarrier bufferBarriers[2] = {};
         
-        bufferBarrier.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
-        bufferBarrier.buffer = vulkan.vertexBuffer.handle;
-        bufferBarrier.offset = vertexBufferStartOffset;
-        bufferBarrier.size = vulkan.vertexBufferWriteOffset - vertexBufferStartOffset;
-        vkCmdPipelineBarrier(res->cmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, 0, 1, &bufferBarrier, 0, 0);
+        bufferBarriers[0].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        bufferBarriers[0].srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+        bufferBarriers[0].dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+        bufferBarriers[0].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        bufferBarriers[0].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        bufferBarriers[0].buffer = vulkan.vertexBuffer.handle;
+        bufferBarriers[0].offset = vertexBufferStartOffset;
+        bufferBarriers[0].size = vulkan.vertexBufferWriteOffset - vertexBufferStartOffset;
         
-        bufferBarrier.dstAccessMask = VK_ACCESS_INDEX_READ_BIT;
-        bufferBarrier.buffer = vulkan.indexBuffer.handle;
-        bufferBarrier.offset = indexBufferStartOffset;
-        bufferBarrier.size = vulkan.indexBufferWriteOffset - indexBufferStartOffset;
-        vkCmdPipelineBarrier(res->cmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, 0, 1, &bufferBarrier, 0, 0);
+        bufferBarriers[1].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        bufferBarriers[1].srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+        bufferBarriers[1].dstAccessMask = VK_ACCESS_INDEX_READ_BIT;
+        bufferBarriers[1].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        bufferBarriers[1].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        bufferBarriers[1].buffer = vulkan.indexBuffer.handle;
+        bufferBarriers[1].offset = indexBufferStartOffset;
+        bufferBarriers[1].size = vulkan.indexBufferWriteOffset - indexBufferStartOffset;
+        
+        vkCmdPipelineBarrier(res->cmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, 0, ArrayCount(bufferBarriers), bufferBarriers, 0, 0);
+    }
+    if(pushedImage)
+    {
+        CreatePipeline();
     }
     
     AssertSuccess(vkEndCommandBuffer(res->cmdBuffer));
-    
     VkSubmitInfo submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;
@@ -1607,17 +1784,17 @@ Draw(update_data *data)
         
         vkCmdBindVertexBuffers(res->cmdBuffer, 0, 1, &vulkan.vertexBuffer.handle, &bufferOffset);
         vkCmdBindIndexBuffer(res->cmdBuffer, vulkan.indexBuffer.handle, 0, VULKAN_INDEX_TYPE);
-        vkCmdBindDescriptorSets(res->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan.pipelineLayout, 0, 1, &vulkan.mvpDescSets[nextImage], 0, 0);
+        vkCmdBindDescriptorSets(res->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan.pipelineLayout, 0, 1, &vulkan.descSets[nextImage], 0, 0);
         
         u32 firstIndex = 0;
         u32 indexOffset = 0;
-        for(u32 meshId = 0; meshId < vulkan.savedMeshes.count; meshId++)
+        for(u32 meshId = 0; meshId < vulkan.savedMeshesCount; meshId++)
         {
-            vkCmdDrawIndexed(res->cmdBuffer, vulkan.savedMeshes.nIndices[meshId], 1,
+            vkCmdDrawIndexed(res->cmdBuffer, vulkan.savedMeshes[meshId].nIndices, 1,
                              firstIndex, indexOffset, 0);
             
-            firstIndex +=  vulkan.savedMeshes.nIndices[meshId];
-            indexOffset +=  vulkan.savedMeshes.nVertices[meshId];
+            firstIndex +=  vulkan.savedMeshes[meshId].nIndices;
+            indexOffset +=  vulkan.savedMeshes[meshId].nVertices;
         }
         
         vkCmdEndRenderPass(res->cmdBuffer);
@@ -1683,8 +1860,8 @@ Draw(update_data *data)
     
     // NOTE(heyyod): Update data for the engine
     {
-        u32 nextUniformBuffer = (nextImage + 1) % NUM_UNIFORM_BUFFERS;
-        data->newMVP = vulkan.mvp[nextUniformBuffer].data;
+        u32 nextUniformBuffer = (nextImage + 1) % NUM_DESCRIPTORS;
+        data->newMvpBuffer = vulkan.mvp[nextUniformBuffer].data;
     }
     
     return true;

@@ -18,7 +18,7 @@
 
 // NOTE(heyyod): THIS IS IMPORTANT! INDICES WE USE TO ACCESS THE UBs
 // ARE DEPENDING ON THE CURRENT AQUIRED IMAGE IN THE DRAW LOOP
-#define NUM_UNIFORM_BUFFERS NUM_SWAPCHAIN_IMAGES
+#define NUM_DESCRIPTORS NUM_SWAPCHAIN_IMAGES
 
 #define MAX_MESHES 10
 
@@ -50,13 +50,13 @@ struct vulkan_buffer
 
 struct vulkan_saved_meshes
 {
-    u32 nVertices[MAX_MESHES];
-    u32 nIndices[MAX_MESHES];
-    u32 count;
+    u32 nVertices;
+    u32 nIndices;
 };
 
 struct vulkan_engine
 {
+    VkPhysicalDeviceProperties properties;
     VkPhysicalDeviceMemoryProperties memoryProperties;
     
     VkInstance instance;
@@ -84,10 +84,12 @@ struct vulkan_engine
     u32 swapchainImageCount;
     u32 currentResource;
     
-    vulkan_buffer mvp[NUM_UNIFORM_BUFFERS]; // NOTE(heyyod): uniform buffer
-    VkDescriptorSetLayout mvpDescSetLayout;
-    VkDescriptorPool mvpDescPool;
-    VkDescriptorSet mvpDescSets[NUM_UNIFORM_BUFFERS];
+    vulkan_buffer mvp[NUM_DESCRIPTORS]; // NOTE(heyyod): uniform buffer
+    VkSampler textureSampler;
+    
+    VkDescriptorSet descSets[NUM_DESCRIPTORS];
+    VkDescriptorSetLayout descSetLayout;
+    VkDescriptorPool descPool;
     
     VkPipelineLayout pipelineLayout;
     VkPipeline pipeline;
@@ -105,9 +107,15 @@ struct vulkan_engine
     // NOTE(heyyod): in gpu
     vulkan_buffer vertexBuffer;
     vulkan_buffer indexBuffer;
-    vulkan_saved_meshes savedMeshes;
     u64 vertexBufferWriteOffset;
     u64 indexBufferWriteOffset;
+    
+    vulkan_saved_meshes savedMeshes[MAX_MESHES];
+    u32 savedMeshesCount;
+    
+    VkImage texture;
+    VkDeviceMemory textureMemory;
+    VkImageView textureView;
     
     bool canRender;
     
@@ -122,8 +130,8 @@ struct vulkan_engine
 global_var vulkan_engine vulkan;
 
 global_var char* shaderFiles[2] = {
-    "..\\build\\shaders\\triangle.vert.spv",
-    "..\\build\\shaders\\triangle.frag.spv"
+    "../build/shaders/triangle.vert.spv",
+    "../build/shaders/triangle.frag.spv"
 };
 
 namespace Vulkan
@@ -138,6 +146,7 @@ namespace Vulkan
     function bool CreateSwapchain();
     function bool CreatePipeline();
     function bool CreateBuffer(VkBufferUsageFlags usage, VkDeviceSize size, VkMemoryPropertyFlags properties, vulkan_buffer &buffer, bool mapBuffer = false);
+    function bool CreateDescriptorSets();
     
     function void ClearFrameBuffers();
     function void ClearSwapchainImages();
@@ -217,6 +226,7 @@ VulkanDeclareFunction(vkGetPhysicalDeviceSurfaceFormatsKHR);
 VulkanDeclareFunction(vkGetPhysicalDeviceSurfaceCapabilitiesKHR);
 VulkanDeclareFunction(vkGetPhysicalDeviceFormatProperties);
 VulkanDeclareFunction(vkGetPhysicalDeviceMemoryProperties);
+VulkanDeclareFunction(vkGetPhysicalDeviceProperties);
 VulkanDeclareFunction(vkGetPhysicalDeviceSurfacePresentModesKHR);
 VulkanDeclareFunction(vkEnumerateDeviceExtensionProperties);
 VulkanDeclareFunction(vkCreateDevice);
@@ -278,6 +288,8 @@ VulkanDeclareFunction(vkCreateDescriptorPool);
 VulkanDeclareFunction(vkDestroyDescriptorPool);
 VulkanDeclareFunction(vkAllocateDescriptorSets);
 VulkanDeclareFunction(vkUpdateDescriptorSets);
+VulkanDeclareFunction(vkCreateSampler);
+VulkanDeclareFunction(vkDestroySampler);
 
 VulkanDeclareFunction(vkCmdPipelineBarrier);
 VulkanDeclareFunction(vkCmdClearColorImage);
@@ -292,5 +304,6 @@ VulkanDeclareFunction(vkCmdSetViewport);
 VulkanDeclareFunction(vkCmdSetScissor);
 VulkanDeclareFunction(vkCmdCopyBuffer);
 VulkanDeclareFunction(vkCmdBindDescriptorSets);
+VulkanDeclareFunction(vkCmdCopyBufferToImage);
 
 #endif

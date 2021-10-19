@@ -61,7 +61,7 @@ struct update_data
     // We have multiple uniform buffers that we uses to pass the matrices into
     // the vertex shader. We cycle them as we change the current swapchain image.
     // So vulkan will update the newMVP pointer and the engine will redirect it's mvp
-    void *newMVP;
+    void *newMvpBuffer;
 };
 
 #define VULKAN_DRAW_FUNC(name) bool name(update_data *data)

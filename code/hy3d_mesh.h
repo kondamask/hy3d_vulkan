@@ -9,11 +9,10 @@
 struct vertex
 {
     vec3 pos;
-    //vec3 normal;
     vec3 color;
+    vec2 texCoord;
+    //vec3 normal;
 };
-
-typedef vertex vertex2; // TODO(heyyod): REMOVE THIS!
 
 // NOTE(heyyod): SWITCH BETWEEN INDEX TYPES:
 // INDEX_TYPE_U16

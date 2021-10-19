@@ -8,25 +8,29 @@
 #include "hy3d_base.h"
 
 // NOTE(heyyod): for RGBA
-#define IMAGE_TOTAL_SIZE(i) \
-i.width * i.height * 4
+#define IMAGE_TOTAL_SIZE(i) i.width * i.height * 4
+#define IMAGE_PTR_TOTAL_SIZE(i) i->width * i->height * 4
 
 struct image
 {
     u8* pixels;
-    i32 width;
-    i32 height;
+    u32 width;
+    u32 height;
 };
 
-function bool LoadImageRGBA(const char *filename, image &imageOut)
+function bool LoadImageRGBA(const char *filename, image *imageOut)
 {
-    u8 *pixels = stbi_load(filename, &imageOut.width, &imageOut.height, 0, STBI_rgb_alpha);
+    i32 width, height;
+    u8 *pixels = stbi_load(filename, &width, &height, 0, STBI_rgb_alpha);
     if (!pixels)
     {
-        imageOut = {};
+        DebugPrint("ERROR: Could not load image: ");
+        DebugPrint(filename);
         return false;
     }
-    memcpy(imageOut.pixels, pixels, IMAGE_TOTAL_SIZE(imageOut));
+    imageOut->width = (u32)width;
+    imageOut->height = (u32)height;
+    memcpy(imageOut->pixels, pixels, IMAGE_PTR_TOTAL_SIZE(imageOut));
     stbi_image_free(pixels);
     return true;
 }

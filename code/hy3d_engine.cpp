@@ -20,6 +20,7 @@ ReserveMemory(memory_arena *arena, size_t size)
     return result;
 }
 
+#define OffsetInStageBuffer(res) (u8*)res - (u8*)stagedResources.resources[0] + sizeof(*res)
 function bool 
 StageResource(const char *filepath, RESOURCE_TYPE type, staged_resources &stagedResources)
 {
@@ -44,43 +45,39 @@ StageResource(const char *filepath, RESOURCE_TYPE type, staged_resources &staged
             m->indices[3] = 2;
             m->indices[4] = 3;
             m->indices[5] = 0;
-            stagedResources.offsets[stagedResources.count] =  (u8*)m - (u8*)stagedResources.resources[0] + MESH_PTR_DATA_START_OFFSET;
+            stagedResources.offsets[stagedResources.count] = OffsetInStageBuffer(m);
+            // (u8*)m - (u8*)stagedResources.resources[0] + sizeof(mesh);
             bytesStaged = MESH_PTR_TOTAL_SIZE(m);
             
-            if(stagedResources.count == 0)
-            {
-                m->vertices[0] = { {-1.0f, -1.0f, 0.0f}, {1.0f, 1.0f, 0.0f} };
-                m->vertices[1] = { { 0.0f, -1.0f, 0.0f}, {0.0f, 1.0f, 1.0f} };
-                m->vertices[2] = { { 0.0f,  0.0f, 0.0f}, {1.0f, 0.0f, 1.0f} };
-                m->vertices[3] = { {-1.0f,  0.0f, 0.0f}, {1.0f, 1.0f, 1.0f} };
-            }
-            else
-            {
-                m->vertices[0] = { { 0.0f,  1.0f, 0.0f}, {1.0f, 0.0f, 0.0f} };
-                m->vertices[1] = { { 1.0f,  1.0f, 0.0f}, {0.0f, 1.0f, 0.0f} };
-                m->vertices[2] = { { 1.0f,  0.0f, 0.0f}, {0.0f, 0.0f, 1.0f} };
-                m->vertices[3] = { { 0.0f,  0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
-            }
+            m->vertices[0] = {{-1.0f, -1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}};
+            m->vertices[1] = {{1.0f, -1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f}};
+            m->vertices[2] = {{1.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}};
+            m->vertices[3] = {{-1.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}};
         }break;
         
         case RESOURCE_TEXTURE:
         {
-            image img = {};
-            img.pixels = (u8 *)stagedResources.nextWriteAddr;
+            image *img = (image *)stagedResources.nextWriteAddr;
+            img->pixels = (u8 *)img + sizeof(image);
+            
             if(!LoadImageRGBA(filepath, img))
                 return false;
-            bytesStaged = IMAGE_TOTAL_SIZE(img);
+            
+            stagedResources.offsets[stagedResources.count] = OffsetInStageBuffer(img); 
+            bytesStaged = IMAGE_PTR_TOTAL_SIZE(img);
         }break;
         
         default:
         {
-            DebugPrint("ERROR: Trying to push unknown resource ata type.\n");
+            stagedResources.types[stagedResources.count] = RESOURCE_INVALID;
+            DebugPrint("ERROR: Trying to stage unknown resource type.\n");
             return false;
         }
     }
     stagedResources.resources[stagedResources.count] = stagedResources.nextWriteAddr;
+    stagedResources.types[stagedResources.count] = type;
+    stagedResources.count++;
     AdvancePointer(stagedResources.nextWriteAddr, bytesStaged);
-    stagedResources.types[stagedResources.count++] = type;
     return true;
 }
 
@@ -110,8 +107,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
             staged_resources resources = {};
             resources.nextWriteAddr = memory->stagingMemory;
             StageResource("", RESOURCE_MESH, resources);
-            StageResource("", RESOURCE_MESH, resources);
-            //StageResource("..\\textures\\texture.jpeg", RESOURCE_TEXTURE, resources);
+            //StageResource("", RESOURCE_MESH, resources);
+            StageResource("../textures/hy3d_plane.bmp", RESOURCE_TEXTURE, resources);
             platformAPI.PushStaged(resources);
         }
         
@@ -120,8 +117,8 @@ UPDATE_AND_RENDER(UpdateAndRender)
         state->clearColorChange[2] = 2.0f;
         
         memory->isInitialized = true;
-        state->time = 0;
-        state->camPos = {0.0f, 0.0f, 5.0f};
+        state->time = 0.0f;
+        state->camPos = {0.0f, 0.0f, -2.0f};
         e.frameStart = std::chrono::steady_clock::now();
     }
     
@@ -160,17 +157,19 @@ UPDATE_AND_RENDER(UpdateAndRender)
     }
     state->camPos.Z += zChange;
     
-    vec3 pos = {};
-    pos.X = SinF(2.0f * state->time);
+    //vec3 pos = {};
+    //pos.X = SinF(2.0f * state->time);
+    //pos.Z = 6.0f;
     //pos.Y = CosF(state->time);
     
-    memory->mvp->model = Rotate(state->time * 90.0f, Vec3(1.0f, 0.0f, 0.0f));
-    memory->mvp->model = memory->mvp->model * Translate(pos);
-    memory->mvp->view = LookAt(state->camPos, Vec3(0.0f, 0.0f, 0.0f), Vec3(0.0f, -1.0f, 0.0f));
+    memory->mvp->model =
+        Rotate(state->time * 90.0f, Vec3(1.0f, 0.0f, 0.0f)) *
+        Translate({SinF(2.0f * state->time), 0.0f, 0.0f});
+    memory->mvp->view = LookAt(state->camPos, {0.0f,0.0f,0.0f}, Vec3(0.0f, -1.0f, 0.0f));
     memory->mvp->proj = Perspective(45.0f, e.windowWidth / (f32) e.windowHeight, 0.1f, 10.0f);
     //memory->mvp->proj[1][1] *= -1.0f;
     platformAPI.Draw(&state->updateData);
     
     // NOTE(heyyod): Update stuff from vulkan
-    memory->mvp = (model_view_proj *)state->updateData.newMVP;
+    memory->mvp = (model_view_proj *)state->updateData.newMvpBuffer;
 }
