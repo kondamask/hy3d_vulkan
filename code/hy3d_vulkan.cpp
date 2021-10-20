@@ -852,23 +852,12 @@ ClearFrameBuffers()
     if (VulkanIsValidHandle(vulkan.device))
     {
         vkDeviceWaitIdle(vulkan.device);
-        /* 
-                for (u32 i = 0; i < NUM_RESOURCES; i++)
-                {
-                    if(VulkanIsValidHandle(vulkan.resources[i].framebuffer))
-                    {
-                        vkDestroyFramebuffer(vulkan.device, vulkan.resources[i].framebuffer, 0);
-                        DebugPrint("Cleared FrameBuffer\n");
-                    }
-                }
-         */
-        
         for (u32 i = 0; i < NUM_SWAPCHAIN_IMAGES; i++)
         {
             if(VulkanIsValidHandle(vulkan.framebuffers[i]))
             {
                 vkDestroyFramebuffer(vulkan.device, vulkan.framebuffers[i], 0);
-                vulkan.framebuffers[i] = VK_NULL_HANDLE;
+                //vulkan.framebuffers[i] = VK_NULL_HANDLE;
                 DebugPrint("Cleared FrameBuffer\n");
             }
         }
@@ -892,28 +881,7 @@ ClearImage(vulkan_image &img)
 function bool Vulkan::
 CreateImage(VkImageType type, VkFormat format, VkExtent3D extent, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memoryProperties, VkImageAspectFlags aspectMask, vulkan_image &imageOut)
 {
-    // TODO(heyyod): ClearImage();
-    
-    // NOTE(heyyod): This is a way to find a good format that is supported an proper for what we want
-    /*
-    VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) 
-    {
-    for (VkFormat format : candidates)
-    {
-    VkFormatProperties props;
-    vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &props);
-    
-    if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features)
-    {
-    return format;
-    }
-    else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features)
-    {
-    return format;
-                }
-            }
-        }
-    */
+    ClearImage(imageOut);
     
     VkImageCreateInfo imageInfo = {};
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -970,6 +938,27 @@ CreateImage(VkImageType type, VkFormat format, VkExtent3D extent, VkImageTiling 
     AssertSuccess(vkCreateImageView(vulkan.device, &imageViewInfo, 0, &imageOut.view));
     
     return true;
+    
+    // NOTE(heyyod): This is a way to find a good format that is supported an proper for what we want
+    /*
+    VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) 
+    {
+    for (VkFormat format : candidates)
+    {
+    VkFormatProperties props;
+    vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &props);
+    
+    if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features)
+    {
+    return format;
+    }
+    else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features)
+    {
+    return format;
+                }
+            }
+        }
+    */
 }
 
 function bool Vulkan::
@@ -1510,23 +1499,14 @@ Destroy()
         ClearBuffer(vulkan.vertexBuffer);
         ClearBuffer(vulkan.indexBuffer);
         
-        ClearFrameBuffers();
         if (VulkanIsValidHandle(vulkan.renderPass))
             vkDestroyRenderPass(vulkan.device, vulkan.renderPass, 0);
-        
-        /* 
-                if (VulkanIsValidHandle(vulkan.depthMemory))
-                    vkFreeMemory(vulkan.device, vulkan.depthMemory, 0);
-                if (VulkanIsValidHandle(vulkan.depthImageView))
-                    vkDestroyImageView(vulkan.device, vulkan.depthImageView, 0);
-                if (VulkanIsValidHandle(vulkan.depthImage))
-                    vkDestroyImage(vulkan.device, vulkan.depthImage, 0);
-                 */
         
         ClearSwapchainImages();
         if (VulkanIsValidHandle(vulkan.swapchain))
             vkDestroySwapchainKHR(vulkan.device, vulkan.swapchain, 0);
         
+        ClearFrameBuffers();
         for(u32 i = 0; i < NUM_RESOURCES; i++)
         {
             if (VulkanIsValidHandle(vulkan.resources[i].imgAvailableSem))
