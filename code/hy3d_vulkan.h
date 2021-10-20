@@ -165,6 +165,8 @@ namespace Vulkan
     
     function bool FindMemoryProperties(u32 memoryType, VkMemoryPropertyFlags requiredProperties, u32 &memoryIndexOut);
     
+    function void CmdChangeImageLayout(VkImage img, VkImageLayout oldLayout, VkImageLayout newLayout, VkCommandBuffer cmdBuffer);
+    
     function frame_prep_resource *GetNextAvailableResource();
     /*
     function void GetVertexBindingDesc(vertex2 &v, VkVertexInputBindingDescription &bindingDesc);
