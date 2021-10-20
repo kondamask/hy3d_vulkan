@@ -1,6 +1,7 @@
 #version 450
 
-layout(binding = 0) uniform testubo {
+layout(binding = 0) uniform mvp_ubo
+{
     mat4 model;
     mat4 view;
     mat4 proj;

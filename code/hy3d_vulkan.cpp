@@ -208,6 +208,7 @@ LoadDeviceFunctions()
     VulkanLoadDeviceFunc(vkCmdCopyBuffer);
     VulkanLoadDeviceFunc(vkCmdBindDescriptorSets);
     VulkanLoadDeviceFunc(vkCmdCopyBufferToImage);
+    VulkanLoadDeviceFunc(vkCmdPushConstants);
     
     DebugPrint("Loaded Device Functions\n");
     
@@ -794,69 +795,6 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         }
     }
     
-    // NOTE: Create a depth buffer
-    // TODO: extract it in a function and update it OnWindowSizeChange
-    /*{
-        VkImageCreateInfo depthImageInfo = {};
-        vulkan.depthFormat = VK_FORMAT_D16_UNORM;
-        VkFormatProperties props;
-        vkGetPhysicalDeviceFormatProperties(vulkan.gpu, vulkan.depthFormat, &props);
-        if (props.linearTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
-            depthImageInfo.tiling = VK_IMAGE_TILING_LINEAR;
-        else if (props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)
-            depthImageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-        else
-        {
-            Assert(0);
-            return false;
-        }
-        depthImageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        depthImageInfo.imageType = VK_IMAGE_TYPE_2D;
-        depthImageInfo.format = VK_FORMAT_D16_UNORM;
-        depthImageInfo.extent.width = WINDOW_WIDTH;
-        depthImageInfo.extent.height = WINDOW_HEIGHT;
-        depthImageInfo.extent.depth = 1;
-        depthImageInfo.mipLevels = 1;
-        depthImageInfo.arrayLayers = 1;
-        depthImageInfo.samples = NUM_SAMPLES;
-        depthImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        depthImageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-        depthImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-        VkMemoryRequirements depthMemoryReq = {};
-        AssertSuccess(vkCreateImage(vulkan.device, &depthImageInfo, 0, &vulkan.depthImage));
-        vkGetImageMemoryRequirements(vulkan.device, vulkan.depthImage, &depthMemoryReq);
-
-        u32 memoryIndex = 0; // no use for now
-        if (!FindMemoryProperties(vulkan.memoryProperties, depthMemoryReq.memoryTypeBits,
-                                          VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memoryIndex))
-            return false;
-
-        VkMemoryAllocateInfo depthMemAllocInfo = {};
-        depthMemAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        depthMemAllocInfo.allocationSize = depthMemoryReq.size;
-
-        AssertSuccess(vkAllocateMemory(vulkan.device, &depthMemAllocInfo, 0, &vulkan.depthMemory));
-        AssertSuccess(vkBindImageMemory(vulkan.device, vulkan.depthImage, vulkan.depthMemory, 0));
-
-        VkImageViewCreateInfo depthImageViewInfo = {};
-        depthImageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        depthImageViewInfo.image = vulkan.depthImage;
-        depthImageViewInfo.format = vulkan.depthFormat;
-        depthImageViewInfo.components.r = VK_COMPONENT_SWIZZLE_R;
-        depthImageViewInfo.components.g = VK_COMPONENT_SWIZZLE_G;
-        depthImageViewInfo.components.b = VK_COMPONENT_SWIZZLE_B;
-        depthImageViewInfo.components.a = VK_COMPONENT_SWIZZLE_A;
-        depthImageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-        depthImageViewInfo.subresourceRange.baseMipLevel = 0;
-        depthImageViewInfo.subresourceRange.levelCount = 1;
-        depthImageViewInfo.subresourceRange.baseArrayLayer = 0;
-        depthImageViewInfo.subresourceRange.layerCount = 1;
-        depthImageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        AssertSuccess(vkCreateImageView(vulkan.device, &depthImageViewInfo, 0, &vulkan.depthImageView));
-    }*/
-    
-    
     if(!CreatePipeline())
     {
         Assert("Could not create pipeline");
@@ -899,6 +837,103 @@ ClearFrameBuffers()
             }
         }
     }
+}
+
+function void Vulkan::
+ClearImage(vulkan_image &img)
+{
+    if(VulkanIsValidHandle(vulkan.device))
+    {
+        vkDeviceWaitIdle(vulkan.device);
+        if(VulkanIsValidHandle(img.view))
+            vkDestroyImageView(vulkan.device, img.view, 0);
+        if(VulkanIsValidHandle(img.handle))
+            vkDestroyImage(vulkan.device, img.handle, 0);
+        if(VulkanIsValidHandle(img.memoryHandle))
+            vkFreeMemory(vulkan.device, img.memoryHandle, 0);
+    }
+}
+function bool Vulkan::
+CreateImage(VkImageType type, VkFormat format, VkExtent3D extent, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memoryProperties, VkImageAspectFlags aspectMask, vulkan_image &imageOut)
+{
+    // TODO(heyyod): ClearImage();
+    
+    // NOTE(heyyod): This is a way to find a good format that is supported an proper for what we want
+    /*
+    VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) 
+    {
+    for (VkFormat format : candidates)
+    {
+    VkFormatProperties props;
+    vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &props);
+    
+    if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features)
+    {
+    return format;
+    }
+    else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features)
+    {
+    return format;
+                }
+            }
+        }
+    */
+    
+    VkImageCreateInfo imageInfo = {};
+    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageInfo.imageType = type;
+    imageInfo.format = format;
+    imageInfo.extent = extent;
+    imageInfo.mipLevels = 1;
+    imageInfo.arrayLayers = 1;
+    imageInfo.samples = NUM_SAMPLES;
+    imageInfo.tiling = tiling;
+    imageInfo.usage = usage;
+    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    AssertSuccess(vkCreateImage(vulkan.device, &imageInfo, 0, &imageOut.handle));
+    
+    VkMemoryRequirements memoryReq= {};
+    u32 memIndex = 0;
+    vkGetImageMemoryRequirements(vulkan.device, imageOut.handle, &memoryReq);
+    if(Vulkan::FindMemoryProperties(memoryReq.memoryTypeBits, memoryProperties, memIndex))
+    {
+        VkMemoryAllocateInfo allocInfo = {};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memoryReq.size;
+        allocInfo.memoryTypeIndex = memIndex;
+        
+        AssertSuccess(vkAllocateMemory(vulkan.device, &allocInfo, 0, &imageOut.memoryHandle));
+        AssertSuccess(vkBindImageMemory(vulkan.device, imageOut.handle, imageOut.memoryHandle, 0));
+    }
+    else
+    {
+        Assert(0);
+        return false;
+    }
+    
+    VkImageViewCreateInfo imageViewInfo = {};
+    imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    imageViewInfo.image = imageOut.handle;
+    imageViewInfo.format = format;
+    
+    if (imageInfo.imageType == VK_IMAGE_TYPE_1D)
+        imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_1D;
+    else if (imageInfo.imageType == VK_IMAGE_TYPE_2D)
+        imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    if (imageInfo.imageType == VK_IMAGE_TYPE_3D)
+        imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_3D;
+    
+    imageViewInfo.components = {
+        VK_COMPONENT_SWIZZLE_IDENTITY,
+        VK_COMPONENT_SWIZZLE_IDENTITY,
+        VK_COMPONENT_SWIZZLE_IDENTITY,
+        VK_COMPONENT_SWIZZLE_IDENTITY};
+    imageViewInfo.subresourceRange = {aspectMask, 0, 1, 0, 1};
+    AssertSuccess(vkCreateImageView(vulkan.device, &imageViewInfo, 0, &imageOut.view));
+    
+    return true;
 }
 
 function bool Vulkan::
@@ -1064,6 +1099,13 @@ CreateSwapchain()
         }
     }
     DebugPrint("Created SwapChain\n");
+    
+    // NOTE: Create a depth buffer
+    {
+        CreateImage(VK_IMAGE_TYPE_2D, VK_FORMAT_D32_SFLOAT,
+                    {vulkan.windowExtent.width, vulkan.windowExtent.height, 1},
+                    VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, vulkan.depth);
+    }
     vulkan.canRender = true;
     
     return true;
@@ -1114,7 +1156,7 @@ CreatePipeline()
 {
     ClearPipeline();
     
-    // NOTE(heyyod): Update the descriptor set for the uniform buffer
+    // NOTE(heyyod): Update the descriptor set for the uniform buffer in the vertex shader
     VkDescriptorBufferInfo descMvpInfo = {};
     descMvpInfo.offset = 0;
     descMvpInfo.range = sizeof(model_view_proj); // VK_WHOLE_SIZE
@@ -1201,26 +1243,11 @@ CreatePipeline()
     
     //-
     
-    /* NOTE(heyyod): We can make these dynamic and update them with vkCmd commands 
-        VkViewport viewport = {};
-        viewport.x = 0.0f;
-        viewport.y = 0.0f;
-        viewport.width = (f32) vulkan.windowExtent.width;
-        viewport.height = (f32) vulkan.windowExtent.height;
-        viewport.minDepth = 0.0f;
-        viewport.maxDepth = 1.0f;
-        
-        VkRect2D scissor = {};
-        scissor.offset = {0, 0};
-        scissor.extent = vulkan.windowExtent;
-         */
-    
+    //NOTE(heyyod): Viewport and scissor are  dynamic and update them with vkCmd commands 
     VkPipelineViewportStateCreateInfo viewportInfo = {};
     viewportInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     viewportInfo.viewportCount = 1;
-    //viewportInfo.pViewports = &viewport;
     viewportInfo.scissorCount = 1;
-    //viewportInfo.pScissors = &scissor;
     
     //-
     
@@ -1285,13 +1312,19 @@ CreatePipeline()
     dynamicStateInfo.pDynamicStates = dynamicStates;
     
     //-
+    /* 
+        VkPushConstantRange pushConstants[1] = {};;
+        pushConstants[0].offset = 0;
+        pushConstants[0].size = sizeof(model_view_proj);
+        pushConstants[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+         */
     
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
     pipelineLayoutInfo.pSetLayouts = &vulkan.descSetLayout;
-    //pipelineLayoutInfo.pushConstantRangeCount = 0;
-    //pipelineLayoutInfo.pPushConstantRanges = nullptr;
+    //pipelineLayoutInfo.pushConstantRangeCount = ArrayCount(pushConstants);
+    //pipelineLayoutInfo.pPushConstantRanges = pushConstants;
     AssertSuccess(vkCreatePipelineLayout(vulkan.device, &pipelineLayoutInfo, 0, &vulkan.pipelineLayout));
     
     VkGraphicsPipelineCreateInfo pipelineInfo{};
@@ -1406,18 +1439,13 @@ Destroy()
         if(VulkanIsValidHandle(vulkan.textureSampler))
             vkDestroySampler(vulkan.device, vulkan.textureSampler, 0);
         
-        if(VulkanIsValidHandle(vulkan.textureView))
-            vkDestroyImageView(vulkan.device, vulkan.textureView, 0);
-        if(VulkanIsValidHandle(vulkan.texture))
-            vkDestroyImage(vulkan.device, vulkan.texture, 0);
-        if(VulkanIsValidHandle(vulkan.textureMemory))
-            vkFreeMemory(vulkan.device, vulkan.textureMemory, 0);
+        ClearImage(vulkan.texture);
+        ClearImage(vulkan.depth);
         
         ClearPipeline();
         
         if(VulkanIsValidHandle(vulkan.descSetLayout))
             vkDestroyDescriptorSetLayout(vulkan.device, vulkan.descSetLayout, 0);
-        
         
         for(u32 i = 0; i < ArrayCount(vulkan.mvp); i++)
             ClearBuffer(vulkan.mvp[i]);
@@ -1556,47 +1584,8 @@ PushStaged(staged_resources &staged)
                 pushedImage = true;
                 image *img = (image *)staged.resources[resourceId];
                 
-                VkImageCreateInfo imageInfo = {};
-                imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-                imageInfo.imageType = VK_IMAGE_TYPE_2D;
-                imageInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
-                imageInfo.extent = {img->width, img->height, 1};
-                imageInfo.mipLevels = 1;
-                imageInfo.arrayLayers = 1;
-                imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-                imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-                imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-                imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-                imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-                AssertSuccess(vkCreateImage(vulkan.device, &imageInfo, 0, &vulkan.texture));
-                
-                VkMemoryRequirements memoryReq= {};
-                vkGetImageMemoryRequirements(vulkan.device, vulkan.texture, &memoryReq);
-                
-                u32 memIndex = 0;
-                if(Vulkan::FindMemoryProperties(memoryReq.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memIndex))
-                {
-                    VkMemoryAllocateInfo allocInfo = {};
-                    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-                    allocInfo.allocationSize = memoryReq.size;
-                    allocInfo.memoryTypeIndex = memIndex;
-                    
-                    AssertSuccess(vkAllocateMemory(vulkan.device, &allocInfo, 0, &vulkan.textureMemory));
-                    AssertSuccess(vkBindImageMemory(vulkan.device, vulkan.texture, vulkan.textureMemory, 0));
-                }
-                
-                VkImageViewCreateInfo imageViewInfo = {};
-                imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-                imageViewInfo.image = vulkan.texture;
-                imageViewInfo.viewType= VK_IMAGE_VIEW_TYPE_2D;
-                imageViewInfo.format = imageInfo.format; //VK_FORMAT_R8G8B8A8_UNORM;
-                imageViewInfo.components = {
-                    VK_COMPONENT_SWIZZLE_IDENTITY,
-                    VK_COMPONENT_SWIZZLE_IDENTITY,
-                    VK_COMPONENT_SWIZZLE_IDENTITY,
-                    VK_COMPONENT_SWIZZLE_IDENTITY};
-                imageViewInfo.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-                AssertSuccess(vkCreateImageView(vulkan.device, &imageViewInfo, 0, &vulkan.textureView));
+                if (!CreateImage(VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, {img->width, img->height, 1}, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, vulkan.texture))
+                    return false;
                 
                 // NOTE(heyyod): We need to write into the image from the stage buffer.
                 // So we change the layout.
@@ -1606,13 +1595,10 @@ PushStaged(staged_resources &staged)
                 undefinedToTransfer.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
                 undefinedToTransfer.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
                 undefinedToTransfer.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-                undefinedToTransfer.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-                undefinedToTransfer.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-                undefinedToTransfer.image = vulkan.texture;
+                undefinedToTransfer.image = vulkan.texture.handle;
                 undefinedToTransfer.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
                 vkCmdPipelineBarrier(res->cmdBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0,
                                      1, &undefinedToTransfer);
-                
                 
                 VkBufferImageCopy bufferToImageCopy = {};
                 bufferToImageCopy.bufferOffset = staged.offsets[resourceId];
@@ -1621,7 +1607,7 @@ PushStaged(staged_resources &staged)
                 bufferToImageCopy.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}; //aspectMask, mipLevel, baseArrayLayer, layerCount
                 bufferToImageCopy.imageOffset = {0, 0, 0};
                 bufferToImageCopy.imageExtent = {img->width, img->height, 1};
-                vkCmdCopyBufferToImage(res->cmdBuffer, vulkan.stagingBuffer.handle, vulkan.texture, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &bufferToImageCopy);
+                vkCmdCopyBufferToImage(res->cmdBuffer, vulkan.stagingBuffer.handle, vulkan.texture.handle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &bufferToImageCopy);
                 
                 // NOTE(heyyod): Since it will be used in shaders we again need to change the layout
                 VkImageMemoryBarrier transferToShader = {};
@@ -1630,9 +1616,7 @@ PushStaged(staged_resources &staged)
                 transferToShader.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
                 transferToShader.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
                 transferToShader.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-                transferToShader.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-                transferToShader.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-                transferToShader.image = vulkan.texture;
+                transferToShader.image = vulkan.texture.handle;
                 transferToShader.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
                 vkCmdPipelineBarrier(res->cmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0,
                                      1, &transferToShader);
@@ -1640,7 +1624,7 @@ PushStaged(staged_resources &staged)
                 // NOTE(heyyod): Update the descriptor set
                 VkDescriptorImageInfo descImageInfo = {};
                 descImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-                descImageInfo.imageView = vulkan.textureView;
+                descImageInfo.imageView = vulkan.texture.view;
                 descImageInfo.sampler = vulkan.textureSampler;
                 
                 VkWriteDescriptorSet descWriteSet = {};
@@ -1689,10 +1673,6 @@ PushStaged(staged_resources &staged)
         bufferBarriers[1].size = vulkan.indexBufferWriteOffset - indexBufferStartOffset;
         
         vkCmdPipelineBarrier(res->cmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, 0, ArrayCount(bufferBarriers), bufferBarriers, 0, 0);
-    }
-    if(pushedImage)
-    {
-        CreatePipeline();
     }
     
     AssertSuccess(vkEndCommandBuffer(res->cmdBuffer));
@@ -1763,15 +1743,11 @@ Draw(update_data *data)
         renderpassInfo.framebuffer = res->framebuffer;
         
         local_var VkViewport viewport = {};
-        //viewport.x = 0.0f;
-        //viewport.y = 0.0f;
         viewport.width = (f32) vulkan.windowExtent.width;
         viewport.height = (f32) vulkan.windowExtent.height;
-        //viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
         
         local_var VkRect2D scissor = {};
-        //scissor.offset = {0, 0};
         scissor.extent = vulkan.windowExtent;
         
         local_var VkDeviceSize bufferOffset = 0;

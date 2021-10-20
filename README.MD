@@ -21,7 +21,7 @@
   
   * Texture!
   
-    ![](previews/6_201021.gif)
+  ![](previews/6_201021.gif)
   
 * 17/10/21:
   

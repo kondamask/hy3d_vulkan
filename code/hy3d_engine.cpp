@@ -35,8 +35,8 @@ StageResource(const char *filepath, RESOURCE_TYPE type, staged_resources &staged
         {
             // NOTE(heyyod): JUST A TEST FOR NOW
             mesh *m = (mesh *)stagedResources.nextWriteAddr;
-            m->nVertices = 4;
-            m->nIndices = 6;
+            m->nVertices = 8 * 2;
+            m->nIndices = 6 *2;
             m->vertices = MESH_PTR_VERTICES_START_ADDR(m);
             m->indices = MESH_PTR_INDICES_START_ADDR(m);
             m->indices[0] = 0;
@@ -45,6 +45,13 @@ StageResource(const char *filepath, RESOURCE_TYPE type, staged_resources &staged
             m->indices[3] = 2;
             m->indices[4] = 3;
             m->indices[5] = 0;
+            
+            m->indices[0 + 6] = 0 + 4;
+            m->indices[1 + 6] = 1 + 4;
+            m->indices[2 + 6] = 2 + 4;
+            m->indices[3 + 6] = 2 + 4;
+            m->indices[4 + 6] = 3 + 4;
+            m->indices[5 + 6] = 0 + 4;
             stagedResources.offsets[stagedResources.count] = OffsetInStageBuffer(m);
             // (u8*)m - (u8*)stagedResources.resources[0] + sizeof(mesh);
             bytesStaged = MESH_PTR_TOTAL_SIZE(m);
@@ -53,6 +60,11 @@ StageResource(const char *filepath, RESOURCE_TYPE type, staged_resources &staged
             m->vertices[1] = {{1.0f, -1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f}};
             m->vertices[2] = {{1.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}};
             m->vertices[3] = {{-1.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}};
+            
+            m->vertices[0 + 4] = {{-1.0f, -1.0f, 1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}};
+            m->vertices[1 + 4] = {{1.0f, -1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f}};
+            m->vertices[2 + 4] = {{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}};
+            m->vertices[3 + 4] = {{-1.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}};
         }break;
         
         case RESOURCE_TEXTURE:

@@ -95,7 +95,7 @@ struct engine_memory
     
     void *stagingMemory;
     void *nextStagingAddr;
-    
+
     // NOTE(heyyod): uniform buffer allocated from vulkan.
     // Linked in os layer for now.
     model_view_proj *mvp;

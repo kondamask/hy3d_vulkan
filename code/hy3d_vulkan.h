@@ -48,6 +48,13 @@ struct vulkan_buffer
     u64 size;
 };
 
+struct vulkan_image
+{
+    VkImage handle;
+    VkDeviceMemory memoryHandle;
+    VkImageView view;
+};
+
 struct vulkan_saved_meshes
 {
     u32 nVertices;
@@ -94,12 +101,8 @@ struct vulkan_engine
     VkPipelineLayout pipelineLayout;
     VkPipeline pipeline;
     
-    /*     
-        VkFormat depthFormat;
-        VkImage depthImage;
-        VkImageView depthImageView;
-        VkDeviceMemory depthMemory;
-        */
+    
+    vulkan_image depth;
     
     // NOTE(heyyod): cpu accessible
     vulkan_buffer stagingBuffer;
@@ -113,9 +116,7 @@ struct vulkan_engine
     vulkan_saved_meshes savedMeshes[MAX_MESHES];
     u32 savedMeshesCount;
     
-    VkImage texture;
-    VkDeviceMemory textureMemory;
-    VkImageView textureView;
+    vulkan_image texture;
     
     bool canRender;
     
@@ -146,9 +147,11 @@ namespace Vulkan
     function bool CreateSwapchain();
     function bool CreatePipeline();
     function bool CreateBuffer(VkBufferUsageFlags usage, VkDeviceSize size, VkMemoryPropertyFlags properties, vulkan_buffer &buffer, bool mapBuffer = false);
-    function bool CreateDescriptorSets();
+    function bool CreateImage(VkImageType type, VkFormat format, VkExtent3D extent, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memoryProperties, VkImageAspectFlags aspectMask, vulkan_image &imageOut);
     
     function void ClearFrameBuffers();
+    
+    function void ClearImage(vulkan_image &img);
     function void ClearSwapchainImages();
     function void ClearPipeline();
     function void ClearBuffer(vulkan_buffer buffer);
@@ -305,5 +308,6 @@ VulkanDeclareFunction(vkCmdSetScissor);
 VulkanDeclareFunction(vkCmdCopyBuffer);
 VulkanDeclareFunction(vkCmdBindDescriptorSets);
 VulkanDeclareFunction(vkCmdCopyBufferToImage);
+VulkanDeclareFunction(vkCmdPushConstants);
 
 #endif
