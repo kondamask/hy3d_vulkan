@@ -586,7 +586,7 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         //The following structures are, in general, parallel arrays that describe a subpass.
         //Here we only have one subpass for now.
         
-        //We need to create an attachement
+        // NOTE(heyyod): Specify the attachments
         VkAttachmentDescription colorAttachment = {};
         colorAttachment.flags = 0;
         colorAttachment.format = vulkan.surfaceFormat.format;
@@ -597,54 +597,78 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-        
         VkAttachmentReference colorAttachementRef = {};
         colorAttachementRef.attachment = 0;
         colorAttachementRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         
-        VkSubpassDescription subpassDescriptions = {};
-        //subpassDescriptions.flags = 0;
-        subpassDescriptions.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-        //subpassDescriptions.inputAttachmentCount = 0;
-        //subpassDescriptions.pInputAttachments = 0;
+        VkAttachmentDescription depthAttachment = {};
+        depthAttachment.format = DEPTH_BUFFER_FORMAT;
+        depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        VkAttachmentReference depthAttachmentRef = {};
+        depthAttachmentRef.attachment = 1;
+        depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        
+        VkAttachmentDescription attachments[] = {colorAttachment, depthAttachment};
+        
+        // NOTE(heyyod): Specify the subpasses
+        VkSubpassDescription subpass = {};
+        //subpass.flags = 0;
+        subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        //subpass.inputAttachmentCount = 0;
+        //subpass.pInputAttachments = 0;
         
         // NOTE(heyyod): The index of the color attachment in this array is directly 
         //referenced from the fragment shader with the layout(location = 0) out vec4 outColor directive!
-        subpassDescriptions.colorAttachmentCount = 1; // ArrayCount(colorAttachementRef)
-        subpassDescriptions.pColorAttachments = &colorAttachementRef;
+        subpass.colorAttachmentCount = 1; // ArrayCount(colorAttachementRef)
+        subpass.pColorAttachments = &colorAttachementRef;
         
-        //subpassDescriptions.pResolveAttachments = 0;
-        //subpassDescriptions.pDepthStencilAttachment = 0;
-        //subpassDescriptions.preserveAttachmentCount = 0;
-        //subpassDescriptions.pPreserveAttachments = 0;
+        //subpass.pResolveAttachments = 0;
+        subpass.pDepthStencilAttachment = &depthAttachmentRef;
+        //subpass.preserveAttachmentCount = 0;
+        //subpass.pPreserveAttachments = 0;
         
-        VkSubpassDependency renderpassDependencies[2] = {};;
-        renderpassDependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
-        renderpassDependencies[0].dstSubpass = 0;
-        renderpassDependencies[0].srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-        renderpassDependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        renderpassDependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-        renderpassDependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        renderpassDependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+        VkSubpassDependency dependency = {};
+        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+        dependency.dstSubpass = 0;
+        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        dependency.srcAccessMask = 0;
+        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
         
-        renderpassDependencies[1].srcSubpass = 0;
-        renderpassDependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
-        renderpassDependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        renderpassDependencies[1].dstStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-        renderpassDependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        renderpassDependencies[1].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-        renderpassDependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-        
-        
+        /* 
+                // NOTE(heyyod): Specify the dependences
+                VkSubpassDependency renderpassDependencies[2] = {};;
+                renderpassDependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+                renderpassDependencies[0].dstSubpass = 0;
+                renderpassDependencies[0].srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+                renderpassDependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+                renderpassDependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+                renderpassDependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+                renderpassDependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+                
+                renderpassDependencies[1].srcSubpass = 0;
+                renderpassDependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+                renderpassDependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+                renderpassDependencies[1].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+                renderpassDependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+                renderpassDependencies[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+                renderpassDependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+                 */
         
         VkRenderPassCreateInfo renderPassInfo = {};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-        renderPassInfo.attachmentCount = 1;
-        renderPassInfo.pAttachments = &colorAttachment;
+        renderPassInfo.attachmentCount = ArrayCount(attachments);
+        renderPassInfo.pAttachments = attachments;
         renderPassInfo.subpassCount = 1;
-        renderPassInfo.pSubpasses = &subpassDescriptions;
-        renderPassInfo.dependencyCount = ArrayCount(renderpassDependencies);
-        renderPassInfo.pDependencies = renderpassDependencies;
+        renderPassInfo.pSubpasses = &subpass;
+        renderPassInfo.dependencyCount = 1; //ArrayCount(renderpassDependencies);
+        renderPassInfo.pDependencies = &dependency;
         AssertSuccess(vkCreateRenderPass(vulkan.device, &renderPassInfo, 0, &vulkan.renderPass));
         DebugPrint("Created a renderpass\n");
     }
@@ -828,11 +852,23 @@ ClearFrameBuffers()
     if (VulkanIsValidHandle(vulkan.device))
     {
         vkDeviceWaitIdle(vulkan.device);
-        for (u32 i = 0; i < NUM_RESOURCES; i++)
+        /* 
+                for (u32 i = 0; i < NUM_RESOURCES; i++)
+                {
+                    if(VulkanIsValidHandle(vulkan.resources[i].framebuffer))
+                    {
+                        vkDestroyFramebuffer(vulkan.device, vulkan.resources[i].framebuffer, 0);
+                        DebugPrint("Cleared FrameBuffer\n");
+                    }
+                }
+         */
+        
+        for (u32 i = 0; i < NUM_SWAPCHAIN_IMAGES; i++)
         {
-            if(VulkanIsValidHandle(vulkan.resources[i].framebuffer))
+            if(VulkanIsValidHandle(vulkan.framebuffers[i]))
             {
-                vkDestroyFramebuffer(vulkan.device, vulkan.resources[i].framebuffer, 0);
+                vkDestroyFramebuffer(vulkan.device, vulkan.framebuffers[i], 0);
+                vulkan.framebuffers[i] = VK_NULL_HANDLE;
                 DebugPrint("Cleared FrameBuffer\n");
             }
         }
@@ -1101,11 +1137,27 @@ CreateSwapchain()
     DebugPrint("Created SwapChain\n");
     
     // NOTE: Create a depth buffer
+    if (!CreateImage(VK_IMAGE_TYPE_2D, DEPTH_BUFFER_FORMAT,
+                     {vulkan.windowExtent.width, vulkan.windowExtent.height, 1},
+                     VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, vulkan.depth))
+        return false;
+    
+    // NOTE(heyyod): Create the framebuffers
+    ClearFrameBuffers();
+    local_var VkFramebufferCreateInfo framebufferInfo = {};
+    framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    framebufferInfo.renderPass = vulkan.renderPass;
+    framebufferInfo.width = vulkan.windowExtent.width;
+    framebufferInfo.height = vulkan.windowExtent.height;
+    framebufferInfo.layers = 1;
+    for (u32 i = 0; i < NUM_SWAPCHAIN_IMAGES; i++)
     {
-        CreateImage(VK_IMAGE_TYPE_2D, VK_FORMAT_D32_SFLOAT,
-                    {vulkan.windowExtent.width, vulkan.windowExtent.height, 1},
-                    VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, vulkan.depth);
+        VkImageView attachments[] = {vulkan.swapchainImageViews[i], vulkan.depth.view};
+        framebufferInfo.pAttachments = attachments;
+        framebufferInfo.attachmentCount = ArrayCount(attachments);
+        AssertSuccess(vkCreateFramebuffer(vulkan.device, &framebufferInfo, 0, &vulkan.framebuffers[i]));
     }
+    
     vulkan.canRender = true;
     
     return true;
@@ -1233,24 +1285,26 @@ CreatePipeline()
         vertShaderStageInfo,
         fragShaderStageInfo
     };
-    
     //-
-    
+    // NOTE(heyyod): 128bytes limit (at least on my device)
+    /* 
+            VkPushConstantRange pushConstants[1] = {};;
+            pushConstants[0].offset = 0;
+            pushConstants[0].size = sizeof(model_view_proj);
+            pushConstants[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+             */
+    //-
     VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo{};
     inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
     inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
-    
     //-
-    
     //NOTE(heyyod): Viewport and scissor are  dynamic and update them with vkCmd commands 
     VkPipelineViewportStateCreateInfo viewportInfo = {};
     viewportInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     viewportInfo.viewportCount = 1;
     viewportInfo.scissorCount = 1;
-    
     //-
-    
     VkPipelineRasterizationStateCreateInfo rasterizerInfo = {};
     rasterizerInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     //rasterizerInfo.depthClampEnable = VK_FALSE;
@@ -1263,9 +1317,7 @@ CreatePipeline()
     //rasterizerInfo.depthBiasConstantFactor = 0.0f; // Optional
     //rasterizerInfo.depthBiasClamp = 0.0f; // Optional
     //rasterizerInfo.depthBiasSlopeFactor = 0.0f; // Optional
-    
     //-
-    
     VkPipelineMultisampleStateCreateInfo multisamplingInfo = {};
     multisamplingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     //multisamplingInfo.sampleShadingEnable = VK_FALSE;
@@ -1274,7 +1326,18 @@ CreatePipeline()
     //multisamplingInfo.pSampleMask = nullptr; // Optional
     //multisamplingInfo.alphaToCoverageEnable = VK_FALSE; // Optional
     //multisamplingInfo.alphaToOneEnable = VK_FALSE; // Optional
-    
+    //-
+    VkPipelineDepthStencilStateCreateInfo depthStencil = {};
+    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencil.depthTestEnable = VK_TRUE;
+    depthStencil.depthWriteEnable = VK_TRUE;
+    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+    depthStencil.depthBoundsTestEnable = VK_FALSE;
+    //depthStencil.minDepthBounds = 0.0f; // Optional
+    //depthStencil.maxDepthBounds = 1.0f; // Optional
+    //depthStencil.stencilTestEnable = VK_FALSE;
+    //depthStencil.front = {}; // Optional
+    //depthStencil.back = {}; // Optional
     //-
     
     VkPipelineColorBlendAttachmentState blendAttachment = {};
@@ -1297,28 +1360,17 @@ CreatePipeline()
     //blendingInfo.blendConstants[1] = 0.0f; // Optional
     //blendingInfo.blendConstants[2] = 0.0f; // Optional
     //blendingInfo.blendConstants[3] = 0.0f; // Optional
-    
     //-
-    
     VkDynamicState dynamicStates[] = {
         VK_DYNAMIC_STATE_VIEWPORT,
         VK_DYNAMIC_STATE_SCISSOR,
         //VK_DYNAMIC_STATE_LINE_WIDTH
     };
-    
     VkPipelineDynamicStateCreateInfo dynamicStateInfo = {};
     dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
     dynamicStateInfo.dynamicStateCount = ArrayCount(dynamicStates);
     dynamicStateInfo.pDynamicStates = dynamicStates;
-    
     //-
-    /* 
-        VkPushConstantRange pushConstants[1] = {};;
-        pushConstants[0].offset = 0;
-        pushConstants[0].size = sizeof(model_view_proj);
-        pushConstants[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-         */
-    
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
@@ -1336,7 +1388,7 @@ CreatePipeline()
     pipelineInfo.pViewportState = &viewportInfo;
     pipelineInfo.pRasterizationState = &rasterizerInfo;
     pipelineInfo.pMultisampleState = &multisamplingInfo;
-    //pipelineInfo.pDepthStencilState = nullptr; // Optional
+    pipelineInfo.pDepthStencilState = &depthStencil; 
     pipelineInfo.pColorBlendState = &blendingInfo;
     pipelineInfo.pDynamicState = &dynamicStateInfo; // Optional
     pipelineInfo.layout = vulkan.pipelineLayout;
@@ -1757,35 +1809,41 @@ Draw(update_data *data)
     
     // NOTE(heyyod): Prepare the frame using the selected resources
     {
-        local_var VkFramebufferCreateInfo framebufferInfo = {};
-        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        framebufferInfo.renderPass = vulkan.renderPass;
-        framebufferInfo.attachmentCount = 1;
-        framebufferInfo.width = vulkan.windowExtent.width;
-        framebufferInfo.height = vulkan.windowExtent.height;
-        framebufferInfo.layers = 1;
-        framebufferInfo.pAttachments = &vulkan.swapchainImageViews[nextImage];
-        if(VulkanIsValidHandle(res->framebuffer))
-        {
-            vkDestroyFramebuffer(vulkan.device, res->framebuffer, 0);
-            res->framebuffer = VK_NULL_HANDLE;
-        }
-        AssertSuccess(vkCreateFramebuffer(vulkan.device, &framebufferInfo, 0, &res->framebuffer));
+        /* 
+                VkImageView attachments[] = {vulkan.swapchainImageViews[nextImage], vulkan.depth.view};
+                    local_var VkFramebufferCreateInfo framebufferInfo = {};
+                    framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+                    framebufferInfo.renderPass = vulkan.renderPass;
+                    framebufferInfo.width = vulkan.windowExtent.width;
+                    framebufferInfo.height = vulkan.windowExtent.height;
+                    framebufferInfo.layers = 1;
+                    framebufferInfo.attachmentCount = 1;
+                    framebufferInfo.pAttachments = &vulkan.swapchainImageViews[nextImage];
+                    if(VulkanIsValidHandle(res->framebuffer))
+                    {
+                        vkDestroyFramebuffer(vulkan.device, res->framebuffer, 0);
+                        res->framebuffer = VK_NULL_HANDLE;
+                    }
+                    AssertSuccess(vkCreateFramebuffer(vulkan.device, &framebufferInfo, 0, &res->framebuffer));
+                    */
         
         local_var VkCommandBufferBeginInfo commandBufferBeginInfo = {};
         commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
         
-        local_var VkClearValue clearValue = {};
-        clearValue.color = VulkanClearColor(data->clearColor[0], data->clearColor[1], data->clearColor[2], 0.0f);
+        // NOTE(heyyod): THE ORDER OF THESE VALUES MUST BE IDENTICAL
+        // TO THE ORDER WE SPECIFIED THE RENDERPASS ATTACHMENTS
+        local_var VkClearValue clearValues[2] = {}; // NOTE(heyyod): this is a union
+        clearValues[0].color = VulkanClearColor(data->clearColor[0], data->clearColor[1], data->clearColor[2], 0.0f);
+        clearValues[1].depthStencil = {1.0f, 0};
         
         local_var VkRenderPassBeginInfo renderpassInfo = {};
         renderpassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         renderpassInfo.renderPass = vulkan.renderPass;
         renderpassInfo.renderArea.extent = vulkan.windowExtent;
-        renderpassInfo.clearValueCount = 1;
-        renderpassInfo.pClearValues = &clearValue;
-        renderpassInfo.framebuffer = res->framebuffer;
+        renderpassInfo.clearValueCount = ArrayCount(clearValues);
+        renderpassInfo.pClearValues = clearValues;
+        renderpassInfo.framebuffer = vulkan.framebuffers[nextImage];
         
         local_var VkViewport viewport = {};
         viewport.width = (f32) vulkan.windowExtent.width;

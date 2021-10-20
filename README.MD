@@ -15,13 +15,20 @@
 * the internet
 
 ## Progress (most recent first):
-* 20/10/21:
+* 19/10/21:
+  
+  * Depth Buffer
+  
+  
+  ![](previews/7_201021.gif)
+  
+* 19/10/21:
   
   * Stage multiple resources and push the into memory in a batch
   
   * Texture!
   
-  ![](previews/6_201021.gif)
+  ![](previews/6_191021.gif)
   
 * 17/10/21:
   

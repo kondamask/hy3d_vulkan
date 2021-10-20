@@ -15,6 +15,7 @@
 #define SHADER_CODE_BUFFER_SIZE 4096
 #define SURFACE_FORMAT_COLOR_SPACE VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
 #define SURFACE_FORMAT_FORMAT VK_FORMAT_B8G8R8A8_UNORM
+#define DEPTH_BUFFER_FORMAT VK_FORMAT_D32_SFLOAT
 
 // NOTE(heyyod): THIS IS IMPORTANT! INDICES WE USE TO ACCESS THE UBs
 // ARE DEPENDING ON THE CURRENT AQUIRED IMAGE IN THE DRAW LOOP
@@ -37,7 +38,7 @@ struct frame_prep_resource
     VkSemaphore imgAvailableSem;
     VkSemaphore frameReadySem;
     VkFence fence;
-    VkFramebuffer framebuffer;
+    //VkFramebuffer framebuffer;
 };
 
 struct vulkan_buffer
@@ -87,6 +88,7 @@ struct vulkan_engine
     VkRenderPass renderPass;
     VkImage swapchainImages[NUM_SWAPCHAIN_IMAGES];
     VkImageView swapchainImageViews[NUM_SWAPCHAIN_IMAGES];
+    VkFramebuffer framebuffers[NUM_SWAPCHAIN_IMAGES];
     frame_prep_resource resources[NUM_RESOURCES];
     u32 swapchainImageCount;
     u32 currentResource;
@@ -100,7 +102,6 @@ struct vulkan_engine
     
     VkPipelineLayout pipelineLayout;
     VkPipeline pipeline;
-    
     
     vulkan_image depth;
     

@@ -95,7 +95,7 @@ struct engine_memory
     
     void *stagingMemory;
     void *nextStagingAddr;
-
+    
     // NOTE(heyyod): uniform buffer allocated from vulkan.
     // Linked in os layer for now.
     model_view_proj *mvp;
@@ -187,6 +187,8 @@ struct engine_state
     memory_arena memoryArena;
     update_data updateData;
     vec3 camPos;
+    f32 camTheta;
+    f32 radius;
     float clearColorChange[3];
     float time;
 };

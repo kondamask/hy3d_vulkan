@@ -130,7 +130,11 @@ UPDATE_AND_RENDER(UpdateAndRender)
         
         memory->isInitialized = true;
         state->time = 0.0f;
-        state->camPos = {0.0f, 0.0f, -2.0f};
+        state->camPos = {0.0f, 0.0f, -4.0f};
+        state->camTheta = 40.0f;
+        state->radius = 5.0f;
+        state->camPos.X = state->radius * CosF(state->camTheta);
+        state->camPos.Z = state->radius * SinF(state->camTheta);
         e.frameStart = std::chrono::steady_clock::now();
     }
     
@@ -158,16 +162,17 @@ UPDATE_AND_RENDER(UpdateAndRender)
         update.clearColor[i] += state->clearColorChange[i] * dt * 0.1f;
     }
     
-    f32 zChange = 0.0f;
     if (e.input.keyboard.isPressed[KEY_Z])
-    {
-        zChange = dt * 2.0f;
-    }
+        state->radius -= dt;
     if (e.input.keyboard.isPressed[KEY_X])
-    {
-        zChange = - dt * 2.0f;
-    }
-    state->camPos.Z += zChange;
+        state->radius += dt;
+    
+    if (e.input.keyboard.isPressed[KEY_RIGHT])
+        state->camTheta += dt;
+    if (e.input.keyboard.isPressed[KEY_LEFT])
+        state->camTheta -= -dt;
+    state->camPos.X = state->radius * CosF(state->camTheta);
+    state->camPos.Z = state->radius * SinF(state->camTheta);
     
     //vec3 pos = {};
     //pos.X = SinF(2.0f * state->time);
