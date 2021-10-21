@@ -4,7 +4,7 @@
 #include "hy3d_base.h"
 #include "hy3d_image.h"
 #include "hy3d_mesh.h"
-#include "hy3d_handmade_math.h"
+#include "hy3d_math.h"
 
 #include <chrono>
 

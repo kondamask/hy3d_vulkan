@@ -33,50 +33,20 @@ StageResource(const char *filepath, RESOURCE_TYPE type, staged_resources &staged
     {
         case RESOURCE_MESH:
         {
-            // NOTE(heyyod): JUST A TEST FOR NOW
             mesh *m = (mesh *)stagedResources.nextWriteAddr;
-            m->nVertices = 8 * 2;
-            m->nIndices = 6 *2;
-            m->vertices = MESH_PTR_VERTICES_START_ADDR(m);
-            m->indices = MESH_PTR_INDICES_START_ADDR(m);
-            m->indices[0] = 0;
-            m->indices[1] = 1;
-            m->indices[2] = 2;
-            m->indices[3] = 2;
-            m->indices[4] = 3;
-            m->indices[5] = 0;
-            
-            m->indices[0 + 6] = 0 + 4;
-            m->indices[1 + 6] = 1 + 4;
-            m->indices[2 + 6] = 2 + 4;
-            m->indices[3 + 6] = 2 + 4;
-            m->indices[4 + 6] = 3 + 4;
-            m->indices[5 + 6] = 0 + 4;
+            if (!LoadOBJ(filepath, m))
+                return false;
             stagedResources.offsets[stagedResources.count] = OffsetInStageBuffer(m);
-            // (u8*)m - (u8*)stagedResources.resources[0] + sizeof(mesh);
             bytesStaged = MESH_PTR_TOTAL_SIZE(m);
-            
-            m->vertices[0] = {{-1.0f, -1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}};
-            m->vertices[1] = {{1.0f, -1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f}};
-            m->vertices[2] = {{1.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}};
-            m->vertices[3] = {{-1.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}};
-            
-            m->vertices[0 + 4] = {{-1.0f, -1.0f, 1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}};
-            m->vertices[1 + 4] = {{1.0f, -1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f}};
-            m->vertices[2 + 4] = {{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}};
-            m->vertices[3 + 4] = {{-1.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}};
         }break;
         
         case RESOURCE_TEXTURE:
         {
             image *img = (image *)stagedResources.nextWriteAddr;
-            img->pixels = (u8 *)img + sizeof(image);
-            
-            if(!LoadImageRGBA(filepath, img))
+            if (!LoadImageRGBA(filepath, img))
                 return false;
-            
             stagedResources.offsets[stagedResources.count] = OffsetInStageBuffer(img); 
-            bytesStaged = IMAGE_PTR_TOTAL_SIZE(img);
+            bytesStaged = IMAGE_TOTAL_SIZE((*img));
         }break;
         
         default:
@@ -118,9 +88,15 @@ UPDATE_AND_RENDER(UpdateAndRender)
         {
             staged_resources resources = {};
             resources.nextWriteAddr = memory->stagingMemory;
-            StageResource("", RESOURCE_MESH, resources);
-            //StageResource("", RESOURCE_MESH, resources);
-            StageResource("../textures/hy3d_plane.bmp", RESOURCE_TEXTURE, resources);
+            StageResource("../models/viking_room.obj", RESOURCE_MESH, resources);
+            StageResource("../textures/viking_room.png", RESOURCE_TEXTURE, resources);
+            /* 
+            StageResource("../models/bunny.obj", RESOURCE_MESH, resources);
+            StageResource("../textures/bunny_tex.bmp", RESOURCE_TEXTURE, resources);
+            StageResource("../models/cube.obj", RESOURCE_MESH, resources);
+            StageResource("../textures/default.png", RESOURCE_TEXTURE, resources);
+                         */
+            
             platformAPI.PushStaged(resources);
         }
         
@@ -130,10 +106,10 @@ UPDATE_AND_RENDER(UpdateAndRender)
         
         memory->isInitialized = true;
         state->time = 0.0f;
-        state->camPos = {0.0f, 0.0f, -4.0f};
-        state->camTheta = 40.0f;
+        state->camTheta = ToRadians(-90.0f);
         state->radius = 5.0f;
         state->camPos.X = state->radius * CosF(state->camTheta);
+        state->camPos.Y = 2.0f;
         state->camPos.Z = state->radius * SinF(state->camTheta);
         e.frameStart = std::chrono::steady_clock::now();
     }
@@ -163,14 +139,15 @@ UPDATE_AND_RENDER(UpdateAndRender)
     }
     
     if (e.input.keyboard.isPressed[KEY_Z])
-        state->radius -= dt;
+        state->radius -= dt * 0.3f;
     if (e.input.keyboard.isPressed[KEY_X])
-        state->radius += dt;
+        state->radius += dt * 0.3f;
     
     if (e.input.keyboard.isPressed[KEY_RIGHT])
-        state->camTheta += dt;
+        state->camTheta += dt * 0.3f;
     if (e.input.keyboard.isPressed[KEY_LEFT])
-        state->camTheta -= -dt;
+        state->camTheta -= dt * 0.3f;
+    
     state->camPos.X = state->radius * CosF(state->camTheta);
     state->camPos.Z = state->radius * SinF(state->camTheta);
     
@@ -179,9 +156,14 @@ UPDATE_AND_RENDER(UpdateAndRender)
     //pos.Z = 6.0f;
     //pos.Y = CosF(state->time);
     
+    //f32 scale = 7.0f;
     memory->mvp->model =
-        Rotate(state->time * 90.0f, Vec3(1.0f, 0.0f, 0.0f)) *
-        Translate({SinF(2.0f * state->time), 0.0f, 0.0f});
+        Rotate(90.0f, Vec3(0.0f, 0.0f, 1.0f)) *
+        Rotate(90.0f, Vec3(0.0f, 1.0f, 0.0f)) *
+        //Translate({SinF(2.0f * state->time), 0.0f, 0.0f});
+        //Scale({scale, scale, scale}) *
+        Translate({0.0f, 0.0f, 0.0f})
+        ;
     memory->mvp->view = LookAt(state->camPos, {0.0f,0.0f,0.0f}, Vec3(0.0f, -1.0f, 0.0f));
     memory->mvp->proj = Perspective(45.0f, e.windowWidth / (f32) e.windowHeight, 0.1f, 10.0f);
     //memory->mvp->proj[1][1] *= -1.0f;

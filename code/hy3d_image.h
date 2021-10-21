@@ -8,8 +8,7 @@
 #include "hy3d_base.h"
 
 // NOTE(heyyod): for RGBA
-#define IMAGE_TOTAL_SIZE(i) i.width * i.height * 4
-#define IMAGE_PTR_TOTAL_SIZE(i) i->width * i->height * 4
+#define IMAGE_TOTAL_SIZE(i) i.width * i.height * 4 + 4
 
 struct image
 {
@@ -28,9 +27,10 @@ function bool LoadImageRGBA(const char *filename, image *imageOut)
         DebugPrint(filename);
         return false;
     }
+    imageOut->pixels = (u8 *)imageOut + sizeof(image);
     imageOut->width = (u32)width;
     imageOut->height = (u32)height;
-    memcpy(imageOut->pixels, pixels, IMAGE_PTR_TOTAL_SIZE(imageOut));
+    memcpy(imageOut->pixels, pixels, IMAGE_TOTAL_SIZE((*imageOut)));
     stbi_image_free(pixels);
     return true;
 }

@@ -15,46 +15,47 @@
 * the internet
 
 ## Progress (most recent first):
+* 21/10/21: 3D Model! (just obj for now)
+
+  <img src="README.assets/8 GIF 10-22-2021 12-47-37 AM.gif" alt="8 GIF 10-22-2021 12-47-37 AM" style="zoom:150%;" />
+
 * 19/10/21:
-  
+
   * Depth Buffer
-  
-  
-  ![](previews/7_201021.gif)
-  
+
+  ![](README.assets/7_201021.gif)
+
 * 19/10/21:
-  
+
   * Stage multiple resources and push the into memory in a batch
-  
   * Texture!
-  
-  ![](previews/6_191021.gif)
-  
+
+![](README.assets/6_191021.gif)
+
 * 17/10/21:
   
   * Push mesh in gpu memory
   * Draw indexed triangles
   * Pass model, view and projection matrices in vertex shader.
-  
-  ![](previews/5_171021.gif)
-  
+
+![](README.assets/5_171021.gif)
+
 * 12/10/21: Drawing a simple vertex buffer that I'm updating.
 
-  ![](previews/4_121021.gif)
+![](README.assets/4_121021.gif)
 
 * 11/10/21: Shader code hotloading!
 
-  ![](previews/3_111021.gif)
+![](README.assets/3_111021.gif)
 
 * 10/10/21: Triangle!
 
-  ![](previews/2_101021.gif)
+![](README.assets/2_101021.gif)
 
 * 06/10/21: Engine code hotloading.
 
-  ![](previews/1_071021.gif)
+![](README.assets/1_071021.gif)
 
 * 06/10/21: Just clearing the window to a color.
 
-  <img src="previews/0_061021.gif" style="zoom:67%;" />
-
+<img src="README.assets/0_061021.gif" alt="0_061021" style="zoom: 67%;" />
