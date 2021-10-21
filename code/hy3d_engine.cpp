@@ -91,10 +91,10 @@ UPDATE_AND_RENDER(UpdateAndRender)
             StageResource("../models/viking_room.obj", RESOURCE_MESH, resources);
             StageResource("../textures/viking_room.png", RESOURCE_TEXTURE, resources);
             /* 
-            StageResource("../models/bunny.obj", RESOURCE_MESH, resources);
-            StageResource("../textures/bunny_tex.bmp", RESOURCE_TEXTURE, resources);
             StageResource("../models/cube.obj", RESOURCE_MESH, resources);
             StageResource("../textures/default.png", RESOURCE_TEXTURE, resources);
+            StageResource("../models/bunny.obj", RESOURCE_MESH, resources);
+            StageResource("../textures/bunny_tex.bmp", RESOURCE_TEXTURE, resources);
                          */
             
             platformAPI.PushStaged(resources);
@@ -138,15 +138,16 @@ UPDATE_AND_RENDER(UpdateAndRender)
         update.clearColor[i] += state->clearColorChange[i] * dt * 0.1f;
     }
     
+    f32 rotSpeed = 0.6f;
     if (e.input.keyboard.isPressed[KEY_Z])
-        state->radius -= dt * 0.3f;
+        state->radius -= dt * rotSpeed;
     if (e.input.keyboard.isPressed[KEY_X])
-        state->radius += dt * 0.3f;
+        state->radius += dt * rotSpeed;
     
     if (e.input.keyboard.isPressed[KEY_RIGHT])
-        state->camTheta += dt * 0.3f;
+        state->camTheta += dt * rotSpeed;
     if (e.input.keyboard.isPressed[KEY_LEFT])
-        state->camTheta -= dt * 0.3f;
+        state->camTheta -= dt * rotSpeed;
     
     state->camPos.X = state->radius * CosF(state->camTheta);
     state->camPos.Z = state->radius * SinF(state->camTheta);

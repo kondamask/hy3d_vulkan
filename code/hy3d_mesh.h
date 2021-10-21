@@ -31,8 +31,8 @@ typedef index_ index;
 #define MESH_TOTAL_SIZE(m) MESH_VERTICES_SIZE(m) + MESH_INDICES_SIZE(m) + sizeof(m->nVertices) + sizeof(m->nIndices)
 #define MESH_PTR_TOTAL_SIZE(m) sizeof(mesh) + MESH_PTR_VERTICES_SIZE(m) + MESH_PTR_INDICES_SIZE(m)
 
-#define MESH_PTR_VERTICES_START_ADDR(m) (vertex *)((u8 *)m + sizeof(mesh))
-#define MESH_PTR_INDICES_START_ADDR(m) (index *)(&m->vertices[m->nVertices])
+#define MESH_INDICES_START_ADDR(m) (index *)((u8 *)(&m) + sizeof(mesh))
+#define MESH_VERTICES_START_ADDR(m) (vertex *)(&m.indices[m.nIndices])
 
 #define MESH_PTR_DATA_START_OFFSET sizeof(mesh)
 
@@ -46,10 +46,11 @@ struct vertex
 
 struct mesh
 {
-    u32 nVertices;
+    // NOTE(heyyod): [mesh info][-------indices------][--------vertices--------]
     u32 nIndices;
-    vertex *vertices;
+    u32 nVertices;
     index *indices;
+    vertex *vertices;
 };
 
 function bool LoadOBJ(const char *filename, mesh *meshOut)
@@ -61,34 +62,46 @@ function bool LoadOBJ(const char *filename, mesh *meshOut)
         DebugPrint(filename);
         return false;
     }
+    
     meshOut->nIndices = 3 * m->face_count;
-    meshOut->nVertices = meshOut->nIndices;
-    meshOut->vertices = (vertex *)MESH_PTR_VERTICES_START_ADDR(meshOut);
-    meshOut->indices = (index *)MESH_PTR_INDICES_START_ADDR(meshOut);
+    meshOut->nVertices = m->position_count - 1;
+    meshOut->indices = (index *)MESH_INDICES_START_ADDR((*meshOut));
+    meshOut->vertices = (vertex *)MESH_VERTICES_START_ADDR((*meshOut));
+    
+    // NOTE(heyyod): Read all the vertex positions
+    for(u32 i = 0; i < meshOut->nVertices; i++)
+    {
+        meshOut->vertices[i].pos = ((vec3 *)m->positions)[i+1];
+        meshOut->vertices[i].texCoord = {-1.0f, -1.0f};
+    }
+    
+    // NOTE(heyyod): For every vertex in every face set the tex coord if it has
+    // not been set. If it has, append the vertices with a vertex of the same pos,
+    // but a different tex coord, update the number of vertices, and update the new
+    // index of the vertex on that face.
+    u32 vertexIndex = 0;
     for(u32 i = 0; i < meshOut->nIndices; i++)
     {
-        meshOut->vertices[i].pos = ((vec3 *)m->positions)[m->indices[i].p];
-        meshOut->vertices[i].color = ((vec3 *)m->normals)[m->indices[i].n];
-        meshOut->vertices[i].texCoord = ((vec2 *)m->texcoords)[m->indices[i].t];
-        meshOut->indices[i] = i;
+        vertexIndex = m->indices[i].p - 1;
+        vec2 readTexCoord = ((vec2 *)m->texcoords)[m->indices[i].t];
+        
+        if(meshOut->vertices[vertexIndex].texCoord.U < 0.0f)
+        {
+            meshOut->vertices[vertexIndex].texCoord = readTexCoord;
+        }
+        else if(meshOut->vertices[vertexIndex].texCoord.U != readTexCoord.U ||
+                meshOut->vertices[vertexIndex].texCoord.V != readTexCoord.V)
+        {
+            meshOut->vertices[meshOut->nVertices].pos = meshOut->vertices[vertexIndex].pos;
+            meshOut->vertices[meshOut->nVertices].texCoord = readTexCoord;
+            meshOut->nVertices++;
+            
+            // NOTE(heyyod): This is always 1 greater. We correct it below
+            m->indices[i].p = meshOut->nVertices;
+        }
+        meshOut->indices[i] = m->indices[i].p - 1;
     }
-    /* 
-meshOut->nVertices = m->position_count - 1;
-    meshOut->nIndices = 3 * m->face_count;
-    meshOut->vertices = (vertex *)MESH_PTR_VERTICES_START_ADDR(meshOut);
-    meshOut->indices = (index *)MESH_PTR_INDICES_START_ADDR(meshOut);
-        for(u32 i = 0; i < meshOut->nVertices; i++)
-        {
-            meshOut->vertices[i].pos = ((vec3 *)m->positions)[i+1];
-            meshOut->vertices[i].color = ((vec3 *)m->normals)[i+1];
-            meshOut->vertices[i].texCoord = ((vec2 *)m->texcoords)[i+1];
-            meshOut->vertices[i].texCoord.Y = 1.0f - meshOut->vertices[i].texCoord.Y;
-        }
-        for(u32 i = 0; i < meshOut->nIndices; i++)
-        {
-            meshOut->indices[i] = m->indices[i].p - 1;
-        }
-     */
+    
     fast_obj_destroy(m);
     return true;
 }

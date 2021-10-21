@@ -1652,24 +1652,23 @@ PushStaged(staged_resources &staged)
                 pushedMesh = true;
                 mesh *m = (mesh *)staged.resources[resourceId];
                 
-                // NOTE(heyyod): Set where to read and where to copy the vertices
                 VkBufferCopy bufferCopyInfo = {};
-                bufferCopyInfo.srcOffset = staged.offsets[resourceId];
-                bufferCopyInfo.dstOffset = vulkan.vertexBufferWriteOffset;
-                bufferCopyInfo.size =  MESH_PTR_VERTICES_SIZE(m);
-                vulkan.vertexBufferWriteOffset += bufferCopyInfo.size; //set next write offset in vertex buffer
-                vkCmdCopyBuffer(res->cmdBuffer, vulkan.stagingBuffer.handle, vulkan.vertexBuffer.handle, 1, &bufferCopyInfo);
-                
-                
                 // NOTE(heyyod): Set where to read and where to copy the indices
-                bufferCopyInfo.srcOffset = bufferCopyInfo.srcOffset + bufferCopyInfo.size;
+                bufferCopyInfo.srcOffset = staged.offsets[resourceId];
                 bufferCopyInfo.dstOffset = vulkan.indexBufferWriteOffset;
                 bufferCopyInfo.size =  MESH_PTR_INDICES_SIZE(m);
                 vulkan.indexBufferWriteOffset += bufferCopyInfo.size; //set next write offset in index buffer
                 vkCmdCopyBuffer(res->cmdBuffer, vulkan.stagingBuffer.handle, vulkan.indexBuffer.handle, 1, &bufferCopyInfo);
                 
-                vulkan.savedMeshes[vulkan.savedMeshesCount].nVertices = m->nVertices;
+                // NOTE(heyyod): Set where to read and where to copy the vertices
+                bufferCopyInfo.srcOffset = bufferCopyInfo.srcOffset + bufferCopyInfo.size;
+                bufferCopyInfo.dstOffset = vulkan.vertexBufferWriteOffset;
+                bufferCopyInfo.size =  MESH_PTR_VERTICES_SIZE(m);
+                vulkan.vertexBufferWriteOffset += bufferCopyInfo.size; //set next write offset in vertex buffer
+                vkCmdCopyBuffer(res->cmdBuffer, vulkan.stagingBuffer.handle, vulkan.vertexBuffer.handle, 1, &bufferCopyInfo);
+                
                 vulkan.savedMeshes[vulkan.savedMeshesCount].nIndices = m->nIndices;
+                vulkan.savedMeshes[vulkan.savedMeshesCount].nVertices = m->nVertices;
                 vulkan.savedMeshesCount++;
                 
             }break;
