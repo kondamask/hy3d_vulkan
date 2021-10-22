@@ -12,9 +12,10 @@
 
 struct image
 {
-    u8* pixels;
     u32 width;
     u32 height;
+    u32 mipLevels;
+    u8* pixels;
 };
 
 function bool LoadImageRGBA(const char *filename, image *imageOut)
@@ -27,9 +28,10 @@ function bool LoadImageRGBA(const char *filename, image *imageOut)
         DebugPrint(filename);
         return false;
     }
-    imageOut->pixels = (u8 *)imageOut + sizeof(image);
     imageOut->width = (u32)width;
     imageOut->height = (u32)height;
+    imageOut->mipLevels = (u32)std::floor(std::log2(Max(width, height))) + 1;
+    imageOut->pixels = (u8 *)imageOut + sizeof(image);
     memcpy(imageOut->pixels, pixels, IMAGE_TOTAL_SIZE((*imageOut)));
     stbi_image_free(pixels);
     return true;

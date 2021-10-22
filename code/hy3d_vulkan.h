@@ -54,6 +54,7 @@ struct vulkan_image
     VkImage handle;
     VkDeviceMemory memoryHandle;
     VkImageView view;
+    u32 mipLevels;
 };
 
 struct vulkan_saved_meshes
@@ -76,8 +77,10 @@ struct vulkan_engine
     
     VkQueue graphicsQueue;
     VkQueue presentQueue;
+    VkQueue transferQueue;
     u32 graphicsQueueFamilyIndex;
     u32 presentQueueFamilyIndex;
+    u32 transferQueueFamilyIndex;
     
     // NOTE(heyyod): We have a set of resources that we use in a circular way to prepare
     // the next frame. For now the number of resources is the same as the swapchain images.
@@ -148,7 +151,7 @@ namespace Vulkan
     function bool CreateSwapchain();
     function bool CreatePipeline();
     function bool CreateBuffer(VkBufferUsageFlags usage, VkDeviceSize size, VkMemoryPropertyFlags properties, vulkan_buffer &buffer, bool mapBuffer = false);
-    function bool CreateImage(VkImageType type, VkFormat format, VkExtent3D extent, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memoryProperties, VkImageAspectFlags aspectMask, vulkan_image &imageOut);
+    function bool CreateImage(VkImageType type, VkFormat format, VkExtent3D extent, u32 mipLevels, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memoryProperties, VkImageAspectFlags aspectMask, vulkan_image &imageOut);
     
     function void ClearFrameBuffers();
     
@@ -166,7 +169,7 @@ namespace Vulkan
     
     function bool FindMemoryProperties(u32 memoryType, VkMemoryPropertyFlags requiredProperties, u32 &memoryIndexOut);
     
-    function void CmdChangeImageLayout(VkImage img, VkImageLayout oldLayout, VkImageLayout newLayout, VkCommandBuffer cmdBuffer);
+    function void CmdChangeImageLayout(VkCommandBuffer cmdBuffer, VkImage imgHandle, image *imageInfo, VkImageLayout oldLayout, VkImageLayout newLayout);
     
     function frame_prep_resource *GetNextAvailableResource();
     /*
@@ -312,5 +315,6 @@ VulkanDeclareFunction(vkCmdCopyBuffer);
 VulkanDeclareFunction(vkCmdBindDescriptorSets);
 VulkanDeclareFunction(vkCmdCopyBufferToImage);
 VulkanDeclareFunction(vkCmdPushConstants);
+VulkanDeclareFunction(vkCmdBlitImage);
 
 #endif

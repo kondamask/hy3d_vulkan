@@ -209,6 +209,7 @@ LoadDeviceFunctions()
     VulkanLoadDeviceFunc(vkCmdBindDescriptorSets);
     VulkanLoadDeviceFunc(vkCmdCopyBufferToImage);
     VulkanLoadDeviceFunc(vkCmdPushConstants);
+    VulkanLoadDeviceFunc(vkCmdBlitImage);
     
     DebugPrint("Loaded Device Functions\n");
     
@@ -433,6 +434,7 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
     // NOTE: Pick a queue family the supports both present and graphics operations
     vulkan.graphicsQueueFamilyIndex = UINT32_MAX;
     vulkan.presentQueueFamilyIndex = UINT32_MAX;
+    vulkan.transferQueueFamilyIndex = UINT32_MAX;
     {
         u32 queueFamilyCount;
         VkQueueFamilyProperties availableQueueFamilies[16] = {};
@@ -446,6 +448,7 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         
         for (u32 i = 0; i < queueFamilyCount; ++i)
         {
+            // NOTE(heyyod): Find a graphics queue
             if ((availableQueueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0)
             {
                 if (vulkan.graphicsQueueFamilyIndex == UINT32_MAX)
@@ -456,6 +459,15 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
                     vulkan.presentQueueFamilyIndex = i;
                     break;
                 }
+            }
+        }
+        for (u32 i = 0; i < queueFamilyCount; ++i)
+        {
+            // NOTE(heyyod): Find a transfer queue
+            if ((availableQueueFamilies[i].queueFlags & VK_QUEUE_TRANSFER_BIT) != 0)
+            {
+                if (vulkan.transferQueueFamilyIndex == UINT32_MAX)
+                    vulkan.transferQueueFamilyIndex = i;
             }
         }
         if (vulkan.presentQueueFamilyIndex == UINT32_MAX) //didn't find a queue that supports both graphics and present
@@ -511,7 +523,8 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         queueInfo.pQueuePriorities = &queuePriority;
         
         char *desiredDeviceExtensions[] = {
-            VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+            VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+        };
         
         u32 deviceExtensionsCount;
         VkExtensionProperties availableDeviceExtensions[255] = {};
@@ -705,10 +718,10 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         DebugPrint("Created rendering resources.\n");
     }
     
-    // NOTE(heyyod): Make a buffers
+    // NOTE(heyyod): Make buffers
     {
-        u32 vertexBufferSize = MEGABYTES(100);
-        u32 indexBufferSize = MEGABYTES(100);
+        u32 vertexBufferSize = MEGABYTES(128);
+        u32 indexBufferSize = MEGABYTES(128);
         u32 stagingBufferSize = vertexBufferSize + indexBufferSize;
         if(!CreateBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, stagingBufferSize, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, vulkan.stagingBuffer, MAP_BUFFER_TRUE))
         {
@@ -748,19 +761,19 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
         samplerInfo.magFilter = VK_FILTER_LINEAR;
         samplerInfo.minFilter = VK_FILTER_LINEAR;
+        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
         samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
         samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
         samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.mipLodBias = 0.0f;
         samplerInfo.anisotropyEnable = VK_TRUE;
         samplerInfo.maxAnisotropy = vulkan.properties.limits.maxSamplerAnisotropy;
-        samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-        samplerInfo.unnormalizedCoordinates = VK_FALSE;
         samplerInfo.compareEnable = VK_FALSE;
         samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-        samplerInfo.mipLodBias = 0.0f;
         samplerInfo.minLod = 0.0f;
-        samplerInfo.maxLod = 0.0f;
+        samplerInfo.maxLod = 11.0f; // TODO(heyyod): THIS IS HARDCODED AND BAD
+        samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+        samplerInfo.unnormalizedCoordinates = VK_FALSE;
         AssertSuccess(vkCreateSampler(vulkan.device, &samplerInfo, 0, &vulkan.textureSampler));
     }
     
@@ -879,7 +892,7 @@ ClearImage(vulkan_image &img)
     }
 }
 function bool Vulkan::
-CreateImage(VkImageType type, VkFormat format, VkExtent3D extent, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memoryProperties, VkImageAspectFlags aspectMask, vulkan_image &imageOut)
+CreateImage(VkImageType type, VkFormat format, VkExtent3D extent, u32 mipLevels, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memoryProperties, VkImageAspectFlags aspectMask, vulkan_image &imageOut)
 {
     ClearImage(imageOut);
     
@@ -888,7 +901,7 @@ CreateImage(VkImageType type, VkFormat format, VkExtent3D extent, VkImageTiling 
     imageInfo.imageType = type;
     imageInfo.format = format;
     imageInfo.extent = extent;
-    imageInfo.mipLevels = 1;
+    imageInfo.mipLevels = mipLevels;
     imageInfo.arrayLayers = 1;
     imageInfo.samples = NUM_SAMPLES;
     imageInfo.tiling = tiling;
@@ -933,8 +946,15 @@ CreateImage(VkImageType type, VkFormat format, VkExtent3D extent, VkImageTiling 
         VK_COMPONENT_SWIZZLE_IDENTITY,
         VK_COMPONENT_SWIZZLE_IDENTITY,
         VK_COMPONENT_SWIZZLE_IDENTITY,
-        VK_COMPONENT_SWIZZLE_IDENTITY};
-    imageViewInfo.subresourceRange = {aspectMask, 0, 1, 0, 1};
+        VK_COMPONENT_SWIZZLE_IDENTITY
+    };
+    imageViewInfo.subresourceRange = {
+        aspectMask,         //VkImageAspectFlags    aspectMask;
+        0,                  //uint32_t              baseMipLevel;
+        mipLevels, //uint32_t              levelCount;
+        0,                  //uint32_t              baseArrayLayer;
+        1                   //uint32_t              layerCount;
+    };
     AssertSuccess(vkCreateImageView(vulkan.device, &imageViewInfo, 0, &imageOut.view));
     
     return true;
@@ -1127,7 +1147,7 @@ CreateSwapchain()
     
     // NOTE: Create a depth buffer
     if (!CreateImage(VK_IMAGE_TYPE_2D, DEPTH_BUFFER_FORMAT,
-                     {vulkan.windowExtent.width, vulkan.windowExtent.height, 1},
+                     {vulkan.windowExtent.width, vulkan.windowExtent.height, 1}, 1,
                      VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, vulkan.depth))
         return false;
     
@@ -1544,7 +1564,7 @@ Destroy()
 }
 
 function void Vulkan::
-CmdChangeImageLayout(VkImage img, VkImageLayout oldLayout, VkImageLayout newLayout, VkCommandBuffer cmdBuffer)
+CmdChangeImageLayout(VkCommandBuffer cmdBuffer, VkImage imgHandle, image *imageInfo, VkImageLayout oldLayout, VkImageLayout newLayout)
 {
     // NOTE(heyyod): ONLY CALL AFRER WE START RECORDING A COMMAND BUFFER
     VkImageMemoryBarrier barrier = {};
@@ -1553,7 +1573,7 @@ CmdChangeImageLayout(VkImage img, VkImageLayout oldLayout, VkImageLayout newLayo
     barrier.newLayout = newLayout;
     barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.image = img;
+    barrier.image = imgHandle;
     
     if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
     {
@@ -1565,9 +1585,11 @@ CmdChangeImageLayout(VkImage img, VkImageLayout oldLayout, VkImageLayout newLayo
          */
     }
     else
+    {
         barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    }
     barrier.subresourceRange.baseMipLevel = 0;
-    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.levelCount = imageInfo->mipLevels;
     barrier.subresourceRange.baseArrayLayer = 0;
     barrier.subresourceRange.layerCount = 1;
     
@@ -1677,44 +1699,134 @@ PushStaged(staged_resources &staged)
             {
                 pushedImage = true;
                 image *img = (image *)staged.resources[resourceId];
-                
-                if (!CreateImage(VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, {img->width, img->height, 1}, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, vulkan.texture))
+                if (!CreateImage(VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, {img->width, img->height, 1}, img->mipLevels, VK_IMAGE_TILING_OPTIMAL, 
+                                 VK_IMAGE_USAGE_TRANSFER_SRC_BIT | // to create the mipmaps
+                                 VK_IMAGE_USAGE_TRANSFER_DST_BIT | // to copy buffer into image
+                                 VK_IMAGE_USAGE_SAMPLED_BIT, 
+                                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
+                                 VK_IMAGE_ASPECT_COLOR_BIT, 
+                                 vulkan.texture))
+                {
                     return false;
+                }
                 
                 // NOTE(heyyod): We need to write into the image from the stage buffer.
                 // So we change the layout.
-                CmdChangeImageLayout(vulkan.texture.handle, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, res->cmdBuffer);
+                {
+                    CmdChangeImageLayout(res->cmdBuffer, vulkan.texture.handle, img, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+                    
+                    VkBufferImageCopy bufferToImageCopy = {};
+                    bufferToImageCopy.bufferOffset = staged.offsets[resourceId];
+                    bufferToImageCopy.bufferRowLength = 0;
+                    bufferToImageCopy.bufferImageHeight = 0;
+                    bufferToImageCopy.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+                    bufferToImageCopy.imageOffset = {0, 0, 0};
+                    bufferToImageCopy.imageExtent = {img->width, img->height, 1};
+                    vkCmdCopyBufferToImage(res->cmdBuffer, vulkan.stagingBuffer.handle, vulkan.texture.handle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &bufferToImageCopy);
+                }
                 
-                VkBufferImageCopy bufferToImageCopy = {};
-                bufferToImageCopy.bufferOffset = staged.offsets[resourceId];
-                bufferToImageCopy.bufferRowLength = 0;
-                bufferToImageCopy.bufferImageHeight = 0;
-                bufferToImageCopy.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-                bufferToImageCopy.imageOffset = {0, 0, 0};
-                bufferToImageCopy.imageExtent = {img->width, img->height, 1};
-                vkCmdCopyBufferToImage(res->cmdBuffer, vulkan.stagingBuffer.handle, vulkan.texture.handle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &bufferToImageCopy);
+                // NOTE(heyyod): Generate mipmaps
+                // NOTE(heyyod): Check if image format supports linear blitting
+                VkFormatProperties formatProperties;
+                vkGetPhysicalDeviceFormatProperties(vulkan.gpu, VK_FORMAT_R8G8B8A8_UNORM, &formatProperties);
+                if (formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)
+                {
+                    i32 mipWidth = (i32)img->width;
+                    i32 mipHeight = (i32)img->height;
+                    
+                    VkImageMemoryBarrier sourceMipBarrier{};
+                    sourceMipBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+                    sourceMipBarrier.image = vulkan.texture.handle;
+                    sourceMipBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                    sourceMipBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+                    sourceMipBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                    sourceMipBarrier.subresourceRange.baseArrayLayer = 0;
+                    sourceMipBarrier.subresourceRange.layerCount = 1;
+                    sourceMipBarrier.subresourceRange.levelCount = 1;
+                    
+                    VkImageBlit mipMapBlit = {};
+                    mipMapBlit.srcOffsets[0] = { 0, 0, 0 };
+                    mipMapBlit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                    mipMapBlit.srcSubresource.baseArrayLayer = 0;
+                    mipMapBlit.srcSubresource.layerCount = 1;
+                    mipMapBlit.dstOffsets[0] = { 0, 0, 0 };
+                    mipMapBlit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                    mipMapBlit.dstSubresource.baseArrayLayer = 0;
+                    mipMapBlit.dstSubresource.layerCount = 1;
+                    for (u32 i = 1; i < img->mipLevels; i++)
+                    {
+                        // NOTE(heyyod): Change previous mip from dst to src since we'll read from it
+                        sourceMipBarrier.subresourceRange.baseMipLevel = i - 1;
+                        sourceMipBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+                        sourceMipBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+                        sourceMipBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+                        sourceMipBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+                        vkCmdPipelineBarrier(res->cmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 0, 0, 1, &sourceMipBarrier);
+                        
+                        // NOTE(heyyod): Specify the reagion we'll read from the previous mip
+                        mipMapBlit.srcOffsets[1] = { mipWidth, mipHeight, 1 };
+                        mipMapBlit.srcSubresource.mipLevel = i - 1;
+                        mipMapBlit.dstOffsets[1] = { mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1 };
+                        mipMapBlit.dstSubresource.mipLevel = i;
+                        
+                        // NOTE(heyyod): Do the blit
+                        vkCmdBlitImage(res->cmdBuffer,
+                                       vulkan.texture.handle, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, vulkan.texture.handle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                       1, &mipMapBlit, VK_FILTER_LINEAR);
+                        
+                        // NOTE(heyyod): Change layout of previous mip to shader bit since we're done with it.
+                        sourceMipBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+                        sourceMipBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                        sourceMipBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+                        sourceMipBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                        vkCmdPipelineBarrier(res->cmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, 1, &sourceMipBarrier);
+                        
+                        if (mipWidth > 1)
+                            mipWidth /= 2;
+                        if (mipHeight > 1)
+                            mipHeight /= 2;
+                    }
+                    
+                    // NOTE(heyyod): change layout of last mip we created
+                    sourceMipBarrier.subresourceRange.baseMipLevel = img->mipLevels - 1;
+                    sourceMipBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+                    sourceMipBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                    sourceMipBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+                    sourceMipBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                    vkCmdPipelineBarrier(res->cmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, 1, &sourceMipBarrier);
+                }
+                else
+                {
+                    /* 
+                    There are two alternatives in this case. You could implement a function that searches common texture image formats for one that does support linear blitting, or you could implement the mipmap generation in software with a library like stb_image_resize. Each mip level can then be loaded into the image in the same way that you loaded the original image.
+                    
+                    It should be noted that it is uncommon in practice to generate the mipmap levels at runtime anyway. Usually they are pregenerated and stored in the texture file alongside the base level to improve loading speed. Implementing resizing in software and loading multiple levels from a file is left as an exercise to the reader.
+                     */
+                }
                 
                 // NOTE(heyyod): Since it will be used in shaders we again need to change the layout
-                CmdChangeImageLayout(vulkan.texture.handle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, res->cmdBuffer);
+                //CmdChangeImageLayout(res->cmdBuffer, vulkan.texture.handle, img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                 
                 // NOTE(heyyod): Update the descriptor set
-                VkDescriptorImageInfo descImageInfo = {};
-                descImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-                descImageInfo.imageView = vulkan.texture.view;
-                descImageInfo.sampler = vulkan.textureSampler;
-                
-                VkWriteDescriptorSet descWriteSet = {};
-                descWriteSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-                descWriteSet.dstBinding = 1;
-                descWriteSet.dstArrayElement = 0;
-                descWriteSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-                descWriteSet.descriptorCount = 1;
-                descWriteSet.pImageInfo = &descImageInfo;
-                
-                for (u8 i = 0; i < NUM_DESCRIPTORS; i++)
                 {
-                    descWriteSet.dstSet = vulkan.descSets[i];
-                    vkUpdateDescriptorSets(vulkan.device, 1, &descWriteSet, 0, 0);
+                    VkDescriptorImageInfo descImageInfo = {};
+                    descImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                    descImageInfo.imageView = vulkan.texture.view;
+                    descImageInfo.sampler = vulkan.textureSampler;
+                    
+                    VkWriteDescriptorSet descWriteSet = {};
+                    descWriteSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                    descWriteSet.dstBinding = 1;
+                    descWriteSet.dstArrayElement = 0;
+                    descWriteSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                    descWriteSet.descriptorCount = 1;
+                    descWriteSet.pImageInfo = &descImageInfo;
+                    
+                    for (u8 i = 0; i < NUM_DESCRIPTORS; i++)
+                    {
+                        descWriteSet.dstSet = vulkan.descSets[i];
+                        vkUpdateDescriptorSets(vulkan.device, 1, &descWriteSet, 0, 0);
+                    }
                 }
             }break;
             

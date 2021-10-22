@@ -89,6 +89,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
             staged_resources resources = {};
             resources.nextWriteAddr = memory->stagingMemory;
             StageResource("../models/viking_room.obj", RESOURCE_MESH, resources);
+            //StageResource("../models/test.obj", RESOURCE_MESH, resources);
             StageResource("../textures/viking_room.png", RESOURCE_TEXTURE, resources);
             /* 
             StageResource("../models/cube.obj", RESOURCE_MESH, resources);
@@ -138,11 +139,11 @@ UPDATE_AND_RENDER(UpdateAndRender)
         update.clearColor[i] += state->clearColorChange[i] * dt * 0.1f;
     }
     
-    f32 rotSpeed = 0.6f;
+    f32 rotSpeed = 0.15f;
     if (e.input.keyboard.isPressed[KEY_Z])
-        state->radius -= dt * rotSpeed;
+        state->radius -= dt * rotSpeed * 2.0f;
     if (e.input.keyboard.isPressed[KEY_X])
-        state->radius += dt * rotSpeed;
+        state->radius += dt * rotSpeed * 2.0f;
     
     if (e.input.keyboard.isPressed[KEY_RIGHT])
         state->camTheta += dt * rotSpeed;
@@ -161,7 +162,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
     memory->mvp->model =
         Rotate(90.0f, Vec3(0.0f, 0.0f, 1.0f)) *
         Rotate(90.0f, Vec3(0.0f, 1.0f, 0.0f)) *
-        //Translate({SinF(2.0f * state->time), 0.0f, 0.0f});
         //Scale({scale, scale, scale}) *
         Translate({0.0f, 0.0f, 0.0f})
         ;

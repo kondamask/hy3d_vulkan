@@ -72,7 +72,7 @@ function bool LoadOBJ(const char *filename, mesh *meshOut)
     for(u32 i = 0; i < meshOut->nVertices; i++)
     {
         meshOut->vertices[i].pos = ((vec3 *)m->positions)[i+1];
-        meshOut->vertices[i].texCoord = {-1.0f, -1.0f};
+        meshOut->vertices[i].texCoord.U = -1.0f;
     }
     
     // NOTE(heyyod): For every vertex in every face set the tex coord if it has
@@ -84,6 +84,7 @@ function bool LoadOBJ(const char *filename, mesh *meshOut)
     {
         vertexIndex = m->indices[i].p - 1;
         vec2 readTexCoord = ((vec2 *)m->texcoords)[m->indices[i].t];
+        readTexCoord.V = 1.0f - readTexCoord.V;
         
         if(meshOut->vertices[vertexIndex].texCoord.U < 0.0f)
         {

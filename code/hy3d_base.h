@@ -24,6 +24,12 @@ typedef double    f64;
 #define GIGABYTES(val) (MEGABYTES(val) * 1024ULL)
 #define TERABYTES(val) (GIGABYTES(val) * 1024ULL)
 
+#define Min(a, b) ((a) > (b) ? (b) : (a))
+#define Max(a, b) ((a) < (b) ? (b) : (a))
+#define Abs(a) ((a) > 0 ? (a) : -(a))
+#define Mod(a, m) (((a) % (m)) >= 0 ? ((a) % (m)) : (((a) % (m)) + (m)))
+#define Square(x) ((x) * (x))
+
 // TODO: Make this an actual assetion
 #define AssertBreak() *(int *)0 = 0
 
@@ -55,8 +61,5 @@ AssertBreak()
 
 #define AdvancePointer(ptr, bytes) ptr = (u8*)ptr + bytes
 
-int main()
-{
-    return 0;
-}
+
 #endif
