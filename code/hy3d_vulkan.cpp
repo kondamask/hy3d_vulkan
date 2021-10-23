@@ -306,27 +306,6 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
     debugMessengerInfo.pfnUserCallback = DebugCallback;
     
-    char *desiredInstanceExtensions[] = { VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-        VK_KHR_SURFACE_EXTENSION_NAME,
-#if defined(VK_USE_PLATFORM_WIN32_KHR)
-        VK_KHR_WIN32_SURFACE_EXTENSION_NAME
-#elif defined(VK_USE_PLATFORM_XCB_KHR)
-        VK_KHR_XCB_SURFACE_EXTENSION_NAME
-#elif defined(VK_USE_PLATFORM_XLIB_KHR)
-        VK_KHR_XLIB_SURFACE_EXTENSION_NAME
-#endif
-    };
-#else
-    char *desiredInstanceExtensions[] = { VK_KHR_SURFACE_EXTENSION_NAME,
-#if defined(VK_USE_PLATFORM_WIN32_KHR)
-        VK_KHR_WIN32_SURFACE_EXTENSION_NAME
-#elif defined(VK_USE_PLATFORM_XCB_KHR)
-        VK_KHR_XCB_SURFACE_EXTENSION_NAME
-#elif defined(VK_USE_PLATFORM_XLIB_KHR)
-        VK_KHR_XLIB_SURFACE_EXTENSION_NAME
-#endif
-    };
-    
     DebugPrint("Created Vulkan Debug Messenger\n");
 #endif
     
@@ -340,6 +319,19 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
         appInfo.apiVersion = VK_API_VERSION_1_0;
         
+        char *desiredInstanceExtensions[] = { 
+#if VULKAN_VALIDATION_LAYERS_ON
+            VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+#endif
+            VK_KHR_SURFACE_EXTENSION_NAME,
+#if defined(VK_USE_PLATFORM_WIN32_KHR)
+            VK_KHR_WIN32_SURFACE_EXTENSION_NAME
+#elif defined(VK_USE_PLATFORM_XCB_KHR)
+            VK_KHR_XCB_SURFACE_EXTENSION_NAME
+#elif defined(VK_USE_PLATFORM_XLIB_KHR)
+            VK_KHR_XLIB_SURFACE_EXTENSION_NAME
+#endif
+        };
         u32 instanceExtensionsCount;
         VkExtensionProperties availableInstanceExtensions[255] = {};
         AssertSuccess(vkEnumerateInstanceExtensionProperties(0, &instanceExtensionsCount, 0));
@@ -427,6 +419,23 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         
         vkGetPhysicalDeviceProperties(vulkan.gpu, &vulkan.properties);
         vkGetPhysicalDeviceMemoryProperties(vulkan.gpu, &vulkan.memoryProperties);
+        
+        // NOTE(heyyod): Pick number of samples to use for antialiasig
+        // TODO(heyyod): We should be able to configure this at runtime
+        vulkan.msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+        VkSampleCountFlags counts = vulkan.properties.limits.framebufferColorSampleCounts & vulkan.properties.limits.framebufferDepthSampleCounts;
+        if (counts & VK_SAMPLE_COUNT_64_BIT)
+            vulkan.msaaSamples = VK_SAMPLE_COUNT_64_BIT;
+        if (counts & VK_SAMPLE_COUNT_32_BIT)
+            vulkan.msaaSamples = VK_SAMPLE_COUNT_32_BIT;
+        else if (counts & VK_SAMPLE_COUNT_16_BIT)
+            vulkan.msaaSamples = VK_SAMPLE_COUNT_16_BIT;
+        else if (counts & VK_SAMPLE_COUNT_8_BIT)
+            vulkan.msaaSamples = VK_SAMPLE_COUNT_8_BIT;
+        else if (counts & VK_SAMPLE_COUNT_4_BIT)
+            vulkan.msaaSamples = VK_SAMPLE_COUNT_4_BIT;
+        else if (counts & VK_SAMPLE_COUNT_2_BIT)
+            vulkan.msaaSamples = VK_SAMPLE_COUNT_2_BIT;
         
         DebugPrint("Selected a GPU\n");
     }
@@ -599,24 +608,25 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         //The following structures are, in general, parallel arrays that describe a subpass.
         //Here we only have one subpass for now.
         
-        // NOTE(heyyod): Specify the attachments
+        // NOTE(heyyod): multisample attachment
         VkAttachmentDescription colorAttachment = {};
         colorAttachment.flags = 0;
         colorAttachment.format = vulkan.surfaceFormat.format;
-        colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        colorAttachment.samples = vulkan.msaaSamples;
         colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
         colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; //That's because multisampled images cannot be presented directly. We first need to resolve them to a regular image.
         VkAttachmentReference colorAttachementRef = {};
         colorAttachementRef.attachment = 0;
         colorAttachementRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         
+        // NOTE(heyyod): Depth buffer attachment
         VkAttachmentDescription depthAttachment = {};
         depthAttachment.format = DEPTH_BUFFER_FORMAT;
-        depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        depthAttachment.samples = vulkan.msaaSamples; //VK_SAMPLE_COUNT_1_BIT;
         depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -627,7 +637,20 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         depthAttachmentRef.attachment = 1;
         depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
         
-        VkAttachmentDescription attachments[] = {colorAttachment, depthAttachment};
+        // NOTE(heyyod): attachment to resolve the multisamplerd image into a presentable image
+        VkAttachmentDescription colorAttachmentResolve = {};
+        colorAttachmentResolve.format = vulkan.surfaceFormat.format;
+        colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
+        colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        colorAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        colorAttachmentResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        colorAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        VkAttachmentReference colorAttachmentResolveRef = {};
+        colorAttachmentResolveRef.attachment = 2;
+        colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        
         
         // NOTE(heyyod): Specify the subpasses
         VkSubpassDescription subpass = {};
@@ -640,8 +663,7 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         //referenced from the fragment shader with the layout(location = 0) out vec4 outColor directive!
         subpass.colorAttachmentCount = 1; // ArrayCount(colorAttachementRef)
         subpass.pColorAttachments = &colorAttachementRef;
-        
-        //subpass.pResolveAttachments = 0;
+        subpass.pResolveAttachments = &colorAttachmentResolveRef;
         subpass.pDepthStencilAttachment = &depthAttachmentRef;
         //subpass.preserveAttachmentCount = 0;
         //subpass.pPreserveAttachments = 0;
@@ -654,26 +676,7 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
         dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
         
-        /* 
-                // NOTE(heyyod): Specify the dependences
-                VkSubpassDependency renderpassDependencies[2] = {};;
-                renderpassDependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
-                renderpassDependencies[0].dstSubpass = 0;
-                renderpassDependencies[0].srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-                renderpassDependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-                renderpassDependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-                renderpassDependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-                renderpassDependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-                
-                renderpassDependencies[1].srcSubpass = 0;
-                renderpassDependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
-                renderpassDependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-                renderpassDependencies[1].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-                renderpassDependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-                renderpassDependencies[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-                renderpassDependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-                 */
-        
+        VkAttachmentDescription attachments[] = {colorAttachment, depthAttachment, colorAttachmentResolve};
         VkRenderPassCreateInfo renderPassInfo = {};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
         renderPassInfo.attachmentCount = ArrayCount(attachments);
@@ -892,7 +895,7 @@ ClearImage(vulkan_image &img)
     }
 }
 function bool Vulkan::
-CreateImage(VkImageType type, VkFormat format, VkExtent3D extent, u32 mipLevels, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memoryProperties, VkImageAspectFlags aspectMask, vulkan_image &imageOut)
+CreateImage(VkImageType type, VkFormat format, VkExtent3D extent, u32 mipLevels, VkSampleCountFlagBits samples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memoryProperties, VkImageAspectFlags aspectMask, vulkan_image &imageOut)
 {
     ClearImage(imageOut);
     
@@ -903,7 +906,7 @@ CreateImage(VkImageType type, VkFormat format, VkExtent3D extent, u32 mipLevels,
     imageInfo.extent = extent;
     imageInfo.mipLevels = mipLevels;
     imageInfo.arrayLayers = 1;
-    imageInfo.samples = NUM_SAMPLES;
+    imageInfo.samples = samples;
     imageInfo.tiling = tiling;
     imageInfo.usage = usage;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -1147,9 +1150,17 @@ CreateSwapchain()
     
     // NOTE: Create a depth buffer
     if (!CreateImage(VK_IMAGE_TYPE_2D, DEPTH_BUFFER_FORMAT,
-                     {vulkan.windowExtent.width, vulkan.windowExtent.height, 1}, 1,
+                     {vulkan.windowExtent.width, vulkan.windowExtent.height, 1}, 1, vulkan.msaaSamples,
                      VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, vulkan.depth))
+    {
         return false;
+    }
+    
+    // NOTE(heyyod): Create msaa buffer
+    if (!CreateImage(VK_IMAGE_TYPE_2D, vulkan.surfaceFormat.format, {vulkan.windowExtent.width, vulkan.windowExtent.height, 1}, 1, vulkan.msaaSamples, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, vulkan.msaa))
+    {
+        return false;
+    }
     
     // NOTE(heyyod): Create the framebuffers
     ClearFrameBuffers();
@@ -1161,7 +1172,7 @@ CreateSwapchain()
     framebufferInfo.layers = 1;
     for (u32 i = 0; i < NUM_SWAPCHAIN_IMAGES; i++)
     {
-        VkImageView attachments[] = {vulkan.swapchainImageViews[i], vulkan.depth.view};
+        VkImageView attachments[] = {vulkan.msaa.view, vulkan.depth.view, vulkan.swapchainImageViews[i]};
         framebufferInfo.pAttachments = attachments;
         framebufferInfo.attachmentCount = ArrayCount(attachments);
         AssertSuccess(vkCreateFramebuffer(vulkan.device, &framebufferInfo, 0, &vulkan.framebuffers[i]));
@@ -1187,6 +1198,17 @@ ClearSwapchainImages()
             }
         }
     }
+}
+
+function void Vulkan::
+ClearSwapchain()
+{
+    ClearImage(vulkan.depth);
+    ClearImage(vulkan.msaa);
+    ClearFrameBuffers();
+    ClearSwapchainImages();
+    if (VulkanIsValidHandle(vulkan.swapchain))
+        vkDestroySwapchainKHR(vulkan.device, vulkan.swapchain, 0);
 }
 
 function bool Vulkan::
@@ -1330,7 +1352,7 @@ CreatePipeline()
     VkPipelineMultisampleStateCreateInfo multisamplingInfo = {};
     multisamplingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     //multisamplingInfo.sampleShadingEnable = VK_FALSE;
-    multisamplingInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    multisamplingInfo.rasterizationSamples = vulkan.msaaSamples;
     multisamplingInfo.minSampleShading = 1.0f; // Optional
     //multisamplingInfo.pSampleMask = nullptr; // Optional
     //multisamplingInfo.alphaToCoverageEnable = VK_FALSE; // Optional
@@ -1501,7 +1523,7 @@ Destroy()
             vkDestroySampler(vulkan.device, vulkan.textureSampler, 0);
         
         ClearImage(vulkan.texture);
-        ClearImage(vulkan.depth);
+        
         
         ClearPipeline();
         
@@ -1522,11 +1544,9 @@ Destroy()
         if (VulkanIsValidHandle(vulkan.renderPass))
             vkDestroyRenderPass(vulkan.device, vulkan.renderPass, 0);
         
-        ClearSwapchainImages();
-        if (VulkanIsValidHandle(vulkan.swapchain))
-            vkDestroySwapchainKHR(vulkan.device, vulkan.swapchain, 0);
+        ClearSwapchain();
         
-        ClearFrameBuffers();
+        
         for(u32 i = 0; i < NUM_RESOURCES; i++)
         {
             if (VulkanIsValidHandle(vulkan.resources[i].imgAvailableSem))
@@ -1699,7 +1719,7 @@ PushStaged(staged_resources &staged)
             {
                 pushedImage = true;
                 image *img = (image *)staged.resources[resourceId];
-                if (!CreateImage(VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, {img->width, img->height, 1}, img->mipLevels, VK_IMAGE_TILING_OPTIMAL, 
+                if (!CreateImage(VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, {img->width, img->height, 1}, img->mipLevels, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_TILING_OPTIMAL, 
                                  VK_IMAGE_USAGE_TRANSFER_SRC_BIT | // to create the mipmaps
                                  VK_IMAGE_USAGE_TRANSFER_DST_BIT | // to copy buffer into image
                                  VK_IMAGE_USAGE_SAMPLED_BIT, 

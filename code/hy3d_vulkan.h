@@ -9,7 +9,6 @@
 
 #include "vulkan\vulkan.h"
 
-#define NUM_SAMPLES VK_SAMPLE_COUNT_1_BIT
 #define NUM_SWAPCHAIN_IMAGES 2
 #define NUM_RESOURCES 4
 #define SHADER_CODE_BUFFER_SIZE 4096
@@ -74,6 +73,9 @@ struct vulkan_engine
     
     VkSurfaceKHR surface;
     VkSurfaceFormatKHR surfaceFormat;
+    
+    VkSampleCountFlagBits msaaSamples;
+    vulkan_image msaa;
     
     VkQueue graphicsQueue;
     VkQueue presentQueue;
@@ -151,7 +153,7 @@ namespace Vulkan
     function bool CreateSwapchain();
     function bool CreatePipeline();
     function bool CreateBuffer(VkBufferUsageFlags usage, VkDeviceSize size, VkMemoryPropertyFlags properties, vulkan_buffer &buffer, bool mapBuffer = false);
-    function bool CreateImage(VkImageType type, VkFormat format, VkExtent3D extent, u32 mipLevels, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memoryProperties, VkImageAspectFlags aspectMask, vulkan_image &imageOut);
+    function bool CreateImage(VkImageType type, VkFormat format, VkExtent3D extent, u32 mipLevels, VkSampleCountFlagBits samples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memoryProperties, VkImageAspectFlags aspectMask, vulkan_image &imageOut);
     
     function void ClearFrameBuffers();
     
@@ -159,6 +161,7 @@ namespace Vulkan
     function void ClearSwapchainImages();
     function void ClearPipeline();
     function void ClearBuffer(vulkan_buffer buffer);
+    function void ClearSwapchain();
     function void Destroy();
     
     
