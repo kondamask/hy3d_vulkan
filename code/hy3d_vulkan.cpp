@@ -216,6 +216,26 @@ LoadDeviceFunctions()
     return true;
 }
 
+function void Vulkan::
+PickMSAA(MSAA_OPTIONS msaa)
+{
+    VkSampleCountFlags counts = vulkan.properties.limits.framebufferColorSampleCounts & vulkan.properties.limits.framebufferDepthSampleCounts;
+    if (counts & VK_SAMPLE_COUNT_64_BIT && msaa >= MSAA_64)
+        vulkan.msaaSamples = VK_SAMPLE_COUNT_64_BIT;
+    if (counts & VK_SAMPLE_COUNT_32_BIT && msaa >= MSAA_32)
+        vulkan.msaaSamples = VK_SAMPLE_COUNT_32_BIT;
+    else if (counts & VK_SAMPLE_COUNT_16_BIT && msaa >= MSAA_16)
+        vulkan.msaaSamples = VK_SAMPLE_COUNT_16_BIT;
+    else if (counts & VK_SAMPLE_COUNT_8_BIT && msaa >= MSAA_8)
+        vulkan.msaaSamples = VK_SAMPLE_COUNT_8_BIT;
+    else if (counts & VK_SAMPLE_COUNT_4_BIT && msaa >= MSAA_4)
+        vulkan.msaaSamples = VK_SAMPLE_COUNT_4_BIT;
+    else if (counts & VK_SAMPLE_COUNT_2_BIT && msaa >= MSAA_2)
+        vulkan.msaaSamples = VK_SAMPLE_COUNT_2_BIT;
+    else
+        vulkan.msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+}
+
 function bool Vulkan::
 FindMemoryProperties(u32 reqMemType, VkMemoryPropertyFlags reqMemProperties, u32 &memoryIndexOut)
 {
@@ -421,21 +441,7 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         vkGetPhysicalDeviceMemoryProperties(vulkan.gpu, &vulkan.memoryProperties);
         
         // NOTE(heyyod): Pick number of samples to use for antialiasig
-        // TODO(heyyod): We should be able to configure this at runtime
-        vulkan.msaaSamples = VK_SAMPLE_COUNT_1_BIT;
-        VkSampleCountFlags counts = vulkan.properties.limits.framebufferColorSampleCounts & vulkan.properties.limits.framebufferDepthSampleCounts;
-        if (counts & VK_SAMPLE_COUNT_64_BIT)
-            vulkan.msaaSamples = VK_SAMPLE_COUNT_64_BIT;
-        if (counts & VK_SAMPLE_COUNT_32_BIT)
-            vulkan.msaaSamples = VK_SAMPLE_COUNT_32_BIT;
-        else if (counts & VK_SAMPLE_COUNT_16_BIT)
-            vulkan.msaaSamples = VK_SAMPLE_COUNT_16_BIT;
-        else if (counts & VK_SAMPLE_COUNT_8_BIT)
-            vulkan.msaaSamples = VK_SAMPLE_COUNT_8_BIT;
-        else if (counts & VK_SAMPLE_COUNT_4_BIT)
-            vulkan.msaaSamples = VK_SAMPLE_COUNT_4_BIT;
-        else if (counts & VK_SAMPLE_COUNT_2_BIT)
-            vulkan.msaaSamples = VK_SAMPLE_COUNT_2_BIT;
+        PickMSAA(MSAA_OFF);
         
         DebugPrint("Selected a GPU\n");
     }
@@ -603,92 +609,6 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         Assert(desiredSurfaceFormatSupported);
     }
     
-    // NOTE: Create a renderpass
-    {
-        //The following structures are, in general, parallel arrays that describe a subpass.
-        //Here we only have one subpass for now.
-        
-        // NOTE(heyyod): multisample attachment
-        VkAttachmentDescription colorAttachment = {};
-        colorAttachment.flags = 0;
-        colorAttachment.format = vulkan.surfaceFormat.format;
-        colorAttachment.samples = vulkan.msaaSamples;
-        colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-        colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; //That's because multisampled images cannot be presented directly. We first need to resolve them to a regular image.
-        VkAttachmentReference colorAttachementRef = {};
-        colorAttachementRef.attachment = 0;
-        colorAttachementRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        
-        // NOTE(heyyod): Depth buffer attachment
-        VkAttachmentDescription depthAttachment = {};
-        depthAttachment.format = DEPTH_BUFFER_FORMAT;
-        depthAttachment.samples = vulkan.msaaSamples; //VK_SAMPLE_COUNT_1_BIT;
-        depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-        VkAttachmentReference depthAttachmentRef = {};
-        depthAttachmentRef.attachment = 1;
-        depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-        
-        // NOTE(heyyod): attachment to resolve the multisamplerd image into a presentable image
-        VkAttachmentDescription colorAttachmentResolve = {};
-        colorAttachmentResolve.format = vulkan.surfaceFormat.format;
-        colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
-        colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        colorAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-        colorAttachmentResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        colorAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-        VkAttachmentReference colorAttachmentResolveRef = {};
-        colorAttachmentResolveRef.attachment = 2;
-        colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        
-        
-        // NOTE(heyyod): Specify the subpasses
-        VkSubpassDescription subpass = {};
-        //subpass.flags = 0;
-        subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-        //subpass.inputAttachmentCount = 0;
-        //subpass.pInputAttachments = 0;
-        
-        // NOTE(heyyod): The index of the color attachment in this array is directly 
-        //referenced from the fragment shader with the layout(location = 0) out vec4 outColor directive!
-        subpass.colorAttachmentCount = 1; // ArrayCount(colorAttachementRef)
-        subpass.pColorAttachments = &colorAttachementRef;
-        subpass.pResolveAttachments = &colorAttachmentResolveRef;
-        subpass.pDepthStencilAttachment = &depthAttachmentRef;
-        //subpass.preserveAttachmentCount = 0;
-        //subpass.pPreserveAttachments = 0;
-        
-        VkSubpassDependency dependency = {};
-        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-        dependency.dstSubpass = 0;
-        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-        dependency.srcAccessMask = 0;
-        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-        
-        VkAttachmentDescription attachments[] = {colorAttachment, depthAttachment, colorAttachmentResolve};
-        VkRenderPassCreateInfo renderPassInfo = {};
-        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-        renderPassInfo.attachmentCount = ArrayCount(attachments);
-        renderPassInfo.pAttachments = attachments;
-        renderPassInfo.subpassCount = 1;
-        renderPassInfo.pSubpasses = &subpass;
-        renderPassInfo.dependencyCount = 1; //ArrayCount(renderpassDependencies);
-        renderPassInfo.pDependencies = &dependency;
-        AssertSuccess(vkCreateRenderPass(vulkan.device, &renderPassInfo, 0, &vulkan.renderPass));
-        DebugPrint("Created a renderpass\n");
-    }
-    
     // NOTE(heyyod): Create the rendering resources
     {
         VkCommandPoolCreateInfo cmdPoolInfo = {};
@@ -835,9 +755,9 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         }
     }
     
-    if(!CreatePipeline())
+    if(!CreateRenderPass() || !CreatePipeline())
     {
-        Assert("Could not create pipeline");
+        Assert("Could not create renderpass or pipeline");
         return false;
         
     }
@@ -863,6 +783,117 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
 }
 
 function void Vulkan::
+ClearRenderPass()
+{
+    if (VulkanIsValidHandle(vulkan.device))
+    {
+        vkDeviceWaitIdle(vulkan.device);
+        if (VulkanIsValidHandle(vulkan.renderPass))
+            vkDestroyRenderPass(vulkan.device, vulkan.renderPass, 0);
+    }
+}
+
+function bool Vulkan::
+CreateRenderPass()
+{
+    ClearRenderPass();
+    
+    VkAttachmentDescription colorAttachment = {};
+    colorAttachment.flags = 0;
+    colorAttachment.format = vulkan.surfaceFormat.format;
+    colorAttachment.samples = vulkan.msaaSamples;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    VkAttachmentReference colorAttachementRef = {};
+    colorAttachementRef.attachment = 0;
+    colorAttachementRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    
+    // NOTE(heyyod): Depth buffer attachment
+    VkAttachmentDescription depthAttachment = {};
+    depthAttachment.format = DEPTH_BUFFER_FORMAT;
+    depthAttachment.samples = vulkan.msaaSamples;
+    depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    VkAttachmentReference depthAttachmentRef = {};
+    depthAttachmentRef.attachment = 1;
+    depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    
+    
+    // NOTE(heyyod): Specify the subpasses
+    VkSubpassDescription subpass = {};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    
+    // NOTE(heyyod): The index of the color attachment in this array is directly 
+    //referenced from the fragment shader with the layout(location = 0) out vec4 outColor directive!
+    subpass.colorAttachmentCount = 1; // ArrayCount(colorAttachementRef)
+    subpass.pColorAttachments = &colorAttachementRef;
+    subpass.pDepthStencilAttachment = &depthAttachmentRef;
+    
+    //subpass.inputAttachmentCount = 0;
+    //subpass.pInputAttachments = 0;
+    //subpass.preserveAttachmentCount = 0;
+    //subpass.pPreserveAttachments = 0;
+    
+    VkSubpassDependency dependency = {};
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.srcAccessMask = 0;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    
+    VkRenderPassCreateInfo renderPassInfo = {};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    renderPassInfo.subpassCount = 1;
+    renderPassInfo.pSubpasses = &subpass;
+    renderPassInfo.dependencyCount = 1;
+    renderPassInfo.pDependencies = &dependency;
+    
+    if(vulkan.msaaSamples == VK_SAMPLE_COUNT_1_BIT)
+    {
+        colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        VkAttachmentDescription attachments[] = {colorAttachment, depthAttachment};
+        renderPassInfo.attachmentCount = ArrayCount(attachments);
+        renderPassInfo.pAttachments = attachments;
+        AssertSuccess(vkCreateRenderPass(vulkan.device, &renderPassInfo, 0, &vulkan.renderPass));
+    }
+    else
+    {
+        colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        
+        // NOTE(heyyod): attachment to resolve the multisamplerd image into a presentable image
+        VkAttachmentDescription colorAttachmentResolve = {};
+        colorAttachmentResolve.format = vulkan.surfaceFormat.format;
+        colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
+        colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        colorAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        colorAttachmentResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        colorAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        VkAttachmentReference colorAttachmentResolveRef = {};
+        colorAttachmentResolveRef.attachment = 2;
+        colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        
+        subpass.pResolveAttachments = &colorAttachmentResolveRef;
+        
+        VkAttachmentDescription attachments[] = {colorAttachment, depthAttachment, colorAttachmentResolve};
+        renderPassInfo.attachmentCount = ArrayCount(attachments);
+        renderPassInfo.pAttachments = attachments;
+        AssertSuccess(vkCreateRenderPass(vulkan.device, &renderPassInfo, 0, &vulkan.renderPass));
+    }
+    DebugPrint("Created a renderpass\n");
+    return true;
+}
+
+function void Vulkan::
 ClearFrameBuffers()
 {
     if (VulkanIsValidHandle(vulkan.device))
@@ -880,6 +911,36 @@ ClearFrameBuffers()
     }
 }
 
+function bool Vulkan::
+CreateFrameBuffers()
+{
+    ClearFrameBuffers();
+    local_var VkFramebufferCreateInfo framebufferInfo = {};
+    framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    framebufferInfo.renderPass = vulkan.renderPass;
+    framebufferInfo.width = vulkan.windowExtent.width;
+    framebufferInfo.height = vulkan.windowExtent.height;
+    framebufferInfo.layers = 1;
+    for (u32 i = 0; i < NUM_SWAPCHAIN_IMAGES; i++)
+    {
+        if(vulkan.msaaSamples == VK_SAMPLE_COUNT_1_BIT)
+        {
+            VkImageView attachments[] = {vulkan.swapchainImageViews[i], vulkan.depth.view};
+            framebufferInfo.pAttachments = attachments;
+            framebufferInfo.attachmentCount = ArrayCount(attachments);
+            AssertSuccess(vkCreateFramebuffer(vulkan.device, &framebufferInfo, 0, &vulkan.framebuffers[i]));
+        }
+        else
+        {
+            VkImageView attachments[] = {vulkan.msaa.view, vulkan.depth.view, vulkan.swapchainImageViews[i]};
+            framebufferInfo.pAttachments = attachments;
+            framebufferInfo.attachmentCount = ArrayCount(attachments);
+            AssertSuccess(vkCreateFramebuffer(vulkan.device, &framebufferInfo, 0, &vulkan.framebuffers[i]));
+        }
+    }
+    return true;
+}
+
 function void Vulkan::
 ClearImage(vulkan_image &img)
 {
@@ -892,8 +953,13 @@ ClearImage(vulkan_image &img)
             vkDestroyImage(vulkan.device, img.handle, 0);
         if(VulkanIsValidHandle(img.memoryHandle))
             vkFreeMemory(vulkan.device, img.memoryHandle, 0);
+        
+        img.view = VK_NULL_HANDLE;
+        img.handle = VK_NULL_HANDLE;
+        img.memoryHandle = VK_NULL_HANDLE;
     }
 }
+
 function bool Vulkan::
 CreateImage(VkImageType type, VkFormat format, VkExtent3D extent, u32 mipLevels, VkSampleCountFlagBits samples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memoryProperties, VkImageAspectFlags aspectMask, vulkan_image &imageOut)
 {
@@ -982,6 +1048,25 @@ CreateImage(VkImageType type, VkFormat format, VkExtent3D extent, u32 mipLevels,
             }
         }
     */
+}
+
+function bool Vulkan::
+CreateDepthBuffer()
+{
+    return CreateImage(VK_IMAGE_TYPE_2D, DEPTH_BUFFER_FORMAT,
+                       {vulkan.windowExtent.width, vulkan.windowExtent.height, 1}, 1, vulkan.msaaSamples,
+                       VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, vulkan.depth);
+}
+
+function bool Vulkan::
+CreateMSAABuffer()
+{
+    if(vulkan.msaaSamples == VK_SAMPLE_COUNT_1_BIT)
+    {
+        ClearImage(vulkan.msaa);
+        return true;
+    }
+    return CreateImage(VK_IMAGE_TYPE_2D, vulkan.surfaceFormat.format, {vulkan.windowExtent.width, vulkan.windowExtent.height, 1}, 1, vulkan.msaaSamples, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, vulkan.msaa);
 }
 
 function bool Vulkan::
@@ -1148,38 +1233,19 @@ CreateSwapchain()
     }
     DebugPrint("Created SwapChain\n");
     
-    // NOTE: Create a depth buffer
-    if (!CreateImage(VK_IMAGE_TYPE_2D, DEPTH_BUFFER_FORMAT,
-                     {vulkan.windowExtent.width, vulkan.windowExtent.height, 1}, 1, vulkan.msaaSamples,
-                     VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, vulkan.depth))
+    if (!CreateDepthBuffer())
     {
         return false;
     }
-    
-    // NOTE(heyyod): Create msaa buffer
-    if (!CreateImage(VK_IMAGE_TYPE_2D, vulkan.surfaceFormat.format, {vulkan.windowExtent.width, vulkan.windowExtent.height, 1}, 1, vulkan.msaaSamples, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, vulkan.msaa))
+    if (!CreateMSAABuffer())
     {
         return false;
     }
-    
-    // NOTE(heyyod): Create the framebuffers
-    ClearFrameBuffers();
-    local_var VkFramebufferCreateInfo framebufferInfo = {};
-    framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    framebufferInfo.renderPass = vulkan.renderPass;
-    framebufferInfo.width = vulkan.windowExtent.width;
-    framebufferInfo.height = vulkan.windowExtent.height;
-    framebufferInfo.layers = 1;
-    for (u32 i = 0; i < NUM_SWAPCHAIN_IMAGES; i++)
+    if (!CreateFrameBuffers())
     {
-        VkImageView attachments[] = {vulkan.msaa.view, vulkan.depth.view, vulkan.swapchainImageViews[i]};
-        framebufferInfo.pAttachments = attachments;
-        framebufferInfo.attachmentCount = ArrayCount(attachments);
-        AssertSuccess(vkCreateFramebuffer(vulkan.device, &framebufferInfo, 0, &vulkan.framebuffers[i]));
+        return false;
     }
-    
     vulkan.canRender = true;
-    
     return true;
 }
 
@@ -1541,8 +1607,7 @@ Destroy()
         ClearBuffer(vulkan.vertexBuffer);
         ClearBuffer(vulkan.indexBuffer);
         
-        if (VulkanIsValidHandle(vulkan.renderPass))
-            vkDestroyRenderPass(vulkan.device, vulkan.renderPass, 0);
+        ClearRenderPass();
         
         ClearSwapchain();
         
@@ -1581,6 +1646,25 @@ Destroy()
     
     DebugPrint("Destroyed Vulkan\n");
     return;
+}
+
+function bool Vulkan::
+ChangeGraphicsSettings(graphics_settings settings, CHANGE_GRAPHICS_SETTINGS newSettings)
+{
+    if (newSettings & CHANGE_MSAA)
+    {
+        PickMSAA(settings.msaa);
+        if (!CreateRenderPass() ||
+            !CreateDepthBuffer() ||
+            !CreateMSAABuffer() ||
+            !CreateFrameBuffers() ||
+            !CreatePipeline())
+        {
+            Assert("Could not change msaa settings");
+            return false;
+        }
+    }
+    return true;
 }
 
 function void Vulkan::

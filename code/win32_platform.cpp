@@ -542,6 +542,7 @@ function bool Win32InitializeMemory(engine_memory &memory)
     
 	memory.platformAPI_.Draw = Vulkan::Draw;
     memory.platformAPI_.PushStaged = Vulkan::PushStaged;
+    memory.platformAPI_.ChangeGraphicsSettings = Vulkan::ChangeGraphicsSettings;
     
     //#if HY3D_DEBUG
 	memory.platformAPI_.DEBUGFreeFileMemory = DEBUGFreeFileMemory;

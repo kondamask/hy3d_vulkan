@@ -15,13 +15,19 @@
 * the internet
 
 ## Progress (most recent first):
+* 23/10/21:
+
+  * Texture mipmaps
+  * Multisample anti-aliasing
+  * System to change msaa and other settings on runtime
+
+  ![9 GIF 10-23-2021 7-23-02 PM](README.assets/9 GIF 10-23-2021 7-23-02 PM.gif)
+
 * 21/10/21: 3D Model! (just obj for now)
 
   <img src="README.assets/8 GIF 10-22-2021 12-47-37 AM.gif" alt="8 GIF 10-22-2021 12-47-37 AM" style="zoom:150%;" />
 
-* 19/10/21:
-
-  * Depth Buffer
+* 19/10/21: Depth Buffer
 
   ![](README.assets/7_201021.gif)
 

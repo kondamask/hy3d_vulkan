@@ -5,6 +5,7 @@
 #include "hy3d_image.h"
 #include "hy3d_mesh.h"
 #include "hy3d_math.h"
+#include "hy3d_graphics_settings.h"
 
 #include <chrono>
 
@@ -29,6 +30,9 @@ typedef DEBUG_WRITE_FILE(debug_write_file);
 
 #define DEBUG_FREE_FILE(name) void name(void *memory)
 typedef DEBUG_FREE_FILE(debug_free_file);
+
+#define PLATFORM_CHANGE_GRAPHICS(name) bool name(graphics_settings setting, CHANGE_GRAPHICS_SETTINGS newSettings)
+typedef PLATFORM_CHANGE_GRAPHICS(platform_change_graphics);
 
 enum RESOURCE_TYPE
 {
@@ -71,6 +75,8 @@ struct platform_api
 {
     vulkan_draw_func *Draw;
     vulkan_push_staged_func *PushStaged;
+    
+    platform_change_graphics *ChangeGraphicsSettings;
     
     //#if HY3D_DEBUG
     debug_read_file *DEBUGReadFile;
@@ -133,6 +139,8 @@ struct keyboard_t
     bool autoRepeatEnabled = false;
     bool isPressed[KEY_COUNT];
     
+    bool ctrlWasUp = true;
+    
     inline void Clear()
     {
         for (int i = 0; i < KEY_COUNT; i++)
@@ -186,6 +194,8 @@ struct engine_state
 {
     memory_arena memoryArena;
     update_data updateData;
+    graphics_settings settings;
+    
     vec3 camPos;
     f32 camTheta;
     f32 radius;

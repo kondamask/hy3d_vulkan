@@ -150,26 +150,33 @@ namespace Vulkan
     function bool LoadInstanceFunctions();
     function bool LoadDeviceFunctions();
     
+    function bool CreateRenderPass();
+    function bool CreateFrameBuffers();
     function bool CreateSwapchain();
     function bool CreatePipeline();
     function bool CreateBuffer(VkBufferUsageFlags usage, VkDeviceSize size, VkMemoryPropertyFlags properties, vulkan_buffer &buffer, bool mapBuffer = false);
     function bool CreateImage(VkImageType type, VkFormat format, VkExtent3D extent, u32 mipLevels, VkSampleCountFlagBits samples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memoryProperties, VkImageAspectFlags aspectMask, vulkan_image &imageOut);
     
-    function void ClearFrameBuffers();
+    function bool CreateDepthBuffer();
+    function bool CreateMSAABuffer();
     
-    function void ClearImage(vulkan_image &img);
+    function void ClearRenderPass();
+    function void ClearFrameBuffers();
     function void ClearSwapchainImages();
+    function void ClearImage(vulkan_image &img);
     function void ClearPipeline();
     function void ClearBuffer(vulkan_buffer buffer);
     function void ClearSwapchain();
     function void Destroy();
     
+    function bool ChangeGraphicsSettings(graphics_settings settings, CHANGE_GRAPHICS_SETTINGS newSettings);
     
     function bool Draw(update_data *data);
     
     function bool PushStaged(staged_resources &stagedResources);
     function bool LoadShader(char *filepath, VkShaderModule *shaderOut);
     
+    function void PickMSAA(MSAA_OPTIONS msaa);
     function bool FindMemoryProperties(u32 memoryType, VkMemoryPropertyFlags requiredProperties, u32 &memoryIndexOut);
     
     function void CmdChangeImageLayout(VkCommandBuffer cmdBuffer, VkImage imgHandle, image *imageInfo, VkImageLayout oldLayout, VkImageLayout newLayout);

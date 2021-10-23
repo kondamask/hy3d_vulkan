@@ -110,7 +110,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
         state->camTheta = ToRadians(-90.0f);
         state->radius = 5.0f;
         state->camPos.X = state->radius * CosF(state->camTheta);
-        state->camPos.Y = 2.0f;
+        state->camPos.Y = 1.0f;
         state->camPos.Z = state->radius * SinF(state->camTheta);
         e.frameStart = std::chrono::steady_clock::now();
     }
@@ -139,16 +139,54 @@ UPDATE_AND_RENDER(UpdateAndRender)
         update.clearColor[i] += state->clearColorChange[i] * dt * 0.1f;
     }
     
-    f32 rotSpeed = 0.15f;
+    if(!e.input.keyboard.isPressed[KEY_CTRL] && !e.input.keyboard.ctrlWasUp)
+        e.input.keyboard.ctrlWasUp = true;
+    if(e.input.keyboard.isPressed[KEY_CTRL] && e.input.keyboard.ctrlWasUp)
+    {
+        
+        CHANGE_GRAPHICS_SETTINGS newSettings = CHANGE_NONE;
+        MSAA_OPTIONS newMSAA = state->settings.msaa;
+        
+        if(e.input.keyboard.isPressed[KEY_ONE])
+        {
+            newMSAA = MSAA_OFF;
+            e.input.keyboard.ctrlWasUp = false;
+        }
+        if(e.input.keyboard.isPressed[KEY_TWO])
+        {
+            newMSAA = MSAA_2;
+            e.input.keyboard.ctrlWasUp = false;
+        }
+        if(e.input.keyboard.isPressed[KEY_THREE])
+        {
+            newMSAA = MSAA_4;
+            e.input.keyboard.ctrlWasUp = false;
+        }
+        if(e.input.keyboard.isPressed[KEY_FOUR])
+        {
+            newMSAA = MSAA_8;
+            e.input.keyboard.ctrlWasUp = false;
+        }
+        if (newMSAA != state->settings.msaa)
+        {
+            state->settings.msaa = newMSAA;
+            newSettings |= CHANGE_MSAA;
+        }
+        
+        if (newSettings)
+            platformAPI.ChangeGraphicsSettings(state->settings, newSettings);
+    }
+    
+    f32 camSpeed = 0.1f;
     if (e.input.keyboard.isPressed[KEY_Z])
-        state->radius -= dt * rotSpeed * 2.0f;
+        state->radius -= dt * camSpeed * 2.0f;
     if (e.input.keyboard.isPressed[KEY_X])
-        state->radius += dt * rotSpeed * 2.0f;
+        state->radius += dt * camSpeed * 2.0f;
     
     if (e.input.keyboard.isPressed[KEY_RIGHT])
-        state->camTheta += dt * rotSpeed;
+        state->camTheta += dt * camSpeed;
     if (e.input.keyboard.isPressed[KEY_LEFT])
-        state->camTheta -= dt * rotSpeed;
+        state->camTheta -= dt * camSpeed;
     
     state->camPos.X = state->radius * CosF(state->camTheta);
     state->camPos.Z = state->radius * SinF(state->camTheta);
@@ -165,7 +203,7 @@ UPDATE_AND_RENDER(UpdateAndRender)
         //Scale({scale, scale, scale}) *
         Translate({0.0f, 0.0f, 0.0f})
         ;
-    memory->mvp->view = LookAt(state->camPos, {0.0f,0.0f,0.0f}, Vec3(0.0f, -1.0f, 0.0f));
+    memory->mvp->view = LookAt({state->camPos.X, 0.3f, state->camPos.Z}, {0.0f, 0.3f,0.0f}, Vec3(0.0f, -1.0f, 0.0f));
     memory->mvp->proj = Perspective(45.0f, e.windowWidth / (f32) e.windowHeight, 0.1f, 10.0f);
     //memory->mvp->proj[1][1] *= -1.0f;
     platformAPI.Draw(&state->updateData);
