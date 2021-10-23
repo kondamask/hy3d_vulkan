@@ -1,4 +1,4 @@
-# Just a dude learning Vulkan.
+Just a dude learning Vulkan.
 
 ## Resources:
 
@@ -21,7 +21,7 @@
   * Multisample anti-aliasing
   * System to change msaa and other settings on runtime
 
-  ![9 GIF 10-23-2021 7-23-02 PM](README.assets/9 GIF 10-23-2021 7-23-02 PM.gif)
+  <img src="README.assets/9 GIF 10-23-2021 7-23-02 PM.gif">
 
 * 21/10/21: 3D Model! (just obj for now)
 
