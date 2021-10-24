@@ -441,7 +441,7 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         vkGetPhysicalDeviceMemoryProperties(vulkan.gpu, &vulkan.memoryProperties);
         
         // NOTE(heyyod): Pick number of samples to use for antialiasig
-        PickMSAA(MSAA_OFF);
+        PickMSAA(START_UP_MSAA);
         
         DebugPrint("Selected a GPU\n");
     }
@@ -1137,7 +1137,7 @@ CreateSwapchain()
         }
         if (!desiredPresentModeSupported)
         {
-            desiredPresentMode = VK_PRESENT_MODE_IMMEDIATE_KHR; //VK_PRESENT_MODE_FIFO_KHR;
+            desiredPresentMode = VK_PRESENT_MODE_FIFO_KHR;//VK_PRESENT_MODE_IMMEDIATE_KHR;
         }
         
         // NOTE: Find a supported composite alpha mode - one of these is guaranteed to be set

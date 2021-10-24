@@ -63,7 +63,6 @@ StageResource(const char *filepath, RESOURCE_TYPE type, staged_resources &staged
     return true;
 }
 
-
 extern "C"
 UPDATE_AND_RENDER(UpdateAndRender)
 {
@@ -89,9 +88,10 @@ UPDATE_AND_RENDER(UpdateAndRender)
             staged_resources resources = {};
             resources.nextWriteAddr = memory->stagingMemory;
             StageResource("../models/viking_room.obj", RESOURCE_MESH, resources);
-            //StageResource("../models/test.obj", RESOURCE_MESH, resources);
             StageResource("../textures/viking_room.png", RESOURCE_TEXTURE, resources);
             /* 
+            StageResource("../models/Lev-edinorog_complete.obj", RESOURCE_MESH, resources);
+            StageResource("../textures/Lev-edinorog_complete_0.png", RESOURCE_TEXTURE, resources);
             StageResource("../models/cube.obj", RESOURCE_MESH, resources);
             StageResource("../textures/default.png", RESOURCE_TEXTURE, resources);
             StageResource("../models/bunny.obj", RESOURCE_MESH, resources);
@@ -101,110 +101,131 @@ UPDATE_AND_RENDER(UpdateAndRender)
             platformAPI.PushStaged(resources);
         }
         
-        state->clearColorChange[0] = 1.0f;
-        state->clearColorChange[1] = 1.5f;
-        state->clearColorChange[2] = 2.0f;
-        
         memory->isInitialized = true;
+        
+        state->player.pos = {0.0f, 2.0f, -3.0f};
+        state->player.lookDir = {0.0f, -0.2f, 1.0f, 0.0f};
+        state->player.moveSpeed = 0.7f;
+        state->player.lookSens = 0.02f;
+        state->player.fov = 50.0f;
+        state->player.lookSens = 100.0f;
+        
+        e.input.mouse.cursorEnabled = false;
+        
         state->time = 0.0f;
-        state->camTheta = ToRadians(-90.0f);
-        state->radius = 5.0f;
-        state->camPos.X = state->radius * CosF(state->camTheta);
-        state->camPos.Y = 1.0f;
-        state->camPos.Z = state->radius * SinF(state->camTheta);
         e.frameStart = std::chrono::steady_clock::now();
     }
     
+    // NOTE(heyyod): Frame time
     std::chrono::steady_clock::time_point frameEnd = std::chrono::steady_clock::now();
     std::chrono::duration<f32> frameTime = frameEnd - e.frameStart;
     f32 dt = frameTime.count();
     state->time += dt;
     e.frameStart = frameEnd;
     
-    // NOTE: UPDATE
-    f32 min = 0.2f;
-    f32 max = 0.6f;
-    for (u8 i = 0; i < ArrayCount(state->updateData.clearColor); i++)
+    // NOTE(heyyod): SETTINGS CONTROL
+    update.clearColor = {0.7f, 0.4f, 0.3f};
+    
     {
-        if (update.clearColor[i] >= max)
+        if(!e.input.keyboard.isPressed[KEY_ALT] && !e.input.keyboard.altWasUp)
+            e.input.keyboard.altWasUp = true;
+        if(e.input.keyboard.isPressed[KEY_ALT] && e.input.keyboard.altWasUp)
         {
-            state->clearColorChange[i] *= -1.0f;
-            update.clearColor[i] = max;
+            
+            CHANGE_GRAPHICS_SETTINGS newSettings = CHANGE_NONE;
+            MSAA_OPTIONS newMSAA = state->settings.msaa;
+            
+            if(e.input.keyboard.isPressed[KEY_ONE])
+            {
+                newMSAA = MSAA_OFF;
+            }
+            if(e.input.keyboard.isPressed[KEY_TWO])
+            {
+                newMSAA = MSAA_2;
+            }
+            if(e.input.keyboard.isPressed[KEY_THREE])
+            {
+                newMSAA = MSAA_4;
+            }
+            if(e.input.keyboard.isPressed[KEY_FOUR])
+            {
+                newMSAA = MSAA_8;
+            }
+            if (newMSAA != state->settings.msaa)
+            {
+                state->settings.msaa = newMSAA;
+                newSettings |= CHANGE_MSAA;
+                e.input.keyboard.altWasUp = false;
+            }
+            if (newSettings)
+                platformAPI.ChangeGraphicsSettings(state->settings, newSettings);
+            
+            if (e.input.keyboard.isPressed[KEY_TILDE])
+            {
+                e.input.mouse.cursorEnabled = !e.input.mouse.cursorEnabled;
+                e.input.keyboard.altWasUp = false;
+                //platformAPI.SetCursorMode(e.input.mouse.cursorEnabled);
+            }
         }
-        if (update.clearColor[i] <= min)
-        {
-            state->clearColorChange[i] *= -1.0f;
-            update.clearColor[i] = min;
-        }
-        update.clearColor[i] += state->clearColorChange[i] * dt * 0.1f;
     }
     
-    if(!e.input.keyboard.isPressed[KEY_CTRL] && !e.input.keyboard.ctrlWasUp)
-        e.input.keyboard.ctrlWasUp = true;
-    if(e.input.keyboard.isPressed[KEY_CTRL] && e.input.keyboard.ctrlWasUp)
+    // NOTE(heyyod): CAMERA CONTROL
     {
+        camera &player = state->player;
+        vec3 moveDir = {};
+        bool blockRight = false;
+        if(e.input.keyboard.isPressed[KEY_W])
+        {
+            moveDir += player.lookDir.XYZ;
+        }
+        if(e.input.keyboard.isPressed[KEY_S])
+        {
+            moveDir -= player.lookDir.XYZ;
+        }
+        if(e.input.keyboard.isPressed[KEY_A])
+        {
+            if (e.input.keyboard.isPressed[KEY_D])
+                blockRight = true;
+            moveDir += Cross(VULKAN_UP, player.lookDir.XYZ);
+        }
+        if(e.input.keyboard.isPressed[KEY_D] && !blockRight)
+        {
+            moveDir += Cross(player.lookDir.XYZ, VULKAN_UP);
+        }
+        if(e.input.keyboard.isPressed[KEY_CTRL])
+        {
+            moveDir.Y -= 1.0f;
+        }
+        if(e.input.keyboard.isPressed[KEY_SPACE])
+        {
+            moveDir.Y += 1.0f;
+        }
+        player.pos += NormalizeVec3(moveDir) * player.moveSpeed * dt;
         
-        CHANGE_GRAPHICS_SETTINGS newSettings = CHANGE_NONE;
-        MSAA_OPTIONS newMSAA = state->settings.msaa;
-        
-        if(e.input.keyboard.isPressed[KEY_ONE])
+        if (e.input.mouse.cursorEnabled)
+            e.input.mouse.lastPos = e.input.mouse.delta;
+        if (!e.input.mouse.cursorEnabled)
         {
-            newMSAA = MSAA_OFF;
-            e.input.keyboard.ctrlWasUp = false;
+            // TODO(heyyod): FIX THE CAMERA AT 90deg up and down.
+            vec2 dir = ((e.input.mouse.delta - e.input.mouse.lastPos) * player.lookSens * 0.05f * dt);
+            e.input.mouse.lastPos = e.input.mouse.delta;
+            
+            if (dir.X != 0.0f)
+                player.lookDir = Rotate(dir.X, {0.0f, 1.0f, 0.0f}) * player.lookDir;
+            if (dir.Y != 0.0f)
+                player.lookDir = Rotate(dir.Y, {player.lookDir.Z, 0.0f, -player.lookDir.X}) * player.lookDir;
         }
-        if(e.input.keyboard.isPressed[KEY_TWO])
-        {
-            newMSAA = MSAA_2;
-            e.input.keyboard.ctrlWasUp = false;
-        }
-        if(e.input.keyboard.isPressed[KEY_THREE])
-        {
-            newMSAA = MSAA_4;
-            e.input.keyboard.ctrlWasUp = false;
-        }
-        if(e.input.keyboard.isPressed[KEY_FOUR])
-        {
-            newMSAA = MSAA_8;
-            e.input.keyboard.ctrlWasUp = false;
-        }
-        if (newMSAA != state->settings.msaa)
-        {
-            state->settings.msaa = newMSAA;
-            newSettings |= CHANGE_MSAA;
-        }
-        
-        if (newSettings)
-            platformAPI.ChangeGraphicsSettings(state->settings, newSettings);
     }
     
-    f32 camSpeed = 0.1f;
-    if (e.input.keyboard.isPressed[KEY_Z])
-        state->radius -= dt * camSpeed * 2.0f;
-    if (e.input.keyboard.isPressed[KEY_X])
-        state->radius += dt * camSpeed * 2.0f;
-    
-    if (e.input.keyboard.isPressed[KEY_RIGHT])
-        state->camTheta += dt * camSpeed;
-    if (e.input.keyboard.isPressed[KEY_LEFT])
-        state->camTheta -= dt * camSpeed;
-    
-    state->camPos.X = state->radius * CosF(state->camTheta);
-    state->camPos.Z = state->radius * SinF(state->camTheta);
-    
-    //vec3 pos = {};
-    //pos.X = SinF(2.0f * state->time);
-    //pos.Z = 6.0f;
-    //pos.Y = CosF(state->time);
-    
-    //f32 scale = 7.0f;
+    f32 scale = 1.0f;
     memory->mvp->model =
         Rotate(90.0f, Vec3(0.0f, 0.0f, 1.0f)) *
         Rotate(90.0f, Vec3(0.0f, 1.0f, 0.0f)) *
-        //Scale({scale, scale, scale}) *
+        Scale({scale, scale, scale}) *
         Translate({0.0f, 0.0f, 0.0f})
         ;
-    memory->mvp->view = LookAt({state->camPos.X, 0.3f, state->camPos.Z}, {0.0f, 0.3f,0.0f}, Vec3(0.0f, -1.0f, 0.0f));
-    memory->mvp->proj = Perspective(45.0f, e.windowWidth / (f32) e.windowHeight, 0.1f, 10.0f);
+    memory->mvp->view = LookAt(state->player.pos, state->player.pos + state->player.lookDir.XYZ, VULKAN_UP);
+    memory->mvp->proj = Perspective(state->player.fov, e.windowWidth / (f32) e.windowHeight, 0.1f, 10.0f);
     //memory->mvp->proj[1][1] *= -1.0f;
     platformAPI.Draw(&state->updateData);
     

@@ -89,7 +89,6 @@ function LRESULT Win32MainWindowProc(HWND handle, UINT message, WPARAM wParam, L
             ValidateRect(handle, 0);
             break;
         }
-        
         case WM_GETMINMAXINFO:
         {
             LPMINMAXINFO lpMMI = (LPMINMAXINFO)lParam;
@@ -103,7 +102,6 @@ function LRESULT Win32MainWindowProc(HWND handle, UINT message, WPARAM wParam, L
             break;
         }
 		//case WM_EXITSIZEMOVE:
-        
         case WM_CLOSE:
         {
             UnregisterClassA(window->name, window->instance);
@@ -159,118 +157,45 @@ function KEYBOARD_BUTTON Win32TranslateKeyInput(VK_CODE code)
 {
 	switch (code)
 	{
-        case VK_UP:
-		return KEY_UP;
-		break;
-        case VK_LEFT:
-		return KEY_LEFT;
-		break;
-        case VK_DOWN:
-		return KEY_DOWN;
-		break;
-        case VK_RIGHT:
-		return KEY_RIGHT;
-		break;
-        case 0x57:
-		return KEY_W;
-		break;
-        case 0x41:
-		return KEY_A;
-		break;
-        case 0x53:
-		return KEY_S;
-		break;
-        case 0x44:
-		return KEY_D;
-		break;
-        case 0x51:
-		return KEY_Q;
-		break;
-        case 0x45:
-		return KEY_E;
-		break;
-        case 0x52:
-		return KEY_R;
-		break;
-        case 0x46:
-		return KEY_F;
-		break;
-        case 0x5A:
-		return KEY_Z;
-		break;
-        case 0x58:
-		return KEY_X;
-		break;
-        case 0x43:
-		return KEY_C;
-		break;
-        case 0x56:
-		return KEY_V;
-		break;
-        case 0x49:
-		return KEY_I;
-		break;
-        case 0x4A:
-		return KEY_J;
-		break;
-        case 0x4B:
-		return KEY_K;
-		break;
-        case 0x4C:
-		return KEY_L;
-		break;
-        case 0x55:
-		return KEY_U;
-		break;
-        case 0x4F:
-		return KEY_O;
-		break;
-        case VK_SHIFT:
-		return KEY_SHIFT;
-		break;
-        case VK_CONTROL:
-		return KEY_CTRL;
-		break;
-        case VK_MENU:
-		return KEY_ALT;
-		break;
-        case VK_F4:
-		return KEY_F4;
-		break;
-        case 0x30:
-		return KEY_ZERO;
-		break;
-        case 0x31:
-		return KEY_ONE;
-		break;
-        case 0x32:
-		return KEY_TWO;
-		break;
-        case 0x33:
-		return KEY_THREE;
-		break;
-        case 0x34:
-		return KEY_FOUR;
-		break;
-        case 0x35:
-		return KEY_FIVE;
-		break;
-        case 0x36:
-		return KEY_SIX;
-		break;
-        case 0x37:
-		return KEY_SEVEN;
-		break;
-        case 0x38:
-		return KEY_EIGHT;
-		break;
-        case 0x39:
-		return KEY_NINE;
-		break;
-        
-        default:
-		return KEY_INVALID;
-		break;
+        case VK_UP:        {return KEY_UP;} break;
+        case VK_LEFT:      {return KEY_LEFT;} break;
+        case VK_DOWN:      {return KEY_DOWN;} break;
+        case VK_RIGHT:     {return KEY_RIGHT;} break;
+        case 0x57:         {return KEY_W;} break;
+        case 0x41:         {return KEY_A;} break;
+        case 0x53:         {return KEY_S;} break;
+        case 0x44:         {return KEY_D;} break;
+        case 0x51:         {return KEY_Q;} break;
+        case 0x45:         {return KEY_E;} break;
+        case 0x52:         {return KEY_R;} break;
+        case 0x46:         {return KEY_F;} break;
+        case 0x5A:         {return KEY_Z;} break;
+        case 0x58:         {return KEY_X;} break;
+        case 0x43:         {return KEY_C;} break;
+        case 0x56:         {return KEY_V;} break;
+        case 0x49:         {return KEY_I;} break;
+        case 0x4A:         {return KEY_J;} break;
+        case 0x4B:         {return KEY_K;} break;
+        case 0x4C:         {return KEY_L;} break;
+        case 0x55:         {return KEY_U;} break;
+        case 0x4F:         {return KEY_O;} break;
+        case VK_SHIFT:     {return KEY_SHIFT ;} break;
+        case VK_CONTROL:   {return KEY_CTRL;} break;
+        case VK_MENU:      {return KEY_ALT;} break;
+        case VK_SPACE:     {return KEY_SPACE;} break;
+        case VK_F4:        {return KEY_F4;} break;
+        case VK_OEM_3:        {return KEY_TILDE;} break;
+        case 0x30:         {return KEY_ZERO;} break;
+        case 0x31:         {return KEY_ONE;} break;
+        case 0x32:         {return KEY_TWO;} break;
+        case 0x33:         {return KEY_THREE;} break;
+        case 0x34:         {return KEY_FOUR;} break;
+        case 0x35:         {return KEY_FIVE;} break;
+        case 0x36:         {return KEY_SIX;} break;
+        case 0x37:         {return KEY_SEVEN;} break;
+        case 0x38:         {return KEY_EIGHT;} break;
+        case 0x39:         {return KEY_NINE;} break;
+        default:           {return KEY_INVALID;} break;
 	}
 }
 
@@ -335,6 +260,24 @@ function bool Win32ProcessMessages(win32_window &window, engine_input &input, i3
             /**************************************************/
             
             /****************** MOUSE EVENTS ******************/
+            case WM_INPUT:
+            {
+                UINT dwSize = sizeof(RAWINPUT);
+                local_var BYTE lpb[sizeof(RAWINPUT)];
+                if (GetRawInputData((HRAWINPUT)message.lParam, RID_INPUT, lpb, &dwSize, sizeof(RAWINPUTHEADER)) == -1)
+                {
+                    break;
+                }
+                
+                RAWINPUT* raw = (RAWINPUT*)lpb;
+                if (raw->header.dwType == RIM_TYPEMOUSE &&
+                    (raw->data.mouse.lLastX != 0 || raw->data.mouse.lLastY != 0))
+                {
+                    input.mouse.delta.X += (f32)raw->data.mouse.lLastX;
+                    input.mouse.delta.Y += (f32)raw->data.mouse.lLastY;
+                } 
+                break;
+            }
             case WM_MOUSEMOVE:
             {
                 POINTS p = MAKEPOINTS(message.lParam);
@@ -342,9 +285,23 @@ function bool Win32ProcessMessages(win32_window &window, engine_input &input, i3
                 bool isInWindow =
                     p.x >= 0 && p.x < window.dimensions.width &&
                     p.y >= 0 && p.y < window.dimensions.height;
+                if (input.mouse.cursorEnabled)
+                {
+                    while(ShowCursor(TRUE) < 0);
+                    ClipCursor(0);
+                }
+                else
+                {
+                    while(ShowCursor(FALSE) >= 0);
+                    RECT rect;
+                    GetClientRect(window.handle, &rect);
+                    MapWindowPoints(window.handle, 0, (POINT*)(&rect), 2);
+                    ClipCursor(&rect);
+                }
                 if (isInWindow)
                 {
-                    input.mouse.SetPos(p.x, p.y);
+                    //ShowCursor(false);
+                    //input.mouse.SetPos({(f32)p.x, (f32)p.y});
                     if (!input.mouse.isInWindow) // if it wasn't in the window before
                     {
                         SetCapture(window.handle);
@@ -353,16 +310,11 @@ function bool Win32ProcessMessages(win32_window &window, engine_input &input, i3
                 }
                 else
                 {
-                    if (input.mouse.leftIsPressed || input.mouse.rightIsPressed)
+                    //ShowCursor(true);
+                    if (!(input.mouse.leftIsPressed || input.mouse.rightIsPressed))
                     {
-                        // mouse is of the window but we're holding a button
-                        input.mouse.SetPos(p.x, p.y);
-                    }
-                    else
-                    {
-                        // mouse is out of the window
-                        ReleaseCapture();
-                        input.mouse.isInWindow = false;
+                        //ReleaseCapture();
+                        //input.mouse.isInWindow = false;
                     }
                 }
                 break;
@@ -383,7 +335,7 @@ function bool Win32ProcessMessages(win32_window &window, engine_input &input, i3
 			input.mouse.SetWheelDelta(input.mouse.WheelDelta() + GET_WHEEL_DELTA_WPARAM(message.wParam));
             case WM_MOUSELEAVE:
 			POINTS p = MAKEPOINTS(message.lParam);
-			input.mouse.SetPos(p.x, p.y);
+			input.mouse.SetPos({(f32)p.x, (f32)p.y});
 			break;
             case WM_KILLFOCUS:
 			input.keyboard.Clear();
@@ -476,6 +428,7 @@ function bool Win32InitializeWindow(win32_window &window, u16 width, u16 height,
 	windowClass.hInstance = window.instance;
 	windowClass.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
 	windowClass.hIcon = LoadIconA(windowClass.hInstance, MAKEINTRESOURCEA(IDI_MYAPP_ICON));
+    //windowClass.hCursor = LoadCursorA(0, IDC_CROSS);
     
 	if (!RegisterClassA(&windowClass))
 	{
@@ -518,13 +471,20 @@ function bool Win32InitializeWindow(win32_window &window, u16 width, u16 height,
 		return false;
 	}
     
-	// NOTE: A value to be passed to the window through the
-	// CREATESTRUCT structure pointed to by the lParam of
-	// the WM_CREATE message. This message is sent to the
-	// created window by this function before it returns.
+	RAWINPUTDEVICE rid;
+    rid.usUsagePage = 0x01; //HID_USAGE_PAGE_GENERIC; 
+    rid.usUsage = 0x02; //HID_USAGE_GENERIC_MOUSE; 
+    //rid.dwFlags = RIDEV_INPUTSINK;   
+    rid.hwndTarget = window.handle;
+    RegisterRawInputDevices(&rid, 1, sizeof(rid));
     
 	ShowWindow(window.handle, SW_SHOWDEFAULT);
 	return true;
+}
+
+function void SetCursorMode(bool cursorEnabled)
+{
+    ShowCursor(cursorEnabled);
 }
 
 function bool Win32InitializeMemory(engine_memory &memory)
@@ -543,6 +503,8 @@ function bool Win32InitializeMemory(engine_memory &memory)
 	memory.platformAPI_.Draw = Vulkan::Draw;
     memory.platformAPI_.PushStaged = Vulkan::PushStaged;
     memory.platformAPI_.ChangeGraphicsSettings = Vulkan::ChangeGraphicsSettings;
+    
+    memory.platformAPI_.SetCursorMode = SetCursorMode;
     
     //#if HY3D_DEBUG
 	memory.platformAPI_.DEBUGFreeFileMemory = DEBUGFreeFileMemory;
