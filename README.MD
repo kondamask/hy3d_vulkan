@@ -15,8 +15,11 @@ Just a dude learning Vulkan.
 * the internet
 
 ## Progress (most recent first):
-* 23/10/21:
+* 23/10/21: Free roam camera
 
+<img src="README.assets/10 GIF 10-24-2021 5-58-32 PM.gif">
+
+* 23/10/21:
   * Texture mipmaps
   * Multisample anti-aliasing
   * System to change msaa and other settings on runtime
