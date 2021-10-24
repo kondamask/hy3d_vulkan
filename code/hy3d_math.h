@@ -12,6 +12,20 @@ typedef hmm_vec4 vec4;
 typedef hmm_mat4 mat4;
 typedef hmm_quaternion quart;
 
+inline function f32 Wrap(f32 min, f32 val, f32 max)
+{
+    f32 result = val;
+    if(val < min)
+    {
+        result = max - (min - val);
+    }
+    else if (val > max)
+    {
+        result = min + (val - max);
+    }
+    return result;
+}
+
 inline i16 RoundF32toI16(f32 in)
 {
     return (i16)(ceilf(in - 0.5f));

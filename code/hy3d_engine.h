@@ -16,6 +16,8 @@
 
 #define MAX_STAGE_BUFFER_SLOTS 16
 
+#define VULKAN_UP {0.0f, -1.0f, 0.0f}
+
 struct debug_read_file_result
 {
     void *content;
@@ -33,6 +35,9 @@ typedef DEBUG_FREE_FILE(debug_free_file);
 
 #define PLATFORM_CHANGE_GRAPHICS(name) bool name(graphics_settings setting, CHANGE_GRAPHICS_SETTINGS newSettings)
 typedef PLATFORM_CHANGE_GRAPHICS(platform_change_graphics);
+
+#define PLATFORM_SET_CURSOR_MODE(name) void name(bool cursorEnabled)
+typedef PLATFORM_SET_CURSOR_MODE(platform_set_cursor_mode);
 
 enum RESOURCE_TYPE
 {
@@ -59,7 +64,7 @@ typedef VULKAN_PUSH_STAGED_FUNC(vulkan_push_staged_func);
 struct update_data
 {
     // NOTE(heyyod): ENGINE -> VULKAN
-    float clearColor[3];
+    vec3 clearColor;
     
     // NOTE(heyyod): VULKAN -> ENGINE
     // We have multiple uniform buffers that we uses to pass the matrices into
@@ -77,6 +82,7 @@ struct platform_api
     vulkan_push_staged_func *PushStaged;
     
     platform_change_graphics *ChangeGraphicsSettings;
+    platform_set_cursor_mode *SetCursorMode;;
     
     //#if HY3D_DEBUG
     debug_read_file *DEBUGReadFile;
@@ -121,15 +127,16 @@ struct memory_arena
 
 enum KEYBOARD_BUTTON
 {
-    KEY_UP, KEY_LEFT, KEY_DOWN, KEY_RIGHT,
-    KEY_W, KEY_A, KEY_S, KEY_D,
-    KEY_Q, KEY_E, KEY_R, KEY_F,
-    KEY_Z, KEY_X, KEY_C, KEY_V,
-    KEY_I, KEY_J, KEY_K, KEY_L, KEY_U, KEY_O,
-    KEY_SHIFT, KEY_CTRL, KEY_ALT, KEY_F4,
-    KEY_ZERO, KEY_ONE, KEY_TWO, KEY_THREE, KEY_FOUR, KEY_FIVE,
-    KEY_SIX, KEY_SEVEN, KEY_EIGHT, KEY_NINE,
-    KEY_COUNT, KEY_INVALID
+    KEY_UP,    KEY_LEFT,  KEY_DOWN,  KEY_RIGHT,
+    KEY_W,     KEY_A,     KEY_S,     KEY_D,
+    KEY_Q,     KEY_E,     KEY_R,     KEY_F,
+    KEY_Z,     KEY_X,     KEY_C,     KEY_V,
+    KEY_I,     KEY_J,     KEY_K,     KEY_L, 
+    KEY_U,     KEY_O,     KEY_SHIFT, KEY_CTRL,
+    KEY_ALT,   KEY_SPACE, KEY_F4,    KEY_TILDE,
+    KEY_ZERO,  KEY_ONE,   KEY_TWO,   KEY_THREE, 
+    KEY_FOUR,  KEY_FIVE,  KEY_SIX,   KEY_SEVEN, 
+    KEY_EIGHT, KEY_NINE,  KEY_COUNT, KEY_INVALID
 };
 
 struct keyboard_t
@@ -139,7 +146,7 @@ struct keyboard_t
     bool autoRepeatEnabled = false;
     bool isPressed[KEY_COUNT];
     
-    bool ctrlWasUp = true;
+    bool altWasUp = true;
     
     inline void Clear()
     {
@@ -155,17 +162,18 @@ struct keyboard_t
 
 struct mouse_t
 {
-    i16 x;
-    i16 y;
+    vec2 pos;
+    vec2 lastPos;
+    vec2 delta;
     bool isInWindow;
     bool leftIsPressed;
     bool rightIsPressed;
     bool wheelUp;
+    bool cursorEnabled;
     
-    inline void SetPos(i16 x_, i16 y_)
+    inline void SetPos(vec2 val)
     {
-        x = x_;
-        y = y_;
+        pos = val;
     }
     
     i32 WheelDelta()
@@ -190,16 +198,23 @@ struct engine_input
     keyboard_t keyboard;
 };
 
+struct camera
+{
+    vec3 pos;
+    vec4 lookDir;
+    f32 moveSpeed;
+    f32 lookSens;
+    f32 fov;
+};
+
 struct engine_state
 {
     memory_arena memoryArena;
     update_data updateData;
     graphics_settings settings;
     
-    vec3 camPos;
-    f32 camTheta;
-    f32 radius;
-    float clearColorChange[3];
+    camera player;
+    
     float time;
 };
 
