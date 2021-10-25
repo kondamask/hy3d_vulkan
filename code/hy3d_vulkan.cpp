@@ -1,5 +1,51 @@
 #include "hy3d_vulkan.h"
 
+namespace Vulkan
+{
+    function bool Win32LoadDLL();
+    function bool Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name);
+    
+    function bool CreateRenderPass();
+    function bool CreateFrameBuffers();
+    function bool CreateSwapchain();
+    function bool CreatePipeline();
+    function bool CreateBuffer(VkBufferUsageFlags usage, VkDeviceSize size, VkMemoryPropertyFlags properties, vulkan_buffer &buffer, bool mapBuffer = false);
+    function bool CreateImage(VkImageType type, VkFormat format, VkExtent3D extent, u32 mipLevels, VkSampleCountFlagBits samples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memoryProperties, VkImageAspectFlags aspectMask, vulkan_image &imageOut);
+    
+    function bool CreateDepthBuffer();
+    function bool CreateMSAABuffer();
+    
+    function void ClearRenderPass();
+    function void ClearFrameBuffers();
+    function void ClearSwapchainImages();
+    function void ClearImage(vulkan_image &img);
+    function void ClearPipeline();
+    function void ClearBuffer(vulkan_buffer buffer);
+    function void ClearSwapchain();
+    function void Destroy();
+    
+    function bool ChangeGraphicsSettings(graphics_settings settings, CHANGE_GRAPHICS_SETTINGS newSettings);
+    
+    function bool Draw(update_data *data);
+    
+    function bool PushStaged(staged_resources &stagedResources);
+    function bool LoadShader(char *filepath, VkShaderModule *shaderOut);
+    
+    function void PickMSAA(MSAA_OPTIONS msaa);
+    function bool FindMemoryProperties(u32 memoryType, VkMemoryPropertyFlags requiredProperties, u32 &memoryIndexOut);
+    
+    function void CmdChangeImageLayout(VkCommandBuffer cmdBuffer, VkImage imgHandle, image *imageInfo, VkImageLayout oldLayout, VkImageLayout newLayout);
+    
+    function frame_prep_resource *GetNextAvailableResource();
+    /*
+    function void GetVertexBindingDesc(vertex2 &v, VkVertexInputBindingDescription &bindingDesc);
+    function void GetVertexAttributeDesc(vertex2 &v, VkVertexInputAttributeDescription *attributeDescs);
+    */
+#if VULKAN_VALIDATION_LAYERS_ON
+    function VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData);
+#endif
+}
+
 #if VULKAN_VALIDATION_LAYERS_ON
 function VKAPI_ATTR VkBool32 VKAPI_CALL Vulkan::
 DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData)
@@ -73,149 +119,6 @@ DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUti
 }
 #endif
 
-#define VulkanLoadGlobalFunc(func)                                     \
-func = (VulkanFuncPtr(func))vkGetInstanceProcAddr(nullptr, #func); \
-if (!(func))                                                       \
-{                                                                  \
-return false;                                                  \
-}
-function bool Vulkan::
-LoadGlobalFunctions()
-{
-    //test
-    VulkanLoadGlobalFunc(vkCreateInstance);
-    VulkanLoadGlobalFunc(vkEnumerateInstanceLayerProperties);
-    VulkanLoadGlobalFunc(vkEnumerateInstanceExtensionProperties);
-    
-    DebugPrint("Loaded Global Functions\n");
-    
-    return true;
-}
-
-#define VulkanLoadInstanceFunc(func)                                           \
-func = (VulkanFuncPtr(func))vkGetInstanceProcAddr(vulkan.instance, #func); \
-if (!(func))                                                               \
-{                                                                          \
-return false;                                                          \
-}
-function bool Vulkan::
-LoadInstanceFunctions()
-{
-    VulkanLoadInstanceFunc(vkDestroyInstance);
-    
-#if VULKAN_VALIDATION_LAYERS_ON
-    VulkanLoadInstanceFunc(vkCreateDebugUtilsMessengerEXT);
-    VulkanLoadInstanceFunc(vkDestroyDebugUtilsMessengerEXT);
-#endif
-    
-    VulkanLoadInstanceFunc(vkCreateWin32SurfaceKHR); // NOTE: Windows ONLY
-    VulkanLoadInstanceFunc(vkDestroySurfaceKHR);
-    VulkanLoadInstanceFunc(vkEnumeratePhysicalDevices);
-    VulkanLoadInstanceFunc(vkGetPhysicalDeviceQueueFamilyProperties);
-    VulkanLoadInstanceFunc(vkGetPhysicalDeviceSurfaceSupportKHR);
-    VulkanLoadInstanceFunc(vkGetPhysicalDeviceSurfaceFormatsKHR);
-    VulkanLoadInstanceFunc(vkGetPhysicalDeviceSurfaceCapabilitiesKHR);
-    VulkanLoadInstanceFunc(vkGetPhysicalDeviceFormatProperties);
-    VulkanLoadInstanceFunc(vkGetPhysicalDeviceMemoryProperties);
-    VulkanLoadInstanceFunc(vkGetPhysicalDeviceProperties);
-    VulkanLoadInstanceFunc(vkGetPhysicalDeviceSurfacePresentModesKHR);
-    VulkanLoadInstanceFunc(vkEnumerateDeviceExtensionProperties);
-    VulkanLoadInstanceFunc(vkCreateDevice);
-    VulkanLoadInstanceFunc(vkGetDeviceProcAddr);
-    
-    DebugPrint("Loaded Instance Functions\n");
-    
-    return true;
-}
-
-#define VulkanLoadDeviceFunc(func)                                         \
-func = (VulkanFuncPtr(func))vkGetDeviceProcAddr(vulkan.device, #func); \
-if (!(func))                                                           \
-{                                                                      \
-return false;                                                      \
-}
-function bool Vulkan::
-LoadDeviceFunctions()
-{
-    VulkanLoadDeviceFunc(vkDeviceWaitIdle);
-    VulkanLoadDeviceFunc(vkDestroyDevice);
-    VulkanLoadDeviceFunc(vkGetDeviceQueue);
-    VulkanLoadDeviceFunc(vkCreateSwapchainKHR);
-    VulkanLoadDeviceFunc(vkDestroySwapchainKHR);
-    VulkanLoadDeviceFunc(vkGetSwapchainImagesKHR);
-    VulkanLoadDeviceFunc(vkCreateSemaphore);
-    VulkanLoadDeviceFunc(vkDestroySemaphore);
-    VulkanLoadDeviceFunc(vkAcquireNextImageKHR);
-    VulkanLoadDeviceFunc(vkQueueSubmit);
-    VulkanLoadDeviceFunc(vkQueuePresentKHR);
-    VulkanLoadDeviceFunc(vkCreateCommandPool);
-    VulkanLoadDeviceFunc(vkResetCommandPool);
-    VulkanLoadDeviceFunc(vkDestroyCommandPool);
-    VulkanLoadDeviceFunc(vkAllocateCommandBuffers);
-    VulkanLoadDeviceFunc(vkFreeCommandBuffers);
-    VulkanLoadDeviceFunc(vkBeginCommandBuffer);
-    VulkanLoadDeviceFunc(vkEndCommandBuffer);
-    VulkanLoadDeviceFunc(vkResetCommandBuffer);
-    VulkanLoadDeviceFunc(vkCreateImage);
-    VulkanLoadDeviceFunc(vkDestroyImage);
-    VulkanLoadDeviceFunc(vkCreateImageView);
-    VulkanLoadDeviceFunc(vkDestroyImageView);
-    VulkanLoadDeviceFunc(vkGetImageMemoryRequirements);
-    VulkanLoadDeviceFunc(vkBindImageMemory);
-    VulkanLoadDeviceFunc(vkAllocateMemory);
-    VulkanLoadDeviceFunc(vkFreeMemory);
-    VulkanLoadDeviceFunc(vkCreateRenderPass);
-    VulkanLoadDeviceFunc(vkDestroyRenderPass);
-    VulkanLoadDeviceFunc(vkCreateFramebuffer);
-    VulkanLoadDeviceFunc(vkDestroyFramebuffer);
-    VulkanLoadDeviceFunc(vkCreateFence);
-    VulkanLoadDeviceFunc(vkDestroyFence);
-    VulkanLoadDeviceFunc(vkWaitForFences);
-    VulkanLoadDeviceFunc(vkResetFences);
-    VulkanLoadDeviceFunc(vkCreateShaderModule);
-    VulkanLoadDeviceFunc(vkDestroyShaderModule);
-    VulkanLoadDeviceFunc(vkCreatePipelineLayout);
-    VulkanLoadDeviceFunc(vkDestroyPipelineLayout);
-    VulkanLoadDeviceFunc(vkCreateGraphicsPipelines);
-    VulkanLoadDeviceFunc(vkDestroyPipeline);
-    VulkanLoadDeviceFunc(vkCreateBuffer);
-    VulkanLoadDeviceFunc(vkDestroyBuffer);
-    VulkanLoadDeviceFunc(vkBindBufferMemory);
-    VulkanLoadDeviceFunc(vkMapMemory);
-    VulkanLoadDeviceFunc(vkUnmapMemory);
-    VulkanLoadDeviceFunc(vkGetBufferMemoryRequirements);
-    VulkanLoadDeviceFunc(vkFlushMappedMemoryRanges);
-    VulkanLoadDeviceFunc(vkCreateDescriptorSetLayout);
-    VulkanLoadDeviceFunc(vkDestroyDescriptorSetLayout);
-    VulkanLoadDeviceFunc(vkCreateDescriptorPool);
-    VulkanLoadDeviceFunc(vkDestroyDescriptorPool);
-    VulkanLoadDeviceFunc(vkAllocateDescriptorSets);
-    VulkanLoadDeviceFunc(vkUpdateDescriptorSets);
-    VulkanLoadDeviceFunc(vkCreateSampler);
-    VulkanLoadDeviceFunc(vkDestroySampler);
-    
-    VulkanLoadDeviceFunc(vkCmdBeginRenderPass);
-    VulkanLoadDeviceFunc(vkCmdEndRenderPass);
-    VulkanLoadDeviceFunc(vkCmdPipelineBarrier);
-    VulkanLoadDeviceFunc(vkCmdClearColorImage);
-    VulkanLoadDeviceFunc(vkCmdBindPipeline);
-    VulkanLoadDeviceFunc(vkCmdBindVertexBuffers);
-    VulkanLoadDeviceFunc(vkCmdBindIndexBuffer);
-    VulkanLoadDeviceFunc(vkCmdDraw);
-    VulkanLoadDeviceFunc(vkCmdDrawIndexed);
-    VulkanLoadDeviceFunc(vkCmdSetViewport);
-    VulkanLoadDeviceFunc(vkCmdSetScissor);
-    VulkanLoadDeviceFunc(vkCmdCopyBuffer);
-    VulkanLoadDeviceFunc(vkCmdBindDescriptorSets);
-    VulkanLoadDeviceFunc(vkCmdCopyBufferToImage);
-    VulkanLoadDeviceFunc(vkCmdPushConstants);
-    VulkanLoadDeviceFunc(vkCmdBlitImage);
-    
-    DebugPrint("Loaded Device Functions\n");
-    
-    return true;
-}
-
 function void Vulkan::
 PickMSAA(MSAA_OPTIONS msaa)
 {
@@ -281,7 +184,7 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         return false;
     }
     
-    if (!LoadGlobalFunctions())
+    if (!VulkanLoadGlobalFunctions())
     {
         return false;
     }
@@ -390,7 +293,7 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         AssertSuccess(vkCreateInstance(&instanceInfo, NULL, &vulkan.instance));
         DebugPrint("Created Vulkan Instance\n");
         
-        if (!LoadInstanceFunctions())
+        if (!VulkanLoadInstanceFunctions())
         {
             Assert("ERROR: Instance Functions not loaded\n");
             return false;
@@ -578,7 +481,7 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         AssertSuccess(vkCreateDevice(vulkan.gpu, &deviceInfo, 0, &vulkan.device));
         DebugPrint("\nCreated a Vulkan Device\n");
         
-        if (!LoadDeviceFunctions())
+        if (!VulkanLoadDeviceFunctions())
         {
             Assert("ERROR: Device Functions not loaded\n");
             return false;
@@ -1348,12 +1251,12 @@ CreatePipeline()
     vertexAttributeDescs[0].location = 0;// NOTE(heyyod): this maches the value in the shader
     vertexAttributeDescs[0].format = VK_FORMAT_R32G32B32_SFLOAT;
     vertexAttributeDescs[0].offset = offsetof(vertex, pos);
-    // NOTE(heyyod): spesify the inColor format in vertex shader
+    // NOTE(heyyod): specify the inColor format in vertex shader
     vertexAttributeDescs[1].binding = 0;
     vertexAttributeDescs[1].location = 1;
     vertexAttributeDescs[1].format = VK_FORMAT_R32G32B32_SFLOAT;
     vertexAttributeDescs[1].offset = offsetof(vertex, color);
-    // NOTE(heyyod): spesify the inTexCoord format in vertex shader
+    // NOTE(heyyod): specify the inTexCoord format in vertex shader
     vertexAttributeDescs[2].binding = 0;
     vertexAttributeDescs[2].location = 2;
     vertexAttributeDescs[2].format = VK_FORMAT_R32G32_SFLOAT;
@@ -2067,8 +1970,8 @@ Draw(update_data *data)
             vkCmdDrawIndexed(res->cmdBuffer, vulkan.savedMeshes[meshId].nIndices, 1,
                              firstIndex, indexOffset, 0);
             
-            firstIndex +=  vulkan.savedMeshes[meshId].nIndices;
-            indexOffset +=  vulkan.savedMeshes[meshId].nVertices;
+            firstIndex += vulkan.savedMeshes[meshId].nIndices;
+            indexOffset += vulkan.savedMeshes[meshId].nVertices;
         }
         
         vkCmdEndRenderPass(res->cmdBuffer);

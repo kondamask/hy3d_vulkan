@@ -200,13 +200,13 @@ UPDATE_AND_RENDER(UpdateAndRender)
         {
             moveDir.Y += 1.0f;
         }
-        player.pos += NormalizeVec3(moveDir) * player.moveSpeed * dt;
+        player.pos += NormalizeVec3(moveDir) * player.moveSpeed * 2.0f * dt;
         
+        // TODO(heyyod): FIX THE CAMERA AT VERTICAL +-90deg
         if (e.input.mouse.cursorEnabled)
             e.input.mouse.lastPos = e.input.mouse.delta;
         if (!e.input.mouse.cursorEnabled)
         {
-            // TODO(heyyod): FIX THE CAMERA AT 90deg up and down.
             vec2 dir = ((e.input.mouse.delta - e.input.mouse.lastPos) * player.lookSens * 0.05f * dt);
             e.input.mouse.lastPos = e.input.mouse.delta;
             

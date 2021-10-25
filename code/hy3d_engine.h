@@ -36,9 +36,6 @@ typedef DEBUG_FREE_FILE(debug_free_file);
 #define PLATFORM_CHANGE_GRAPHICS(name) bool name(graphics_settings setting, CHANGE_GRAPHICS_SETTINGS newSettings)
 typedef PLATFORM_CHANGE_GRAPHICS(platform_change_graphics);
 
-#define PLATFORM_SET_CURSOR_MODE(name) void name(bool cursorEnabled)
-typedef PLATFORM_SET_CURSOR_MODE(platform_set_cursor_mode);
-
 enum RESOURCE_TYPE
 {
     RESOURCE_EMPTY,
@@ -82,7 +79,6 @@ struct platform_api
     vulkan_push_staged_func *PushStaged;
     
     platform_change_graphics *ChangeGraphicsSettings;
-    platform_set_cursor_mode *SetCursorMode;;
     
     //#if HY3D_DEBUG
     debug_read_file *DEBUGReadFile;

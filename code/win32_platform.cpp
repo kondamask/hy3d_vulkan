@@ -482,11 +482,6 @@ function bool Win32InitializeWindow(win32_window &window, u16 width, u16 height,
 	return true;
 }
 
-function void SetCursorMode(bool cursorEnabled)
-{
-    ShowCursor(cursorEnabled);
-}
-
 function bool Win32InitializeMemory(engine_memory &memory)
 {
 	LPVOID baseAddress = (LPVOID)TERABYTES(2);
@@ -503,8 +498,6 @@ function bool Win32InitializeMemory(engine_memory &memory)
 	memory.platformAPI_.Draw = Vulkan::Draw;
     memory.platformAPI_.PushStaged = Vulkan::PushStaged;
     memory.platformAPI_.ChangeGraphicsSettings = Vulkan::ChangeGraphicsSettings;
-    
-    memory.platformAPI_.SetCursorMode = SetCursorMode;
     
     //#if HY3D_DEBUG
 	memory.platformAPI_.DEBUGFreeFileMemory = DEBUGFreeFileMemory;
