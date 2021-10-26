@@ -33,6 +33,7 @@ namespace Vulkan
     
     function void PickMSAA(MSAA_OPTIONS msaa);
     function bool FindMemoryProperties(u32 memoryType, VkMemoryPropertyFlags requiredProperties, u32 &memoryIndexOut);
+    function u64 GetUniformBufferPaddedSize(u64 originalSize);
     
     function void CmdChangeImageLayout(VkCommandBuffer cmdBuffer, VkImage imgHandle, image *imageInfo, VkImageLayout oldLayout, VkImageLayout newLayout);
     
@@ -122,7 +123,7 @@ DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUti
 function void Vulkan::
 PickMSAA(MSAA_OPTIONS msaa)
 {
-    VkSampleCountFlags counts = vulkan.properties.limits.framebufferColorSampleCounts & vulkan.properties.limits.framebufferDepthSampleCounts;
+    VkSampleCountFlags counts = vulkan.gpuProperties.limits.framebufferColorSampleCounts & vulkan.gpuProperties.limits.framebufferDepthSampleCounts;
     if (counts & VK_SAMPLE_COUNT_64_BIT && msaa >= MSAA_64)
         vulkan.msaaSamples = VK_SAMPLE_COUNT_64_BIT;
     if (counts & VK_SAMPLE_COUNT_32_BIT && msaa >= MSAA_32)
@@ -159,6 +160,17 @@ FindMemoryProperties(u32 reqMemType, VkMemoryPropertyFlags reqMemProperties, u32
     return false;
 }
 
+function u64 Vulkan::
+GetUniformBufferPaddedSize(u64 originalSize)
+{
+    u64 minUboAlignment = vulkan.gpuProperties.limits.minUniformBufferOffsetAlignment;
+	u64 alignedSize = originalSize;
+	if (minUboAlignment > 0) {
+		alignedSize = (alignedSize + minUboAlignment - 1) & ~(minUboAlignment - 1);
+	}
+	return alignedSize;
+}
+
 // TODO: make this cross-platform
 function bool Vulkan::
 Win32LoadDLL()
@@ -189,51 +201,67 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         return false;
     }
     
-#if VULKAN_VALIDATION_LAYERS_ON
-    char *validationLayers[] = {
-        "VK_LAYER_KHRONOS_validation"};
-    
-    u32 layerCount;
-    AssertSuccess(vkEnumerateInstanceLayerProperties(&layerCount, 0));
-    
-    VkLayerProperties availableLayers[16];
-    Assert(layerCount <= ArrayCount(availableLayers));
-    AssertSuccess(vkEnumerateInstanceLayerProperties(&layerCount, availableLayers));
-    
-    for (char *layerName : validationLayers)
-    {
-        bool layerFound = false;
-        for (VkLayerProperties &layerProperties : availableLayers)
-        {
-            if (strcmp(layerName, layerProperties.layerName) == 0)
-            {
-                layerFound = true;
-                break;
-            }
-        }
-        if (!layerFound)
-        {
-            Assert("ERROR: Validation Layer not found");
-            return false;
-        }
-    }
-    
-    VkDebugUtilsMessengerCreateInfoEXT debugMessengerInfo = {};
-    debugMessengerInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-    debugMessengerInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-    //VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-    //VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT;
-    debugMessengerInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-    debugMessengerInfo.pfnUserCallback = DebugCallback;
-    
-    DebugPrint("Created Vulkan Debug Messenger\n");
-#endif
-    
     // NOTE: Create an instance
     {
+#if VULKAN_VALIDATION_LAYERS_ON
+        char *instanceLayers[] = {
+            "VK_LAYER_KHRONOS_validation"
+        };
+#else
+        /* NOTE(heyyod): Normaly:
+        char *instanceLayers[] = {
+...
+};
+            */
+        char **instanceLayers = 0;
+#endif
+        if (instanceLayers)
+        {
+            u32 layerCount;
+            AssertSuccess(vkEnumerateInstanceLayerProperties(&layerCount, 0));
+            
+            VkLayerProperties availableLayers[16];
+            Assert(layerCount <= ArrayCount(availableLayers));
+            AssertSuccess(vkEnumerateInstanceLayerProperties(&layerCount, availableLayers));
+            
+            for (u32 i = 0; i < ArrayCount(instanceLayers); i++)
+            {
+                char *layerName = instanceLayers[i];
+                bool layerFound = false;
+                for (VkLayerProperties &layerProperties : availableLayers)
+                {
+                    if (strcmp(layerName, layerProperties.layerName) == 0)
+                    {
+                        layerFound = true;
+                        break;
+                    }
+                }
+                if (!layerFound)
+                {
+                    Assert("ERROR: Layer not found");
+                    return false;
+                }
+            }
+        }
+        
+#if VULKAN_VALIDATION_LAYERS_ON
+        VkDebugUtilsMessengerCreateInfoEXT debugMessengerInfo = {};
+        debugMessengerInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+        debugMessengerInfo.messageSeverity = 
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT
+            //VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+            //VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT
+            ;
+        debugMessengerInfo.messageType = 
+            VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT
+            ;
+        debugMessengerInfo.pfnUserCallback = DebugCallback;
+        DebugPrint("Created Vulkan Debug Messenger\n");
+#endif
+        
         VkApplicationInfo appInfo = {};
         appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
         appInfo.pApplicationName = name;
@@ -284,13 +312,16 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         instanceInfo.pApplicationInfo = &appInfo;
         instanceInfo.enabledExtensionCount = ArrayCount(desiredInstanceExtensions);
         instanceInfo.ppEnabledExtensionNames = desiredInstanceExtensions;
+        if (instanceLayers)
+        {
+            instanceInfo.enabledLayerCount = ArrayCount(instanceLayers);
+            instanceInfo.ppEnabledLayerNames = instanceLayers;
+        }
 #if VULKAN_VALIDATION_LAYERS_ON
-        instanceInfo.enabledLayerCount = ArrayCount(validationLayers);
-        instanceInfo.ppEnabledLayerNames = validationLayers;
         instanceInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT *)&debugMessengerInfo;
 #endif
         
-        AssertSuccess(vkCreateInstance(&instanceInfo, NULL, &vulkan.instance));
+        AssertSuccess(vkCreateInstance(&instanceInfo, 0, &vulkan.instance));
         DebugPrint("Created Vulkan Instance\n");
         
         if (!VulkanLoadInstanceFunctions())
@@ -340,7 +371,7 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         // TODO: ACTUALY CHECK WHICH GPU IS BEST TO USE BY CHECKING THEIR QUEUES
         //For now it's ok since I only have 1 gpu.
         
-        vkGetPhysicalDeviceProperties(vulkan.gpu, &vulkan.properties);
+        vkGetPhysicalDeviceProperties(vulkan.gpu, &vulkan.gpuProperties);
         vkGetPhysicalDeviceMemoryProperties(vulkan.gpu, &vulkan.memoryProperties);
         
         // NOTE(heyyod): Pick number of samples to use for antialiasig
@@ -568,18 +599,6 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         }
     }
     
-    // NOTE(heyyod): Create uniform buffers and their descriptor 
-    {
-        //model, view and projection matrices
-        for (u32 i = 0; i < ArrayCount(vulkan.mvp); i++)
-        {
-            if (!CreateBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(model_view_proj), VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vulkan.mvp[i], MAP_BUFFER_TRUE))
-            {
-                Assert("Could not create uniform buffers");
-                return false;
-            }
-        }
-    }
     
     // NOTE(heyyod): Create texture sampler
     {
@@ -593,7 +612,7 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
         samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
         samplerInfo.mipLodBias = 0.0f;
         samplerInfo.anisotropyEnable = VK_TRUE;
-        samplerInfo.maxAnisotropy = vulkan.properties.limits.maxSamplerAnisotropy;
+        samplerInfo.maxAnisotropy = vulkan.gpuProperties.limits.maxSamplerAnisotropy;
         samplerInfo.compareEnable = VK_FALSE;
         samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
         samplerInfo.minLod = 0.0f;
@@ -607,54 +626,143 @@ Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
     {
         // NOTE(heyyod): layout
         {
-            VkDescriptorSetLayoutBinding mvpLayoutBinding = {};
-            mvpLayoutBinding.binding = 0;
-            mvpLayoutBinding.descriptorCount = 1;
-            mvpLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            mvpLayoutBinding.pImmutableSamplers = 0;
-            mvpLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+            VkDescriptorSetLayoutBinding bindings[4] = {};
+            // camera
+            bindings[0].binding = 0;
+            bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            bindings[0].descriptorCount = 1;
+            bindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+            // objects
+            bindings[1].binding = 1;
+            bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            bindings[1].descriptorCount = 1;
+            bindings[1].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+            // texture sampler
+            bindings[2].binding = 2;
+            bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            bindings[2].descriptorCount = 1;
+            bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+            // scene
+            bindings[3].binding = 3;
+            bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+            bindings[3].descriptorCount = 1;
+            bindings[3].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
             
-            VkDescriptorSetLayoutBinding samplerLayoutBinding = {};
-            samplerLayoutBinding.binding = 1;
-            samplerLayoutBinding.descriptorCount = 1;
-            samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            samplerLayoutBinding.pImmutableSamplers = 0;
-            samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-            
-            VkDescriptorSetLayoutBinding bindings[2] = {mvpLayoutBinding, samplerLayoutBinding};
-            
-            VkDescriptorSetLayoutCreateInfo layoutInfo{};
+            VkDescriptorSetLayoutCreateInfo layoutInfo = {};
             layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
             layoutInfo.bindingCount = ArrayCount(bindings);
             layoutInfo.pBindings = bindings;
-            AssertSuccess(vkCreateDescriptorSetLayout(vulkan.device, &layoutInfo, 0, &vulkan.descSetLayout));
+            AssertSuccess(vkCreateDescriptorSetLayout(vulkan.device, &layoutInfo, 0, &vulkan.globalDescSetLayout));
         }
+        
+        u32 nDescriptors = ArrayCount(vulkan.frameData);
         // NOTE(heyyod): pool
         {
-            VkDescriptorPoolSize poolSizes[2] = {};
-            poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            poolSizes[0].descriptorCount = NUM_DESCRIPTORS;
-            poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            poolSizes[1].descriptorCount = NUM_DESCRIPTORS;
+            VkDescriptorPoolSize poolSizes[] = {
+                {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nDescriptors},
+                {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nDescriptors},
+                {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nDescriptors},
+                {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, nDescriptors},
+            };
             
             VkDescriptorPoolCreateInfo poolInfo = {};
             poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
             poolInfo.poolSizeCount = ArrayCount(poolSizes);
             poolInfo.pPoolSizes = poolSizes;
-            poolInfo.maxSets = NUM_DESCRIPTORS;
-            AssertSuccess(vkCreateDescriptorPool(vulkan.device, &poolInfo, 0, &vulkan.descPool));
+            poolInfo.maxSets = nDescriptors;
+            AssertSuccess(vkCreateDescriptorPool(vulkan.device, &poolInfo, 0, &vulkan.globalDescPool));
         }
-        // NOTE(heyyod): Allocate the descriptor sets
-        // We'll update them when it's needed
+        
+        // NOTE(heyyod): Allocate and write the descriptor sets
+        VkDescriptorSetAllocateInfo globalDescAlloc = {};
+        globalDescAlloc.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        globalDescAlloc.descriptorPool = vulkan.globalDescPool;
+        globalDescAlloc.descriptorSetCount = 1;
+        globalDescAlloc.pSetLayouts = &vulkan.globalDescSetLayout;
+        for (u8 i = 0; i < nDescriptors; i++)
         {
-            VkDescriptorSetLayout descSetLayouts[NUM_DESCRIPTORS] = {vulkan.descSetLayout, vulkan.descSetLayout};
+            AssertSuccess(vkAllocateDescriptorSets(vulkan.device, &globalDescAlloc, &vulkan.frameData[i].globalDescriptor));
             
-            VkDescriptorSetAllocateInfo descAllocInfo = {};
-            descAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-            descAllocInfo.descriptorPool = vulkan.descPool;
-            descAllocInfo.descriptorSetCount = NUM_DESCRIPTORS;
-            descAllocInfo.pSetLayouts = descSetLayouts;
-            AssertSuccess(vkAllocateDescriptorSets(vulkan.device, &descAllocInfo, vulkan.descSets));
+            // NOTE(heyyod): Camera buffer and descriptor
+            VkDescriptorBufferInfo cameraBufferInfo = {};
+            VkWriteDescriptorSet writeCameraDesc = {};
+            if (CreateBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(camera_data),
+                             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                             vulkan.frameData[i].cameraBuffer, MAP_BUFFER_TRUE))
+            {
+                cameraBufferInfo.range = sizeof(camera_data);
+                cameraBufferInfo.buffer = vulkan.frameData[i].cameraBuffer.handle;
+                
+                writeCameraDesc.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                writeCameraDesc.dstBinding = 0;
+                writeCameraDesc.dstArrayElement = 0;
+                writeCameraDesc.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+                writeCameraDesc.descriptorCount = 1;
+                writeCameraDesc.pBufferInfo = &cameraBufferInfo;
+                writeCameraDesc.dstSet = vulkan.frameData[i].globalDescriptor;
+                
+                vkUpdateDescriptorSets(vulkan.device, 1, &writeCameraDesc, 0, 0);
+            }
+            else
+            {
+                Assert("Could not create camera uniform buffers");
+                return false;
+            }
+            
+            // NOTE(heyyod): Storage buffer and descriptor
+            VkDescriptorBufferInfo objectsBufferInfo;
+            VkWriteDescriptorSet writeObjectsDesc = {};
+            if (CreateBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, MAX_OBJECTS * sizeof(object_data),
+                             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                             vulkan.frameData[i].objectsBuffer, MAP_BUFFER_TRUE))
+            {
+                objectsBufferInfo.range = sizeof(object_data) * MAX_OBJECTS;
+                objectsBufferInfo.buffer = vulkan.frameData[i].objectsBuffer.handle;
+                
+                writeObjectsDesc.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                writeObjectsDesc.dstBinding = 1;
+                writeObjectsDesc.dstArrayElement = 0;
+                writeObjectsDesc.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                writeObjectsDesc.descriptorCount = 1;
+                writeObjectsDesc.pBufferInfo = &objectsBufferInfo;
+                writeObjectsDesc.dstSet = vulkan.frameData[i].globalDescriptor;
+                
+                vkUpdateDescriptorSets(vulkan.device, 1, &writeObjectsDesc, 0, 0);
+            }
+            else
+            {
+                Assert("Could not create objects storage buffer");
+                return false;
+            }
+            
+            VkDescriptorBufferInfo sceneBufferInfo = {};
+            VkWriteDescriptorSet writeSceneDesc = {};
+            if (CreateBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(scene_data), 
+                             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
+                             vulkan.frameData[i].sceneBuffer, MAP_BUFFER_TRUE))
+            {
+                sceneBufferInfo.range = sizeof(scene_data);
+                sceneBufferInfo.buffer = vulkan.frameData[i].sceneBuffer.handle;
+                
+                writeSceneDesc.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                writeSceneDesc.dstBinding = 3;
+                writeSceneDesc.dstArrayElement = 0;
+                writeSceneDesc.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+                writeSceneDesc.descriptorCount = 1;
+                writeSceneDesc.pBufferInfo = &sceneBufferInfo;
+                writeSceneDesc.dstSet = vulkan.frameData[i].globalDescriptor;
+            }
+            else
+            {
+                Assert("Could not create scene uniform buffer");
+                return false;
+            }
+            VkWriteDescriptorSet writes[] = {
+                writeCameraDesc,
+                writeObjectsDesc,
+                writeSceneDesc
+            };
+            vkUpdateDescriptorSets(vulkan.device, ArrayCount(writes), writes, 0, 0);
         }
     }
     
@@ -1035,8 +1143,8 @@ CreateSwapchain()
         bool desiredPresentModeSupported = false;
         for (u32 i = 0; i < presentModeCount; i++)
         {
-        	if (desiredPresentMode == presentModes[i])
-        		desiredPresentModeSupported = true;
+            if (desiredPresentMode == presentModes[i])
+                desiredPresentModeSupported = true;
         }
         if (!desiredPresentModeSupported)
         {
@@ -1208,27 +1316,7 @@ CreatePipeline()
 {
     ClearPipeline();
     
-    // NOTE(heyyod): Update the descriptor set for the uniform buffer in the vertex shader
-    VkDescriptorBufferInfo descMvpInfo = {};
-    descMvpInfo.offset = 0;
-    descMvpInfo.range = sizeof(model_view_proj); // VK_WHOLE_SIZE
-    
-    VkWriteDescriptorSet descWriteSet = {};
-    descWriteSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descWriteSet.dstBinding = 0;
-    descWriteSet.dstArrayElement = 0;
-    descWriteSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    descWriteSet.descriptorCount = 1;
-    descWriteSet.pBufferInfo = &descMvpInfo;
-    descWriteSet.dstSet = vulkan.descSets[0];
-    
-    for (u8 i = 0; i < NUM_DESCRIPTORS; i++)
-    {
-        descMvpInfo.buffer = vulkan.mvp[i].handle;
-        descWriteSet.dstSet = vulkan.descSets[i];
-        vkUpdateDescriptorSets(vulkan.device, 1, &descWriteSet, 0, 0);
-    }
-    
+    // NOTE(heyyod): LOAD THE SHADERS
     VkShaderModule triangleVertShader = {};
     VkShaderModule triangleFragShader = {};
     if(!LoadShader("..\\build\\shaders\\triangle.frag.spv", &triangleFragShader) ||
@@ -1246,17 +1334,17 @@ CreatePipeline()
     vertexBindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
     
     VkVertexInputAttributeDescription vertexAttributeDescs[3];
-    // NOTE(heyyod): specify the inPosition format in vertex shader
+    // NOTE(heyyod): inPosition format in vertex shader
     vertexAttributeDescs[0].binding = 0;
     vertexAttributeDescs[0].location = 0;// NOTE(heyyod): this maches the value in the shader
     vertexAttributeDescs[0].format = VK_FORMAT_R32G32B32_SFLOAT;
     vertexAttributeDescs[0].offset = offsetof(vertex, pos);
-    // NOTE(heyyod): specify the inColor format in vertex shader
+    // NOTE(heyyod): inColor format in vertex shader
     vertexAttributeDescs[1].binding = 0;
     vertexAttributeDescs[1].location = 1;
     vertexAttributeDescs[1].format = VK_FORMAT_R32G32B32_SFLOAT;
     vertexAttributeDescs[1].offset = offsetof(vertex, color);
-    // NOTE(heyyod): specify the inTexCoord format in vertex shader
+    // NOTE(heyyod): inTexCoord format in vertex shader
     vertexAttributeDescs[2].binding = 0;
     vertexAttributeDescs[2].location = 2;
     vertexAttributeDescs[2].format = VK_FORMAT_R32G32_SFLOAT;
@@ -1374,7 +1462,7 @@ CreatePipeline()
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &vulkan.descSetLayout;
+    pipelineLayoutInfo.pSetLayouts = &vulkan.globalDescSetLayout ;
     //pipelineLayoutInfo.pushConstantRangeCount = ArrayCount(pushConstants);
     //pipelineLayoutInfo.pPushConstantRanges = pushConstants;
     AssertSuccess(vkCreatePipelineLayout(vulkan.device, &pipelineLayoutInfo, 0, &vulkan.pipelineLayout));
@@ -1428,8 +1516,10 @@ ClearPipeline()
 CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | usage, sizeof(vertexType) * nVertices, properties, bufferOut)
 
 function bool Vulkan::
-CreateBuffer(VkBufferUsageFlags usage, u64 size, VkMemoryPropertyFlags properties, vulkan_buffer &bufferOut, bool mapBuffer)
+CreateBuffer(VkBufferUsageFlags usage, u64 size, VkMemoryPropertyFlags properties, 
+             vulkan_buffer &bufferOut, bool mapBuffer)
 {
+    // TODO(heyyod): make this able to create multiple buffers of the same type and usage if I pass an array
     if(!(VulkanIsValidHandle(bufferOut.handle)))
     {
         bufferOut.size = size;
@@ -1493,17 +1583,20 @@ Destroy()
         
         ClearImage(vulkan.texture);
         
-        
         ClearPipeline();
         
-        if(VulkanIsValidHandle(vulkan.descSetLayout))
-            vkDestroyDescriptorSetLayout(vulkan.device, vulkan.descSetLayout, 0);
+        if(VulkanIsValidHandle(vulkan.globalDescSetLayout))
+            vkDestroyDescriptorSetLayout(vulkan.device, vulkan.globalDescSetLayout, 0);
         
-        for(u32 i = 0; i < ArrayCount(vulkan.mvp); i++)
-            ClearBuffer(vulkan.mvp[i]);
+        for(u32 i = 0; i < ArrayCount(vulkan.frameData); i++)
+        {
+            ClearBuffer(vulkan.frameData[i].cameraBuffer);
+            ClearBuffer(vulkan.frameData[i].objectsBuffer);
+            ClearBuffer(vulkan.frameData[i].sceneBuffer);
+        }
         
-        if(VulkanIsValidHandle(vulkan.descPool))
-            vkDestroyDescriptorPool(vulkan.device, vulkan.descPool, 0);
+        if(VulkanIsValidHandle(vulkan.globalDescPool))
+            vkDestroyDescriptorPool(vulkan.device, vulkan.globalDescPool, 0);
         
         vkUnmapMemory(vulkan.device, vulkan.stagingBuffer.memoryHandle);
         ClearBuffer(vulkan.stagingBuffer);
@@ -1821,18 +1914,18 @@ PushStaged(staged_resources &staged)
                     descImageInfo.imageView = vulkan.texture.view;
                     descImageInfo.sampler = vulkan.textureSampler;
                     
-                    VkWriteDescriptorSet descWriteSet = {};
-                    descWriteSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-                    descWriteSet.dstBinding = 1;
-                    descWriteSet.dstArrayElement = 0;
-                    descWriteSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-                    descWriteSet.descriptorCount = 1;
-                    descWriteSet.pImageInfo = &descImageInfo;
+                    VkWriteDescriptorSet writeDesc = {};
+                    writeDesc.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                    writeDesc.dstBinding = 2;
+                    writeDesc.dstArrayElement = 0;
+                    writeDesc.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                    writeDesc.descriptorCount = 1;
+                    writeDesc.pImageInfo = &descImageInfo;
                     
-                    for (u8 i = 0; i < NUM_DESCRIPTORS; i++)
+                    for (u8 i = 0; i < ArrayCount(vulkan.frameData); i++)
                     {
-                        descWriteSet.dstSet = vulkan.descSets[i];
-                        vkUpdateDescriptorSets(vulkan.device, 1, &descWriteSet, 0, 0);
+                        writeDesc.dstSet = vulkan.frameData[i].globalDescriptor;
+                        vkUpdateDescriptorSets(vulkan.device, 1, &writeDesc, 0, 0);
                     }
                 }
             }break;
@@ -1953,6 +2046,8 @@ Draw(update_data *data)
         
         local_var VkDeviceSize bufferOffset = 0;
         
+        local_var u32 uniformOffset = (u32)GetUniformBufferPaddedSize(sizeof(scene_data)) * nextImage;
+        
         AssertSuccess(vkBeginCommandBuffer(res->cmdBuffer, &commandBufferBeginInfo));
         vkCmdBeginRenderPass(res->cmdBuffer, &renderpassInfo, VK_SUBPASS_CONTENTS_INLINE);
         vkCmdBindPipeline(res->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan.pipeline);
@@ -1961,15 +2056,14 @@ Draw(update_data *data)
         
         vkCmdBindVertexBuffers(res->cmdBuffer, 0, 1, &vulkan.vertexBuffer.handle, &bufferOffset);
         vkCmdBindIndexBuffer(res->cmdBuffer, vulkan.indexBuffer.handle, 0, VULKAN_INDEX_TYPE);
-        vkCmdBindDescriptorSets(res->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan.pipelineLayout, 0, 1, &vulkan.descSets[nextImage], 0, 0);
-        
+        vkCmdBindDescriptorSets(res->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan.pipelineLayout, 0, 1, &vulkan.frameData[nextImage].globalDescriptor, 1, &uniformOffset);
         u32 firstIndex = 0;
         u32 indexOffset = 0;
         for(u32 meshId = 0; meshId < vulkan.savedMeshesCount; meshId++)
         {
             vkCmdDrawIndexed(res->cmdBuffer, vulkan.savedMeshes[meshId].nIndices, 1,
-                             firstIndex, indexOffset, 0);
-            
+                             firstIndex, indexOffset, nextImage);
+            // NOTE(heyyod):                              ^WTF DOES THIS MEAN EXACTLY
             firstIndex += vulkan.savedMeshes[meshId].nIndices;
             indexOffset += vulkan.savedMeshes[meshId].nVertices;
         }
@@ -2038,7 +2132,9 @@ Draw(update_data *data)
     // NOTE(heyyod): Update data for the engine
     {
         u32 nextUniformBuffer = (nextImage + 1) % NUM_DESCRIPTORS;
-        data->newMvpBuffer = vulkan.mvp[nextUniformBuffer].data;
+        data->newCameraBuffer = vulkan.frameData[nextUniformBuffer].cameraBuffer.data;
+        data->newObjectsBuffer = vulkan.frameData[nextUniformBuffer].objectsBuffer.data;
+        data->newSceneBuffer = vulkan.frameData[nextUniformBuffer].sceneBuffer.data;
     }
     
     return true;

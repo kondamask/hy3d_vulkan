@@ -64,10 +64,12 @@ struct update_data
     vec3 clearColor;
     
     // NOTE(heyyod): VULKAN -> ENGINE
-    // We have multiple uniform buffers that we uses to pass the matrices into
-    // the vertex shader. We cycle them as we change the current swapchain image.
-    // So vulkan will update the newMVP pointer and the engine will redirect it's mvp
-    void *newMvpBuffer;
+    // We have multiple a uniform buffer for every frame in the swapchain.
+    // We cycle them as we change the current swapchain image.
+    // So vulkan will update the pointer and the engine will redirect it's camera write address
+    void *newCameraBuffer;
+    void *newObjectsBuffer;
+    void *newSceneBuffer;
 };
 
 #define VULKAN_DRAW_FUNC(name) bool name(update_data *data)
@@ -87,11 +89,24 @@ struct platform_api
     //#endif
 };
 
-struct model_view_proj
+struct camera_data
 {
-    mat4 model;
     mat4 view;
     mat4 proj;
+};
+
+struct scene_data
+{
+    vec4 fogColor;        // w for exponent
+    vec4 fogDistances;    // x for min, y for max, zw unused
+    vec4 ambientColor;
+    vec4 sunlightDir;     // w for sun power
+    vec4 sunlightColor;
+};
+
+struct object_data
+{
+    mat4 model;
 };
 
 struct engine_memory
@@ -106,7 +121,9 @@ struct engine_memory
     
     // NOTE(heyyod): uniform buffer allocated from vulkan.
     // Linked in os layer for now.
-    model_view_proj *mvp;
+    camera_data *cameraData;
+    object_data *objectsData;
+    scene_data *sceneData;
     
     platform_api platformAPI_;
     

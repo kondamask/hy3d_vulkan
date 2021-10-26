@@ -20,6 +20,7 @@
 #define NUM_DESCRIPTORS NUM_SWAPCHAIN_IMAGES
 
 #define MAX_MESHES 10
+#define MAX_OBJECTS 1000
 
 #define MAP_BUFFER_TRUE true
 
@@ -29,20 +30,6 @@
 #if INDEX_TYPE_U32
 #define VULKAN_INDEX_TYPE VK_INDEX_TYPE_UINT32
 #endif
-
-struct frame_prep_resource
-{
-    VkCommandBuffer cmdBuffer;
-    VkSemaphore imgAvailableSem;
-    VkSemaphore frameReadySem;
-    VkFence fence;
-    //VkFramebuffer framebuffer;
-};
-
-struct frame_data
-{
-    
-};
 
 struct vulkan_buffer
 {
@@ -66,9 +53,26 @@ struct vulkan_saved_meshes
     u32 nIndices;
 };
 
+struct frame_prep_resource
+{
+    VkCommandBuffer cmdBuffer;
+    VkSemaphore imgAvailableSem;
+    VkSemaphore frameReadySem;
+    VkFence fence;
+    //VkFramebuffer framebuffer;
+};
+
+struct frame_data
+{
+    vulkan_buffer cameraBuffer;  // uniform
+    vulkan_buffer objectsBuffer;  // uniform
+    vulkan_buffer sceneBuffer;   // dynamic uniform
+    VkDescriptorSet globalDescriptor;
+};
+
 struct vulkan_engine
 {
-    VkPhysicalDeviceProperties properties;
+    VkPhysicalDeviceProperties gpuProperties;
     VkPhysicalDeviceMemoryProperties memoryProperties;
     
     VkInstance instance;
@@ -102,12 +106,11 @@ struct vulkan_engine
     u32 swapchainImageCount;
     u32 currentResource;
     
-    vulkan_buffer mvp[NUM_DESCRIPTORS]; // NOTE(heyyod): uniform buffer
+    frame_data frameData[NUM_SWAPCHAIN_IMAGES];
     VkSampler textureSampler;
     
-    VkDescriptorSet descSets[NUM_DESCRIPTORS];
-    VkDescriptorSetLayout descSetLayout;
-    VkDescriptorPool descPool;
+    VkDescriptorSetLayout globalDescSetLayout;
+    VkDescriptorPool globalDescPool;
     
     VkPipelineLayout pipelineLayout;
     VkPipeline pipeline;

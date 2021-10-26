@@ -560,7 +560,9 @@ int CALLBACK WinMain(
     
     // TODO(heyyod): This assumed that the first image we aquire in vulkan will always have index 0
     // Mayby bad
-    engineMemory.mvp = (model_view_proj *)vulkan.mvp[0].data;
+    engineMemory.cameraData = (camera_data *)vulkan.frameData[0].cameraBuffer.data;
+    engineMemory.objectsData = (object_data *)vulkan.frameData[0].objectsBuffer.data;
+    engineMemory.sceneData = (scene_data *)vulkan.frameData[0].sceneBuffer.data;
     
     FILETIME shadersWriteTime = Win32GetWriteTime(shaderFiles[0]);
     hy3d_engine engine = {};

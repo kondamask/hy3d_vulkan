@@ -30,7 +30,7 @@ function bool LoadImageRGBA(const char *filename, image *imageOut)
     }
     imageOut->width = (u32)width;
     imageOut->height = (u32)height;
-    imageOut->mipLevels = (u32)std::floor(std::log2(Max(width, height))) + 1;
+    imageOut->mipLevels = (u32)floor(log2(Max(width, height))) + 1;
     imageOut->pixels = (u8 *)imageOut + sizeof(image);
     memcpy(imageOut->pixels, pixels, IMAGE_TOTAL_SIZE((*imageOut)));
     stbi_image_free(pixels);

@@ -103,6 +103,10 @@ UPDATE_AND_RENDER(UpdateAndRender)
         
         memory->isInitialized = true;
         
+        
+        memory->sceneData->ambientColor = {0.5f,0.0f,0.0f,0.0f};
+        
+        
         state->player.pos = {0.0f, 2.0f, -3.0f};
         state->player.lookDir = {0.0f, -0.2f, 1.0f, 0.0f};
         state->player.moveSpeed = 0.7f;
@@ -217,18 +221,32 @@ UPDATE_AND_RENDER(UpdateAndRender)
         }
     }
     
+    /*
     f32 scale = 1.0f;
-    memory->mvp->model =
+    memory->cameraData->model =
         Rotate(90.0f, Vec3(0.0f, 0.0f, 1.0f)) *
         Rotate(90.0f, Vec3(0.0f, 1.0f, 0.0f)) *
         Scale({scale, scale, scale}) *
         Translate({0.0f, 0.0f, 0.0f})
         ;
-    memory->mvp->view = LookAt(state->player.pos, state->player.pos + state->player.lookDir.XYZ, VULKAN_UP);
-    memory->mvp->proj = Perspective(state->player.fov, e.windowWidth / (f32) e.windowHeight, 0.1f, 10.0f);
-    //memory->mvp->proj[1][1] *= -1.0f;
+*/
+    memory->objectsData[0].model = 
+        Rotate(90.0f, Vec3(0.0f, 0.0f, 1.0f)) *
+        Rotate(90.0f, Vec3(0.0f, 1.0f, 0.0f)) *
+        Translate({0.0f, 0.0f, 0.0f});
+    memory->cameraData->view = LookAt(state->player.pos, state->player.pos + state->player.lookDir.XYZ, VULKAN_UP);
+    memory->cameraData->proj = Perspective(state->player.fov, e.windowWidth / (f32) e.windowHeight, 0.1f, 10.0f);
+    memory->cameraData->proj[1][1] *= -1.0f;
+    memory->sceneData->ambientColor.X = 0.5f;
+    memory->sceneData->ambientColor.Y = 0.7f;
+    memory->sceneData->ambientColor.Z = 0.8f;
+    
+    DebugPrint(memory->sceneData->ambientColor.X);
+    DebugPrint('\n');
     platformAPI.Draw(&state->updateData);
     
     // NOTE(heyyod): Update stuff from vulkan
-    memory->mvp = (model_view_proj *)state->updateData.newMvpBuffer;
+    memory->cameraData = (camera_data *)update.newCameraBuffer;
+    memory->objectsData = (object_data *)update.newObjectsBuffer;
+    memory->sceneData= (scene_data *)update.newSceneBuffer;
 }
