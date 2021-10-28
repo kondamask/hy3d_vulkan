@@ -1,7 +1,7 @@
 #include "hy3d_engine.h"
 #include <intrin.h>
 
-function void
+function_ void
 InitializeMemoryArena(memory_arena *arena, u8 *base, size_t size)
 {
     arena->base = base;
@@ -11,7 +11,7 @@ InitializeMemoryArena(memory_arena *arena, u8 *base, size_t size)
 
 #define ReserveStructMemory(arena, type) (type *)ReserveMemory(arena, sizeof(type))
 #define ReserveArrayMemory(arena, count, type) (type *)ReserveMemory(arena, (count) * sizeof(type))
-function void *
+function_ void *
 ReserveMemory(memory_arena *arena, size_t size)
 {
     Assert(arena->used + size <= arena->size);
@@ -20,48 +20,10 @@ ReserveMemory(memory_arena *arena, size_t size)
     return result;
 }
 
-#define OffsetInStageBuffer(res) (u8*)res - (u8*)stagedResources.resources[0] + sizeof(*res)
-function bool 
-StageResource(const char *filepath, RESOURCE_TYPE type, staged_resources &stagedResources)
+function_ void AddResourceTransform()
 {
-    u32 bytesStaged = 0;
     
-    if (stagedResources.count == 0)
-        stagedResources.resources[0] = stagedResources.nextWriteAddr;
-    
-    switch (type)
-    {
-        case RESOURCE_MESH:
-        {
-            mesh *m = (mesh *)stagedResources.nextWriteAddr;
-            if (!LoadOBJ(filepath, m))
-                return false;
-            stagedResources.offsets[stagedResources.count] = OffsetInStageBuffer(m);
-            bytesStaged = MESH_PTR_TOTAL_SIZE(m);
-        }break;
-        
-        case RESOURCE_TEXTURE:
-        {
-            image *img = (image *)stagedResources.nextWriteAddr;
-            if (!LoadImageRGBA(filepath, img))
-                return false;
-            stagedResources.offsets[stagedResources.count] = OffsetInStageBuffer(img); 
-            bytesStaged = IMAGE_TOTAL_SIZE((*img));
-        }break;
-        
-        default:
-        {
-            stagedResources.types[stagedResources.count] = RESOURCE_INVALID;
-            DebugPrint("ERROR: Trying to stage unknown resource type.\n");
-            return false;
-        }
-    }
-    stagedResources.resources[stagedResources.count] = stagedResources.nextWriteAddr;
-    stagedResources.types[stagedResources.count] = type;
-    stagedResources.count++;
-    AdvancePointer(stagedResources.nextWriteAddr, bytesStaged);
-    return true;
-}
+};
 
 extern "C"
 UPDATE_AND_RENDER(UpdateAndRender)
@@ -84,28 +46,10 @@ UPDATE_AND_RENDER(UpdateAndRender)
         state->updateData.clearColor[2] = 0.6f;
         memory->nextStagingAddr = memory->stagingMemory;
         
-        {
-            staged_resources resources = {};
-            resources.nextWriteAddr = memory->stagingMemory;
-            StageResource("../models/viking_room.obj", RESOURCE_MESH, resources);
-            StageResource("../textures/viking_room.png", RESOURCE_TEXTURE, resources);
-            /* 
-            StageResource("../models/Lev-edinorog_complete.obj", RESOURCE_MESH, resources);
-            StageResource("../textures/Lev-edinorog_complete_0.png", RESOURCE_TEXTURE, resources);
-            StageResource("../models/cube.obj", RESOURCE_MESH, resources);
-            StageResource("../textures/default.png", RESOURCE_TEXTURE, resources);
-            StageResource("../models/bunny.obj", RESOURCE_MESH, resources);
-            StageResource("../textures/bunny_tex.bmp", RESOURCE_TEXTURE, resources);
-                         */
-            
-            platformAPI.PushStaged(resources);
-        }
+        staged_resources r = CreateScene(memory->nextStagingAddr);
+        platformAPI.PushStaged(r);
         
         memory->isInitialized = true;
-        
-        
-        memory->sceneData->ambientColor = {0.5f,0.0f,0.0f,0.0f};
-        
         
         state->player.pos = {0.0f, 2.0f, -3.0f};
         state->player.lookDir = {0.0f, -0.2f, 1.0f, 0.0f};
@@ -140,21 +84,13 @@ UPDATE_AND_RENDER(UpdateAndRender)
             MSAA_OPTIONS newMSAA = state->settings.msaa;
             
             if(e.input.keyboard.isPressed[KEY_ONE])
-            {
                 newMSAA = MSAA_OFF;
-            }
             if(e.input.keyboard.isPressed[KEY_TWO])
-            {
                 newMSAA = MSAA_2;
-            }
             if(e.input.keyboard.isPressed[KEY_THREE])
-            {
                 newMSAA = MSAA_4;
-            }
             if(e.input.keyboard.isPressed[KEY_FOUR])
-            {
                 newMSAA = MSAA_8;
-            }
             if (newMSAA != state->settings.msaa)
             {
                 state->settings.msaa = newMSAA;
@@ -168,7 +104,6 @@ UPDATE_AND_RENDER(UpdateAndRender)
             {
                 e.input.mouse.cursorEnabled = !e.input.mouse.cursorEnabled;
                 e.input.keyboard.altWasUp = false;
-                //platformAPI.SetCursorMode(e.input.mouse.cursorEnabled);
             }
         }
     }
@@ -221,32 +156,14 @@ UPDATE_AND_RENDER(UpdateAndRender)
         }
     }
     
-    /*
-    f32 scale = 1.0f;
-    memory->cameraData->model =
-        Rotate(90.0f, Vec3(0.0f, 0.0f, 1.0f)) *
-        Rotate(90.0f, Vec3(0.0f, 1.0f, 0.0f)) *
-        Scale({scale, scale, scale}) *
-        Translate({0.0f, 0.0f, 0.0f})
-        ;
-*/
-    memory->objectsData[0].model = 
-        Rotate(90.0f, Vec3(0.0f, 0.0f, 1.0f)) *
-        Rotate(90.0f, Vec3(0.0f, 1.0f, 0.0f)) *
-        Translate({0.0f, 0.0f, 0.0f});
     memory->cameraData->view = LookAt(state->player.pos, state->player.pos + state->player.lookDir.XYZ, VULKAN_UP);
     memory->cameraData->proj = Perspective(state->player.fov, e.windowWidth / (f32) e.windowHeight, 0.1f, 10.0f);
-    memory->cameraData->proj[1][1] *= -1.0f;
-    memory->sceneData->ambientColor.X = 0.5f;
-    memory->sceneData->ambientColor.Y = 0.7f;
-    memory->sceneData->ambientColor.Z = 0.8f;
+    //memory->cameraData->proj[1][1] *= -1;
+    memory->sceneData->ambientColor = {0.5f,0.5f,0.65f,0.0f};
     
-    DebugPrint(memory->sceneData->ambientColor.X);
-    DebugPrint('\n');
     platformAPI.Draw(&state->updateData);
     
     // NOTE(heyyod): Update stuff from vulkan
     memory->cameraData = (camera_data *)update.newCameraBuffer;
-    memory->objectsData = (object_data *)update.newObjectsBuffer;
     memory->sceneData= (scene_data *)update.newSceneBuffer;
 }

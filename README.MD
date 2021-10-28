@@ -15,6 +15,11 @@ Just a dude learning Vulkan.
 * the internet
 
 ## Progress (most recent first):
+
+* 28/10/21: Multiple model matrices and other info in the shaders
+
+<img src="README.assets/11 GIF 10-28-2021 10-04-10 PM.gif">
+
 * 23/10/21: Free roam camera
 
 <img src="README.assets/10 GIF 10-24-2021 5-58-32 PM.gif">

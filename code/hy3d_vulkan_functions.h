@@ -4,7 +4,7 @@
 #define HY3D_VULKAN_FUNCTIONS_H
 
 #define VulkanFuncPtr(func) PFN_##func
-#define VulkanDeclareFunction(func) function VulkanFuncPtr(func) func
+#define VulkanDeclareFunction(func) function_ VulkanFuncPtr(func) func
 
 //-----------------------------------------------------
 //            Global Functions         
@@ -12,7 +12,7 @@
 #define VK_GET_INSTANCE_PROC_ADDR(name) PFN_vkVoidFunction name(VkInstance instance, const char *pName)
 typedef VK_GET_INSTANCE_PROC_ADDR(vk_get_instance_proc_addr);
 VK_GET_INSTANCE_PROC_ADDR(vkGetInstanceProcAddrStub) { return 0; }
-function vk_get_instance_proc_addr *vkGetInstanceProcAddr_ = vkGetInstanceProcAddrStub;
+function_ vk_get_instance_proc_addr *vkGetInstanceProcAddr_ = vkGetInstanceProcAddrStub;
 #define vkGetInstanceProcAddr vkGetInstanceProcAddr_
 
 VulkanDeclareFunction(vkCreateInstance);
@@ -25,7 +25,7 @@ if (!(func))                                                       \
 {                                                                  \
 return false;                                                  \
 }
-function bool
+function_ bool
 VulkanLoadGlobalFunctions()
 {
     //test
@@ -69,7 +69,7 @@ if (!(func))                                                               \
 {                                                                          \
 return false;                                                          \
 }
-function bool
+function_ bool
 VulkanLoadInstanceFunctions()
 {
     VulkanLoadInstanceFunc(vkDestroyInstance);
@@ -182,7 +182,7 @@ if (!(func))                                                           \
 {                                                                      \
 return false;                                                      \
 }
-function bool
+function_ bool
 VulkanLoadDeviceFunctions()
 {
     VulkanLoadDeviceFunc(vkDeviceWaitIdle);

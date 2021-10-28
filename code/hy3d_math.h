@@ -14,7 +14,7 @@ typedef hmm_quaternion quart;
 
 #define Sign(a) (a > 0) ? 1 : -1
 
-inline function f32 Wrap(f32 min, f32 val, f32 max)
+inline function_ f32 Wrap(f32 min, f32 val, f32 max)
 {
     f32 result = val;
     if(val < min)

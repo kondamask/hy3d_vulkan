@@ -15,9 +15,9 @@ typedef uint64_t  u64;
 typedef float     f32;
 typedef double    f64;
 
-#define global_var static
-#define local_var static
-#define function static
+#define global_ static
+#define local_ static
+#define function_ static
 
 #define KILOBYTES(val) (val * 1024ULL)
 #define MEGABYTES(val) (KILOBYTES(val) * 1024ULL)

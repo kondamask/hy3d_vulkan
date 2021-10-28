@@ -1,22 +1,26 @@
 #ifndef HY3D_ENGINE_H
 #define HY3D_ENGINE_H 1
 
-#include "hy3d_base.h"
-#include "hy3d_image.h"
-#include "hy3d_mesh.h"
-#include "hy3d_math.h"
-#include "hy3d_graphics_settings.h"
-
-#include <chrono>
 
 #define WINDOW_WIDTH 640
 #define WINDOW_HEIGHT 480
 #define WINDOW_WIDTH_MIN 255
 #define WINDOW_HEIGHT_MIN 255
 
-#define MAX_STAGE_BUFFER_SLOTS 16
+#define MAX_STAGE_BUFFER_SLOTS 100
+#define MAX_TRANSFORM_SLOTS 1000
 
 #define VULKAN_UP {0.0f, -1.0f, 0.0f}
+
+#include <chrono>
+#include "hy3d_base.h"
+#include "hy3d_mesh.h"
+#include "hy3d_image.h"
+#include "hy3d_math.h"
+#include "hy3d_graphics_settings.h"
+#include "hy3d_scene.h"
+#include "hy3d_vulkan.h"
+
 
 struct debug_read_file_result
 {
@@ -36,25 +40,6 @@ typedef DEBUG_FREE_FILE(debug_free_file);
 #define PLATFORM_CHANGE_GRAPHICS(name) bool name(graphics_settings setting, CHANGE_GRAPHICS_SETTINGS newSettings)
 typedef PLATFORM_CHANGE_GRAPHICS(platform_change_graphics);
 
-enum RESOURCE_TYPE
-{
-    RESOURCE_EMPTY,
-    
-    RESOURCE_MESH,
-    RESOURCE_TEXTURE,
-    
-    RESOURCE_INVALID
-};
-
-struct staged_resources
-{
-    void *resources[MAX_STAGE_BUFFER_SLOTS];
-    RESOURCE_TYPE types[MAX_STAGE_BUFFER_SLOTS];
-    u64 offsets[MAX_STAGE_BUFFER_SLOTS]; //bytes from the start of the staging buffer
-    u32 count;
-    void *nextWriteAddr;
-};
-
 #define VULKAN_PUSH_STAGED_FUNC(name) bool name(staged_resources &)
 typedef VULKAN_PUSH_STAGED_FUNC(vulkan_push_staged_func);
 
@@ -68,7 +53,6 @@ struct update_data
     // We cycle them as we change the current swapchain image.
     // So vulkan will update the pointer and the engine will redirect it's camera write address
     void *newCameraBuffer;
-    void *newObjectsBuffer;
     void *newSceneBuffer;
 };
 
@@ -104,11 +88,6 @@ struct scene_data
     vec4 sunlightColor;
 };
 
-struct object_data
-{
-    mat4 model;
-};
-
 struct engine_memory
 {
     u64 permanentMemorySize;
@@ -122,14 +101,14 @@ struct engine_memory
     // NOTE(heyyod): uniform buffer allocated from vulkan.
     // Linked in os layer for now.
     camera_data *cameraData;
-    object_data *objectsData;
+    object_transform *objectsData;
     scene_data *sceneData;
     
     platform_api platformAPI_;
     
     bool isInitialized;
 };
-global_var platform_api platformAPI;
+global_ platform_api platformAPI;
 
 struct memory_arena
 {

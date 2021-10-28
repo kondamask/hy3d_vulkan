@@ -2,7 +2,6 @@
 #define HY3D_VULKAN_H 1
 
 #include "hy3d_base.h"
-#include "hy3d_engine.h"
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #define VK_NO_PROTOTYPES
@@ -20,7 +19,7 @@
 #define NUM_DESCRIPTORS NUM_SWAPCHAIN_IMAGES
 
 #define MAX_MESHES 10
-#define MAX_OBJECTS 1000
+#define MAX_RENDER_OBJECTS 1000
 
 #define MAP_BUFFER_TRUE true
 
@@ -31,14 +30,6 @@
 #define VULKAN_INDEX_TYPE VK_INDEX_TYPE_UINT32
 #endif
 
-struct vulkan_buffer
-{
-    VkBuffer handle;
-    VkDeviceMemory memoryHandle;
-    void *data;
-    u64 size;
-};
-
 struct vulkan_image
 {
     VkImage handle;
@@ -47,10 +38,21 @@ struct vulkan_image
     u32 mipLevels;
 };
 
-struct vulkan_saved_meshes
+struct vulkan_mesh
 {
-    u32 nVertices;
     u32 nIndices;
+    u32 nVertices;
+    u32 nInstances;
+    u32 pipelineID;
+};
+
+struct vulkan_buffer
+{
+    VkBuffer handle;
+    VkDeviceMemory memoryHandle;
+    void *data;
+    u64 size;
+    u64 writeOffset;
 };
 
 struct frame_prep_resource
@@ -65,9 +67,28 @@ struct frame_prep_resource
 struct frame_data
 {
     vulkan_buffer cameraBuffer;  // uniform
-    vulkan_buffer objectsBuffer;  // uniform
     vulkan_buffer sceneBuffer;   // dynamic uniform
     VkDescriptorSet globalDescriptor;
+};
+
+enum VulkanPipelineTypes
+{
+    PIPELINE_MESH,
+    
+    PIPELINES_COUNT
+};
+
+struct vulkan_pipeline
+{
+    VkPipeline handle;
+    VkPipelineLayout layout;
+};
+
+struct vulkan_render_object
+{
+    u32 meshID;
+    u32 pipelineID;
+    u32 transformID;
 };
 
 struct vulkan_engine
@@ -112,22 +133,16 @@ struct vulkan_engine
     VkDescriptorSetLayout globalDescSetLayout;
     VkDescriptorPool globalDescPool;
     
-    VkPipelineLayout pipelineLayout;
-    VkPipeline pipeline;
-    
-    vulkan_image depth;
-    
-    // NOTE(heyyod): cpu accessible
-    vulkan_buffer stagingBuffer;
-    
     // NOTE(heyyod): in gpu
+    vulkan_buffer stagingBuffer;
+    vulkan_image depthBuffer;
     vulkan_buffer vertexBuffer;
     vulkan_buffer indexBuffer;
-    u64 vertexBufferWriteOffset;
-    u64 indexBufferWriteOffset;
     
-    vulkan_saved_meshes savedMeshes[MAX_MESHES];
-    u32 savedMeshesCount;
+    vulkan_mesh loadedMesh[MAX_MESHES];
+    vulkan_pipeline pipeline[PIPELINES_COUNT];
+    vulkan_buffer staticTransformsBuffer;
+    u32 loadedMeshCount;
     
     vulkan_image texture;
     
@@ -141,10 +156,10 @@ struct vulkan_engine
     HMODULE dll;
 #endif
 };
-global_var vulkan_engine vulkan;
+global_ vulkan_engine vulkan;
 #include "hy3d_vulkan_functions.h"
 
-global_var char* shaderFiles[2] = {
+global_ char* shaderFiles[2] = {
     "../build/shaders/triangle.vert.spv",
     "../build/shaders/triangle.frag.spv"
 };

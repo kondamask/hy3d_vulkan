@@ -72,7 +72,7 @@ DEBUG_WRITE_FILE(DEBUGWriteFile)
 	return result;
 }
 
-function LRESULT Win32MainWindowProc(HWND handle, UINT message, WPARAM wParam, LPARAM lParam)
+function_ LRESULT Win32MainWindowProc(HWND handle, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	// NOTE: This pointer doesn't need to be checked for null since it always gets a value
 	// before we need to process ather messages. On application start we get:
@@ -148,12 +148,12 @@ function LRESULT Win32MainWindowProc(HWND handle, UINT message, WPARAM wParam, L
 	return result;
 }
 
-function void Win32Update(win32_window &window)
+function_ void Win32Update(win32_window &window)
 {
 	return;
 }
 
-function KEYBOARD_BUTTON Win32TranslateKeyInput(VK_CODE code)
+function_ KEYBOARD_BUTTON Win32TranslateKeyInput(VK_CODE code)
 {
 	switch (code)
 	{
@@ -199,7 +199,7 @@ function KEYBOARD_BUTTON Win32TranslateKeyInput(VK_CODE code)
 	}
 }
 
-function wnd_dim Win32GetWindowDim(HWND handle)
+function_ wnd_dim Win32GetWindowDim(HWND handle)
 {
 	wnd_dim result = {};
 	RECT rect = {};
@@ -209,7 +209,7 @@ function wnd_dim Win32GetWindowDim(HWND handle)
 	return result;
 }
 
-function bool Win32ProcessMessages(win32_window &window, engine_input &input, i32 &quitMessage)
+function_ bool Win32ProcessMessages(win32_window &window, engine_input &input, i32 &quitMessage)
 {
 	MSG message;
 	while (PeekMessage(&message, 0, 0, 0, PM_REMOVE))
@@ -263,7 +263,7 @@ function bool Win32ProcessMessages(win32_window &window, engine_input &input, i3
             case WM_INPUT:
             {
                 UINT dwSize = sizeof(RAWINPUT);
-                local_var BYTE lpb[sizeof(RAWINPUT)];
+                local_ BYTE lpb[sizeof(RAWINPUT)];
                 if (GetRawInputData((HRAWINPUT)message.lParam, RID_INPUT, lpb, &dwSize, sizeof(RAWINPUTHEADER)) == -1)
                 {
                     break;
@@ -349,7 +349,7 @@ function bool Win32ProcessMessages(win32_window &window, engine_input &input, i3
 	return true;
 }
 
-function FILETIME Win32GetWriteTime(char *filename)
+function_ FILETIME Win32GetWriteTime(char *filename)
 {
 	FILETIME result = {};
     char fullFilePath[MAX_PATH] = {};
@@ -366,13 +366,13 @@ function FILETIME Win32GetWriteTime(char *filename)
 	return result;
 }
 
-function inline bool Win32FileUpdated(char *filename, FILETIME &oldWriteTime)
+function_ inline bool Win32FileUpdated(char *filename, FILETIME &oldWriteTime)
 {
     FILETIME newWriteTime = Win32GetWriteTime(filename);
     return (CompareFileTime(&newWriteTime, &oldWriteTime) == 1);
 }
 
-function void Win32LoadEngineCode(win32_engine_code *engineCode, char *sourceFilename, char *sourceFilenameCopy)
+function_ void Win32LoadEngineCode(win32_engine_code *engineCode, char *sourceFilename, char *sourceFilenameCopy)
 {
 	// NOTE:  We need to add a sleep in order to wait for the dll compilation.
 	Sleep(800);
@@ -397,7 +397,7 @@ function void Win32LoadEngineCode(win32_engine_code *engineCode, char *sourceFil
 	}
 }
 
-function void Win32UnloadEngineCode(win32_engine_code *engineCode)
+function_ void Win32UnloadEngineCode(win32_engine_code *engineCode)
 {
 	if (engineCode->dll)
 	{
@@ -408,7 +408,7 @@ function void Win32UnloadEngineCode(win32_engine_code *engineCode)
 	engineCode->UpdateAndRender = UpdateAndRenderStub;
 }
 
-function bool Win32InitializeWindow(win32_window &window, u16 width, u16 height, LPCSTR windowTitle)
+function_ bool Win32InitializeWindow(win32_window &window, u16 width, u16 height, LPCSTR windowTitle)
 {
 #if HY3D_DEBUG
 	AllocConsole();
@@ -482,7 +482,7 @@ function bool Win32InitializeWindow(win32_window &window, u16 width, u16 height,
 	return true;
 }
 
-function bool Win32InitializeMemory(engine_memory &memory)
+function_ bool Win32InitializeMemory(engine_memory &memory)
 {
 	LPVOID baseAddress = (LPVOID)TERABYTES(2);
 	memory.permanentMemorySize = MEGABYTES(64);
@@ -561,7 +561,6 @@ int CALLBACK WinMain(
     // TODO(heyyod): This assumed that the first image we aquire in vulkan will always have index 0
     // Mayby bad
     engineMemory.cameraData = (camera_data *)vulkan.frameData[0].cameraBuffer.data;
-    engineMemory.objectsData = (object_data *)vulkan.frameData[0].objectsBuffer.data;
     engineMemory.sceneData = (scene_data *)vulkan.frameData[0].sceneBuffer.data;
     
     FILETIME shadersWriteTime = Win32GetWriteTime(shaderFiles[0]);

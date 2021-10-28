@@ -53,7 +53,7 @@ struct mesh
     vertex *vertices;
 };
 
-function bool LoadOBJ(const char *filename, mesh *meshOut)
+function_ bool LoadOBJ(const char *filename, mesh *meshOut)
 {
     fastObjMesh* m = fast_obj_read(filename);
     if(!m)

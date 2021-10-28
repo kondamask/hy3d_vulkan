@@ -1,11 +1,10 @@
 #ifndef HY3D_WIN32_PLATFORM_H
 #define HY3D_WIN32_PLATFORM_H 1
 
-#include "hy3d_base.h"
 #include "hy3d_windows.h"
+#include "hy3d_base.h"
 #include "hy3d_engine.h"
 #include "win32_resource.h"
-#include "hy3d_vulkan.h"
 
 #define WIN32_WINDOW_Y_BORDER 39
 #define WIN32_WINDOW_X_BORDER 23
