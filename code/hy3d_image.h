@@ -18,7 +18,7 @@ struct image
     u8* pixels;
 };
 
-function_ bool LoadImageRGBA(const char *filename, image *imageOut)
+static_func bool LoadImageRGBA(const char *filename, image *imageOut)
 {
     i32 width, height;
     u8 *pixels = stbi_load(filename, &width, &height, 0, STBI_rgb_alpha);

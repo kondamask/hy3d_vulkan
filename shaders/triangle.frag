@@ -18,6 +18,5 @@ layout(location = 0) out vec4 outColor;
 
 void main()
 {
-    //outColor = vec4(fragColor, 1.0f);
-    outColor = texture(textureSampler, fragTexCoord * 1.0f) * vec4(scene.ambientColor.xyz, 1.0f);
+    outColor = texture(textureSampler, fragTexCoord);// * vec4(scene.ambientColor.xyz, 1.0f);
 }

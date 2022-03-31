@@ -5,7 +5,7 @@
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #define VK_NO_PROTOTYPES
-#include "vulkan\vulkan.h"
+#include <vulkan\vulkan.h>
 
 #define NUM_SWAPCHAIN_IMAGES 2
 #define NUM_RESOURCES 4
@@ -156,10 +156,12 @@ struct vulkan_engine
     HMODULE dll;
 #endif
 };
-global_ vulkan_engine vulkan;
+
+global_var vulkan_engine vulkan;
+
 #include "hy3d_vulkan_functions.h"
 
-global_ char* shaderFiles[2] = {
+global_var char* shaderFiles[2] = {
     "../build/shaders/triangle.vert.spv",
     "../build/shaders/triangle.frag.spv"
 };

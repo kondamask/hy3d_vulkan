@@ -20,6 +20,7 @@
 #include "hy3d_graphics_settings.h"
 #include "hy3d_scene.h"
 #include "hy3d_vulkan.h"
+#include "camera.h"
 
 
 struct debug_read_file_result
@@ -101,20 +102,20 @@ struct engine_memory
     // NOTE(heyyod): uniform buffer allocated from vulkan.
     // Linked in os layer for now.
     camera_data *cameraData;
-    object_transform *objectsData;
     scene_data *sceneData;
+    object_transform *objectsTransforms;
     
     platform_api platformAPI_;
     
     bool isInitialized;
 };
-global_ platform_api platformAPI;
+global_var platform_api platformAPI;
 
 struct memory_arena
 {
     u8 *base;
-    size_t size;
-    size_t used;
+    u64 size;
+    u64 used;
 };
 
 enum KEYBOARD_BUTTON
@@ -154,20 +155,19 @@ struct keyboard_t
 
 struct mouse_t
 {
-    vec2 pos;
     vec2 lastPos;
-    vec2 delta;
+	vec2 newPos;
     bool isInWindow;
     bool leftIsPressed;
     bool rightIsPressed;
     bool wheelUp;
     bool cursorEnabled;
     
-    inline void SetPos(vec2 val)
+/*    inline void SetPos(vec2 val)
     {
         pos = val;
     }
-    
+*/    
     i32 WheelDelta()
     {
         i32 result = wheelDelta;
@@ -177,7 +177,7 @@ struct mouse_t
     
     void SetWheelDelta(i32 delta)
     {
-        wheelDelta = delta;
+		wheelDelta = WheelDelta() + delta;
     }
     
     private:
@@ -188,15 +188,6 @@ struct engine_input
 {
     mouse_t mouse;
     keyboard_t keyboard;
-};
-
-struct camera
-{
-    vec3 pos;
-    vec4 lookDir;
-    f32 moveSpeed;
-    f32 lookSens;
-    f32 fov;
 };
 
 struct engine_state

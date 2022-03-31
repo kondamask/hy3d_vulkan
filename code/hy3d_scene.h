@@ -3,8 +3,9 @@
 #ifndef HY3D_SCENE_H
 #define HY3D_SCENE_H
 
-#define STB_DS_IMPLEMENTATION
-#include "libs/stb_ds.h"
+#define MODEL_PATH(file) ".\\models\\"#file
+
+#define TEXTURE_PATH(file) ".\\textures\\"#file
 
 enum RESOURCE_TYPE
 {
@@ -29,19 +30,18 @@ struct staged_resources
     u64 offsets[MAX_STAGE_BUFFER_SLOTS]; //bytes from the start of the staging buffer
     RESOURCE_TYPE types[MAX_STAGE_BUFFER_SLOTS];
     u32 nInstances[MAX_STAGE_BUFFER_SLOTS];
-    object_transform *transforms;
     u32 count;
 };
 
 #define OffsetInStageBuffer(res) (u8*)res - (u8*)sceneResources.resources[0] + sizeof(*res)
-function_ i32
+static_func i32
 StageResource(const char *filepath, RESOURCE_TYPE type, staged_resources &sceneResources)
 {
     u32 bytesStaged = 0;
     
     if (sceneResources.count == 0)
         sceneResources.resources[0] = sceneResources.nextWriteAddr;
-    
+	
     switch (type)
     {
         case RESOURCE_MESH:
@@ -76,35 +76,41 @@ StageResource(const char *filepath, RESOURCE_TYPE type, staged_resources &sceneR
     return (sceneResources.count - 1);
 }
 
+// NOTE(heyyod): 
+/*
+I can probably have a hash map of all the loaded resources.
+Also every scene can hold the names of the resources it uses.
+Using the hash map I can check which resources are already loaded into the gpu.
+Then if I need to load more resources that are not currently available I can
+a) Allocate vram if available
+b) Free unecesary resources from older scenes (LRU?)
+This WILL cause unused gaps in the buffer so I need to keep this in mind!!
+*/
+
 
 #define IsResourceValid(id) (id >= 0)
-function_ staged_resources
-CreateScene(void *stageMemory)
+static_func staged_resources
+CreateScene(staged_resources &resources, void *transforms)
 {
-    staged_resources resources = {};
-    resources.nextWriteAddr = stageMemory;
+    // TODO(heyyod): Staging buffer shoulb be created here
     i32 resourceID = -1;
-    resourceID = StageResource("../models/viking_room.obj", RESOURCE_MESH, resources);
+    resourceID = StageResource(MODEL_PATH(viking_room.obj), RESOURCE_MESH, resources);
     if(IsResourceValid(resourceID))
     {
-        object_transform t0;
-        t0.model = 
+        object_transform *t = (object_transform *)transforms;
+        t[0].model = 
             Translate({0.0f, 0.0f, 0.0f}) *
             Rotate(90.0f, Vec3(0.0f, 0.0f, 1.0f)) *
             Rotate(90.0f, Vec3(0.0f, 1.0f, 0.0f));
-        object_transform t1;
-        t1.model = 
+        t[1].model = 
             Translate({0.0f, 2.0f, 0.0f}) *
             Rotate(90.0f, Vec3(0.0f, 0.0f, 1.0f)) *
             Rotate(90.0f, Vec3(0.0f, 1.0f, 0.0f));
-        arrput(resources.transforms, t0);
-        arrput(resources.transforms, t1);
+        //arrput(resources.transforms, t0);
+        //arrput(resources.transforms, t1);
         resources.nInstances[resourceID] = 2;
     }
-    
-    // TODO(heyyod): MUST CLEAR ARRAY AFTER PUSH!!!!!
-    StageResource("../textures/viking_room.png", RESOURCE_TEXTURE, resources);
-    
+    StageResource(TEXTURE_PATH(viking_room.png), RESOURCE_TEXTURE, resources);
     return resources;
 }
 

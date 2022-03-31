@@ -1,0 +1,67 @@
+<?xml version="1.0"?>
+<N10X>
+	<Workspace>
+		<FileTypes>Any File (*.*)</FileTypes>
+		<ExcludeFilters>.git</ExcludeFilters>
+		<SyncFiles>true</SyncFiles>
+		<Recursive>true</Recursive>
+		<IsVirtual>false</IsVirtual>
+		<IsFolder>false</IsFolder>
+		<BuildCommand>build $(Configuration)</BuildCommand>
+		<RebuildCommand></RebuildCommand>
+		<BuildFileCommand></BuildFileCommand>
+		<CleanCommand></CleanCommand>
+		<RunCommand>build/hy3d_vulkan.exe</RunCommand>
+		<DebugCommand>devenv $(WorkspaceDirectory)/build/hy3d_vulkan.exe</DebugCommand>
+		<ExePathCommand>$(WorkspaceDirectory)/build/hy3d_vulkan.exe</ExePathCommand>
+		<DebugSln>$(WorkspaceDirectory)/build/hy3d_vulkan.sln</DebugSln>
+		<Configurations>
+			<Configuration>Debug</Configuration>
+			<Configuration>Release</Configuration>
+		</Configurations>
+		<Platforms>
+			<Platform>x64</Platform>
+			<Platform></Platform>
+			<Platform></Platform>
+		</Platforms>
+		<AdditionalIncludePaths>
+			<AdditionalIncludePath>W:\.INCLUDE</AdditionalIncludePath>
+			<AdditionalIncludePath>C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\shared</AdditionalIncludePath>
+			<AdditionalIncludePath>C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um</AdditionalIncludePath>
+			<AdditionalIncludePath></AdditionalIncludePath>
+		</AdditionalIncludePaths>
+		<ConfigProperties>
+			<ConfigAndPlatform>
+				<Name>Debug:x64</Name>
+				<Defines>
+					<Define></Define>
+					<Define></Define>
+				</Defines>
+				<ForceIncludes>
+					<ForceInclude></ForceInclude>
+					<ForceInclude></ForceInclude>
+				</ForceIncludes>
+			</ConfigAndPlatform>
+			<ConfigAndPlatform>
+				<Name>Release:x64</Name>
+				<Defines>
+					<Define></Define>
+				</Defines>
+				<ForceIncludes>
+					<ForceInclude></ForceInclude>
+				</ForceIncludes>
+			</ConfigAndPlatform>
+			<Config>
+				<Name>Debug</Name>
+				<Defines>
+					<Define></Define>
+				</Defines>
+			</Config>
+			<Platform>
+				<Name>x64</Name>
+				<Defines></Defines>
+			</Platform>
+		</ConfigProperties>
+		<Children></Children>
+	</Workspace>
+</N10X>

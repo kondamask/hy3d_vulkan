@@ -1,23 +1,23 @@
 #ifndef HY3D_BASE_H
 #define HY3D_BASE_H 1
 
-// NOTE(heyyod): This produces a compilation error all of a sudden. wtf???? 
+// NOTE(heyyod): This produces a compilation error all of a sudden. wtf????
 #include <cstdint>
 
-typedef int8_t    i8;
-typedef int16_t   i16;
-typedef int32_t   i32;
-typedef int64_t   i64;
-typedef uint8_t   u8;
-typedef uint16_t  u16;
-typedef uint32_t  u32;
-typedef uint64_t  u64;
-typedef float     f32;
-typedef double    f64;
+typedef int8_t i8;
+typedef int16_t i16;
+typedef int32_t i32;
+typedef int64_t i64;
+typedef uint8_t u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
+typedef float f32;
+typedef double f64;
 
-#define global_ static
-#define local_ static
-#define function_ static
+#define global_var static
+#define local_var static
+#define static_func static
 
 #define KILOBYTES(val) (val * 1024ULL)
 #define MEGABYTES(val) (KILOBYTES(val) * 1024ULL)
@@ -35,8 +35,8 @@ typedef double    f64;
 
 #if HY3D_DEBUG
 #define Assert(val) \
-if (!(val))     \
-AssertBreak()
+    if (!(val))     \
+    AssertBreak()
 #else
 #define Assert(val)
 #endif
@@ -53,13 +53,12 @@ AssertBreak()
 
 #if HY3D_DEBUG
 #define AssertArraySize(array, count) \
-if (ArrayCount(array) < count)     \
-AssertBreak()
+    if (ArrayCount(array) < count)    \
+    AssertBreak()
 #else
 #define AssertArraySize(array, count)
 #endif
 
-#define AdvancePointer(ptr, bytes) ptr = (u8*)ptr + bytes
-
+#define AdvancePointer(ptr, bytes) ptr = (u8 *)ptr + bytes
 
 #endif

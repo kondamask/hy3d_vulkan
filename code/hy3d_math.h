@@ -6,6 +6,13 @@
 #include "libs/HandmadeMath.h"
 #include "hy3d_base.h"
 
+#define VEC3_UP { 0.0f, 1.0f, 0.0f }
+#define VEC3_DOWN { 0.0f, -1.0f, 0.0f }
+#define VEC3_RIGHT { 1.0f, 0.0f, 0.0f }
+#define VEC3_LEFT { -1.0f, 1.0f, 0.0f }
+#define VEC3_FRONT { 0.0f, 0.0f, 1.0f }
+#define VEC3_BACK { 0.0f, 0.0f, -1.0f }
+
 typedef hmm_vec2 vec2;
 typedef hmm_vec3 vec3;
 typedef hmm_vec4 vec4;
@@ -14,7 +21,7 @@ typedef hmm_quaternion quart;
 
 #define Sign(a) (a > 0) ? 1 : -1
 
-inline function_ f32 Wrap(f32 min, f32 val, f32 max)
+inline static_func f32 Wrap(f32 min, f32 val, f32 max)
 {
     f32 result = val;
     if(val < min)
