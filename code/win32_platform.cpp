@@ -620,8 +620,8 @@ int CALLBACK WinMain(
 	char *sourceDLLCopyPath = "build\\hy3d_engine_copy.dll";
 	Win32LoadEngineCode(&engineCode, sourceDLLPath, sourceDLLCopyPath);
 
-	engine_memory engineMemory = {};
-	if (!Win32InitializeMemory(engineMemory))
+	engine_context engine = {};
+	if (!Win32InitializeMemory(engine.memory))
 	{
 		return 3;
 	}
@@ -630,16 +630,15 @@ int CALLBACK WinMain(
 	{
 		return 4;
 	}
-	engineMemory.stagingMemory = vulkan.stagingBuffer.data;
+	engine.memory.stagingMemory = vulkan.stagingBuffer.data;
 
-	// TODO(heyyod): This assumed that the first image we aquire in vulkan will always have index 0
+	// TODO(heyyod): This assumes that the first image we aquire in vulkan will always have index 0
 	// Mayby bad
-	engineMemory.cameraData = (camera_data *)vulkan.frameData[0].cameraBuffer.data;
-	engineMemory.sceneData = (scene_data *)vulkan.frameData[0].sceneBuffer.data;
-	engineMemory.objectsTransforms = (object_transform *)vulkan.staticTransformsBuffer.data;
+	engine.memory.cameraData = (camera_data *)vulkan.frameData[0].cameraBuffer.data;
+	engine.memory.sceneData = (scene_data *)vulkan.frameData[0].sceneBuffer.data;
+	engine.memory.objectsTransforms = (object_transform *)vulkan.staticTransformsBuffer.data;
 
 	FILETIME shadersWriteTime = Win32GetWriteTime(shaderFiles[0]);
-	hy3d_engine engine = {};
 	i32 quitMessage = -1;
 	while (Win32ProcessMessages(window, engine.input, quitMessage))
 	{
@@ -667,7 +666,7 @@ int CALLBACK WinMain(
 			engine.windowHeight = vulkan.windowExtent.height;
 		}
 		if (vulkan.canRender)
-			engineCode.UpdateAndRender(engine, &engineMemory);
+			engineCode.UpdateAndRender(&engine);
 		Win32Update(window);
 	}
 	Vulkan::Destroy();

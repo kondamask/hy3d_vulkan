@@ -50,7 +50,7 @@ struct update_data
     vec3 clearColor;
     
     // NOTE(heyyod): VULKAN -> ENGINE
-    // We have multiple a uniform buffer for every frame in the swapchain.
+    // We have multiple a uniform buffers for every frame in the swapchain.
     // We cycle them as we change the current swapchain image.
     // So vulkan will update the pointer and the engine will redirect it's camera write address
     void *newCameraBuffer;
@@ -162,6 +162,7 @@ struct mouse_t
     bool rightIsPressed;
     bool wheelUp;
     bool cursorEnabled;
+	bool firstMove;
     
 /*    inline void SetPos(vec2 val)
     {
@@ -198,19 +199,23 @@ struct engine_state
     
     camera player;
     
-    float time;
+	f32 dt;
+    f32 time;
 };
 
-struct hy3d_engine
+struct engine_context
 {
-    engine_input input;
+	engine_memory memory;
+	engine_state *state;
+	engine_input input;
+	
     std::chrono::steady_clock::time_point frameStart;
     bool onResize;
     u32 windowWidth;
     u32 windowHeight;
 };
 
-#define UPDATE_AND_RENDER(name) void name(hy3d_engine &e, engine_memory *memory)
+#define UPDATE_AND_RENDER(name) void name(engine_context *engine)
 typedef UPDATE_AND_RENDER(update_and_render);
 UPDATE_AND_RENDER(UpdateAndRenderStub) {}
 

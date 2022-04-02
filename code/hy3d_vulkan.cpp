@@ -588,18 +588,21 @@ static_func bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle
 		u32 stagingBufferSize = vertexBufferSize + indexBufferSize;
 		if (!CreateBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, stagingBufferSize, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, vulkan.stagingBuffer, MAP_BUFFER_TRUE))
 		{
+			DebugPrint("Could not create index buffer\n");
 			Assert("Could not create staging buffer");
 			return false;
 		}
 
 		if (!CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, vertexBufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vulkan.vertexBuffer))
 		{
+			DebugPrint("Could not create vertex buffer\n");
 			Assert("Could not create vertex buffer");
 			return false;
 		}
 
 		if (!CreateBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, indexBufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vulkan.indexBuffer))
 		{
+			DebugPrint("Could not create index buffer\n");
 			Assert("Could not create index buffer");
 			return false;
 		}
@@ -633,6 +636,7 @@ static_func bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 		vulkan.staticTransformsBuffer, MAP_BUFFER_TRUE))
 	{
+		DebugPrint("Could not create static transforms storage buffer\n");
 		Assert("Could not create static transforms storage buffer");
 		return false;
 	}
@@ -642,17 +646,10 @@ static_func bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle
 		// NOTE(heyyod): layout
 		{
 			VkDescriptorSetLayoutBinding bindings[] = {
-				{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
-					VK_SHADER_STAGE_VERTEX_BIT, 0 }, //camera
-
-					{ 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1,
-						VK_SHADER_STAGE_VERTEX_BIT, 0 }, //objects
-
-						{ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1,
-							VK_SHADER_STAGE_FRAGMENT_BIT, 0 }, //texture sampler
-
-							{ 3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1,
-								VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0 }, //scene
+				{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, 0 }, // camera
+				{ 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, 0 }, // objects
+				{ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, 0 }, //texture sampler
+				{ 3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0 }, //scene
 			};
 
 			VkDescriptorSetLayoutCreateInfo layoutInfo = {};
@@ -1302,9 +1299,10 @@ static_func bool Vulkan::CreatePipeline()
 	// NOTE(heyyod): LOAD THE SHADERS
 	VkShaderModule triangleVertShader = {};
 	VkShaderModule triangleFragShader = {};
-	if (!LoadShader(".\\build\\shaders\\triangle.frag.spv", &triangleFragShader) ||
-		!LoadShader(".\\build\\shaders\\triangle.vert.spv", &triangleVertShader))
+	if (!LoadShader(".\\assets\\shaders\\default.frag.spv", &triangleFragShader) ||
+		!LoadShader(".\\assets\\shaders\\default.vert.spv", &triangleVertShader))
 	{
+		DebugPrint("Couldn't load shaders\n");
 		Assert("Couldn't load shaders");
 		return false;
 	}
@@ -2117,8 +2115,7 @@ static_func bool Vulkan::Draw(update_data *data)
 }
 
 #if 0
-static_func bool Vulkan::
-CreateCommandBuffers()
+static_func bool Vulkan::CreateCommandBuffers()
 {
 	VkCommandPoolCreateInfo cmdPoolInfo = {};
 	cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -2141,8 +2138,7 @@ CreateCommandBuffers()
 }
 
 
-static_func bool Vulkan::
-ResetCommandBuffers()
+static_func bool Vulkan::ResetCommandBuffers()
 {
 	if (VulkanIsValidHandle(vulkan.device) && VulkanIsValidHandle(vulkan.cmdPool))
 	{
@@ -2154,16 +2150,14 @@ ResetCommandBuffers()
 	return false;
 }
 
-static_func void Vulkan::
-GetVertexBindingDesc(vertex2 &v, VkVertexInputBindingDescription &bindingDesc)
+static_func void Vulkan::GetVertexBindingDesc(vertex2 &v, VkVertexInputBindingDescription &bindingDesc)
 {
 	bindingDesc.binding = 0;
 	bindingDesc.stride = sizeof(v);
 	bindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 }
 
-static_func void Vulkan::
-GetVertexAttributeDesc(vertex2 &v, VkVertexInputAttributeDescription *attributeDescs)
+static_func void Vulkan::GetVertexAttributeDesc(vertex2 &v, VkVertexInputAttributeDescription *attributeDescs)
 {
 	//Assert(ArrayCount(attributeDescs) == 2); // for pos and color
 	attributeDescs[0].binding = 0;

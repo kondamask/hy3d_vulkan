@@ -91,7 +91,7 @@ struct vulkan_render_object
     u32 transformID;
 };
 
-struct vulkan_engine
+global_var struct
 {
     VkPhysicalDeviceProperties gpuProperties;
     VkPhysicalDeviceMemoryProperties memoryProperties;
@@ -155,9 +155,7 @@ struct vulkan_engine
 #ifdef VK_USE_PLATFORM_WIN32_KHR
     HMODULE dll;
 #endif
-};
-
-global_var vulkan_engine vulkan;
+} vulkan;
 
 #include "hy3d_vulkan_functions.h"
 

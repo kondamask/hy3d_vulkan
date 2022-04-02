@@ -7,17 +7,21 @@ void camera::Initialize(vec3 posIn, vec3 dirIn, vec3 upIn, f32 speedIn, f32 sens
 	up = upIn;
 		
 	pitch = 0.0f;
-	yaw = -90.0f;
+	yaw = 90.0f;
 		
 	speed = speedIn;
 	sens = sensIn;
 	fov = fovIn;
 }
 
-void camera::UpdateDir(f32 xOffset, f32 yOffset)
+void camera::Update(vec3 dPos, vec2 dLook)
 {
-	yaw += xOffset * sens;
-	pitch += yOffset * sens;
+	// Position	
+	pos += speed * dPos;
+	
+	// Look Dir
+	yaw += dLook.X * sens;
+	pitch += dLook.Y * sens;
 	pitch = Clamp(-89.0f, pitch, 89.0f);
 		
 	f32 pitchRad = ToRadians(pitch);
@@ -26,5 +30,5 @@ void camera::UpdateDir(f32 xOffset, f32 yOffset)
 	dir.X = CosF(yawRad) * CosF(pitchRad);
 	dir.Y = SinF(pitchRad);
 	dir.Z = SinF(yawRad) * CosF(pitchRad);
-	dir = Normalize(dir);
+	//dir = Normalize(dir);
 }

@@ -19,7 +19,7 @@ struct camera
 	
 	void Initialize(vec3 posIn, vec3 dirIn, vec3 upIn, f32 speedIn, f32 sensIn, f32 fovIn = 45.0f);
 	
-	void UpdateDir(f32 xOffset, f32 yOffset);
+	void Update(vec3 dPos, vec2 dLook);
 };
 
 #endif

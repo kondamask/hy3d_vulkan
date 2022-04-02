@@ -3,9 +3,9 @@
 #ifndef HY3D_SCENE_H
 #define HY3D_SCENE_H
 
-#define MODEL_PATH(file) ".\\models\\"#file
+#define MODEL_PATH(file) ".\\assets\\models\\"#file
 
-#define TEXTURE_PATH(file) ".\\textures\\"#file
+#define TEXTURE_PATH(file) ".\\assets\\textures\\"#file
 
 enum RESOURCE_TYPE
 {

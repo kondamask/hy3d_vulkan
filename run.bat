@@ -1,1 +1,0 @@
-start build\hy3d_vulkan.exe

@@ -3,7 +3,7 @@
 #include "camera.cpp"
 //#include <intrin.h>
 
-static_func void InitializeMemoryArena(memory_arena *arena, u8 *base, u64 size)
+inline static_func void InitializeMemoryArena(memory_arena *arena, u8 *base, u64 size)
 {
 	arena->base = base;
 	arena->size = size;
@@ -21,133 +21,147 @@ static_func void *ReserveMemory(memory_arena *arena, size_t size)
 	return result;
 }
 
-extern "C" UPDATE_AND_RENDER(UpdateAndRender)
+inline static_func void InitializeEngine(engine_context *engine)
 {
-	engine_state *state = (engine_state *)memory->permanentMemory;
-	update_data &update = state->updateData;
-	platformAPI = memory->platformAPI_;
+	engine->input = {};
+	engine->onResize = false;
+	InitializeMemoryArena(&engine->state->memoryArena, (u8 *)engine->memory.permanentMemory + sizeof(engine_state), engine->memory.permanentMemorySize - sizeof(engine_state));
 
-	if (!memory->isInitialized)
-	{
-		e.input = {};
-		e.onResize = false;
-		InitializeMemoryArena(&state->memoryArena,
-			(u8 *)memory->permanentMemory + sizeof(engine_state),
-			memory->permanentMemorySize - sizeof(engine_state));
+	// NOTE: Everything is initialized here
+	engine->state->updateData.clearColor[0] = 0.1f;
+	engine->state->updateData.clearColor[1] = 0.3f;
+	engine->state->updateData.clearColor[2] = 0.6f;
+	
+	engine->memory.nextStagingAddr = engine->memory.stagingMemory;
+	engine->memory.sceneData->ambientColor = { 0.5f, 0.5f, 0.65f, 0.0f };
+	
+	staged_resources sceneResources = {};
+	sceneResources.nextWriteAddr = engine->memory.nextStagingAddr;
 
-		// NOTE: Everything is initialized here
-		state->updateData.clearColor[0] = 0.1f;
-		state->updateData.clearColor[1] = 0.3f;
-		state->updateData.clearColor[2] = 0.6f;
-		memory->nextStagingAddr = memory->stagingMemory;
+	CreateScene(sceneResources, engine->memory.objectsTransforms);
+	platformAPI.PushStaged(sceneResources);
 
-		staged_resources sceneResources = {};
-		sceneResources.nextWriteAddr = memory->nextStagingAddr;
+	engine->memory.isInitialized = true;
 
-		CreateScene(sceneResources, memory->objectsTransforms);
-		platformAPI.PushStaged(sceneResources);
+	engine->state->player.Initialize( { 0.0f, 2.0f, -5.0f }, { 0.0f, 0.0f, 1.0f }, VEC3_UP, 3.0f, 0.1f, 60.0f);
 
-		memory->isInitialized = true;
+	engine->input.mouse.cursorEnabled = true;
+	engine->input.mouse.firstMove = true;
 
-		state->player.Initialize( { 0.0f, 2.0f, 3.0f }, { 0.0f, 0.0f, 1.0f }, VEC3_DOWN, 3.0f, 10.0f, 60.0f);
+	engine->state->time = 0.0f;
+	engine->frameStart = std::chrono::steady_clock::now();
+}
 
-		e.input.mouse.cursorEnabled = false;
-
-		state->time = 0.0f;
-		e.frameStart = std::chrono::steady_clock::now();
-	}
-
-	// NOTE(heyyod): Frame time
-	std::chrono::steady_clock::time_point frameEnd = std::chrono::steady_clock::now();
-	std::chrono::duration<f32> frameTime = frameEnd - e.frameStart;
-	f32 dt = frameTime.count();
-	state->time += dt;
-	e.frameStart = frameEnd;
-
+inline static_func void ProcessInput(engine_context *engine)
+{
+	keyboard_t &kbd = engine->input.keyboard;
+	mouse_t &mouse = engine->input.mouse;
+	
 	// NOTE(heyyod): SETTINGS CONTROL
-	update.clearColor = { 0.7f, 0.4f, 0.3f };
+	engine->state->updateData.clearColor = { 0.7f, 0.4f, 0.3f };
 
 	{
-		if (!e.input.keyboard.isPressed[KEY_ALT] && !e.input.keyboard.altWasUp)
-			e.input.keyboard.altWasUp = true;
-		if (e.input.keyboard.isPressed[KEY_ALT] && e.input.keyboard.altWasUp)
+		if (!kbd.isPressed[KEY_ALT] && !kbd.altWasUp)
+			kbd.altWasUp = true;
+		if (kbd.isPressed[KEY_ALT] && kbd.altWasUp)
 		{
 
 			CHANGE_GRAPHICS_SETTINGS newSettings = CHANGE_NONE;
-			MSAA_OPTIONS newMSAA = state->settings.msaa;
+			MSAA_OPTIONS newMSAA = engine->state->settings.msaa;
 
-			if (e.input.keyboard.isPressed[KEY_ONE])
+			if (kbd.isPressed[KEY_ONE])
 				newMSAA = MSAA_OFF;
-			if (e.input.keyboard.isPressed[KEY_TWO])
+			if (kbd.isPressed[KEY_TWO])
 				newMSAA = MSAA_2;
-			if (e.input.keyboard.isPressed[KEY_THREE])
+			if (kbd.isPressed[KEY_THREE])
 				newMSAA = MSAA_4;
-			if (e.input.keyboard.isPressed[KEY_FOUR])
+			if (kbd.isPressed[KEY_FOUR])
 				newMSAA = MSAA_8;
-			if (newMSAA != state->settings.msaa)
+			if (newMSAA != engine->state->settings.msaa)
 			{
-				state->settings.msaa = newMSAA;
+				engine->state->settings.msaa = newMSAA;
 				newSettings |= CHANGE_MSAA;
-				e.input.keyboard.altWasUp = false;
+				kbd.altWasUp = false;
 			}
 			if (newSettings)
-				platformAPI.ChangeGraphicsSettings(state->settings, newSettings);
+				platformAPI.ChangeGraphicsSettings(engine->state->settings, newSettings);
 
-			if (e.input.keyboard.isPressed[KEY_TILDE])
+			if (kbd.isPressed[KEY_TILDE])
 			{
-				e.input.mouse.cursorEnabled = !e.input.mouse.cursorEnabled;
-				e.input.keyboard.altWasUp = false;
+				mouse.cursorEnabled = !mouse.cursorEnabled;
+				mouse.firstMove = true;
+				kbd.altWasUp = false;
 			}
 		}
 	}
 
 	// NOTE(heyyod): CAMERA CONTROL
+	// BUG: something is wrong with the up vector.
+	// Using VEC3_UP renders everything upside down
 	{
-		camera &player = state->player;
-		vec3 moveDir = {};
-		if (e.input.keyboard.isPressed[KEY_W])
-		{
-			moveDir += player.dir;
-		}
-		if (e.input.keyboard.isPressed[KEY_S])
-		{
-			moveDir -= player.dir;
-		}
-		if (e.input.keyboard.isPressed[KEY_A])
-		{
-			moveDir += Cross(VEC3_DOWN, player.dir);
-		}
-		if (e.input.keyboard.isPressed[KEY_D])
-		{
-			moveDir += Cross(player.dir, VEC3_DOWN);
-		}
-		if (e.input.keyboard.isPressed[KEY_Q])
-		{
-			moveDir.Y -= 1.0f;
-		}
-		if (e.input.keyboard.isPressed[KEY_E])
-		{
-			moveDir.Y += 1.0f;
-		}
-		player.pos += player.speed * dt * Normalize(moveDir);
+		camera &player = engine->state->player;
+		vec3 dPos = {};
+		if (kbd.isPressed[KEY_W])
+			dPos += player.dir;
+		if (kbd.isPressed[KEY_S])
+			dPos -= player.dir;
+		if (kbd.isPressed[KEY_A])
+			dPos += Cross(VEC3_DOWN, player.dir);
+		if (kbd.isPressed[KEY_D])
+			dPos += Cross(player.dir, VEC3_DOWN);
+		if (kbd.isPressed[KEY_Q])
+			dPos.Y -= 1.0f;
+		if (kbd.isPressed[KEY_E])
+			dPos.Y += 1.0f;
+		dPos *= engine->state->dt;
 
-		if (!e.input.mouse.cursorEnabled)
+		vec2 dLook = {};
+		if (!mouse.cursorEnabled)
 		{
-			f32 xOffset = -(e.input.mouse.newPos.X - e.input.mouse.lastPos.X) * dt;
-			f32 yOffset = (e.input.mouse.lastPos.Y - e.input.mouse.newPos.Y) * dt; // reversed since y-coordinates range from bottom to top
+			if (mouse.firstMove)
+			{
+				mouse.lastPos = mouse.newPos;
+				mouse.firstMove = false;
+			}
 
-			player.UpdateDir(xOffset, yOffset);
+			dLook = {
+				mouse.lastPos.X - mouse.newPos.X,
+				mouse.lastPos.Y - mouse.newPos.Y
+			} * engine->state->dt;
 		}
-		e.input.mouse.lastPos = e.input.mouse.newPos;
+		player.Update(dPos, dLook);
+		
+		mouse.lastPos = mouse.newPos;
 	}
+}
+
+extern "C" UPDATE_AND_RENDER(UpdateAndRender)
+{
+	engine_memory *memory = &engine->memory;
+	engine_state *state = engine->state = (engine_state *)memory->permanentMemory;
+	platformAPI = memory->platformAPI_;
+
+	if (!memory->isInitialized)
+	{
+		InitializeEngine(engine);
+	}
+	
+	// NOTE(heyyod): Frame time
+	// TODO: Use cpu timing instead
+	std::chrono::steady_clock::time_point frameEnd = std::chrono::steady_clock::now();
+	std::chrono::duration<f32> frameTime = frameEnd - engine->frameStart;
+	state->dt = frameTime.count();
+	state->time += state->dt;
+	engine->frameStart = frameEnd;
+
+	ProcessInput(engine);
 
 	memory->cameraData->view = LookAt(state->player.pos, state->player.pos + state->player.dir, VEC3_DOWN);
-	memory->cameraData->proj = Perspective(state->player.fov, e.windowWidth / (f32) e.windowHeight, 0.1f, 100.0f);
-	memory->sceneData->ambientColor = { 0.5f, 0.5f, 0.65f, 0.0f };
+	memory->cameraData->proj = Perspective(state->player.fov, engine->windowWidth / (f32) engine->windowHeight, 0.1f, 100.0f);
 
 	platformAPI.Draw(&state->updateData);
 
 	// NOTE(heyyod): Update stuff from vulkan
-	memory->cameraData = (camera_data *)update.newCameraBuffer;
-	memory->sceneData = (scene_data *)update.newSceneBuffer;
+	memory->cameraData = (camera_data *)state->updateData.newCameraBuffer;
+	memory->sceneData = (scene_data *)state->updateData.newSceneBuffer;
 }
