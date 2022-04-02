@@ -22,4 +22,10 @@ struct camera
 	void Update(vec3 dPos, vec2 dLook);
 };
 
+struct camera_data
+{
+	mat4 view;
+	mat4 proj;
+};
+
 #endif

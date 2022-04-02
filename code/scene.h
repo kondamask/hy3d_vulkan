@@ -3,6 +3,9 @@
 #ifndef HY3D_SCENE_H
 #define HY3D_SCENE_H
 
+#include "mesh.h"
+#include "image.h"
+
 #define MODEL_PATH(file) ".\\assets\\models\\"#file
 
 #define TEXTURE_PATH(file) ".\\assets\\textures\\"#file
@@ -19,8 +22,17 @@ enum RESOURCE_TYPE
 
 struct object_transform
 {
-    // TODO(heyyod): This can hold rotation, scale etc
+    // TODO(heyyod): This can hold rotation, scale etc so that we calculate everything in the shader
     mat4 model;
+};
+
+struct scene_data
+{
+	vec4 fogColor;        // w for exponent
+	vec4 fogDistances;    // x for min, y for max, zw unused
+	vec4 ambientColor;
+	vec4 sunlightDir;     // w for sun power
+	vec4 sunlightColor;
 };
 
 struct staged_resources
@@ -34,8 +46,7 @@ struct staged_resources
 };
 
 #define OffsetInStageBuffer(res) (u8*)res - (u8*)sceneResources.resources[0] + sizeof(*res)
-static_func i32
-StageResource(const char *filepath, RESOURCE_TYPE type, staged_resources &sceneResources)
+static_func i32 StageResource(const char *filepath, RESOURCE_TYPE type, staged_resources &sceneResources)
 {
     u32 bytesStaged = 0;
     
@@ -89,8 +100,7 @@ This WILL cause unused gaps in the buffer so I need to keep this in mind!!
 
 
 #define IsResourceValid(id) (id >= 0)
-static_func staged_resources
-CreateScene(staged_resources &resources, void *transforms)
+static_func staged_resources CreateScene(staged_resources &resources, void *transforms)
 {
     // TODO(heyyod): Staging buffer shoulb be created here
     i32 resourceID = -1;

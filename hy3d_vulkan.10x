@@ -26,8 +26,9 @@
 		</Platforms>
 		<AdditionalIncludePaths>
 			<AdditionalIncludePath>W:\.INCLUDE</AdditionalIncludePath>
-			<AdditionalIncludePath>C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\shared</AdditionalIncludePath>
-			<AdditionalIncludePath>C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um</AdditionalIncludePath>
+			<AdditionalIncludePath></AdditionalIncludePath>
+			<AdditionalIncludePath></AdditionalIncludePath>
+			<AdditionalIncludePath></AdditionalIncludePath>
 			<AdditionalIncludePath></AdditionalIncludePath>
 		</AdditionalIncludePaths>
 		<Defines></Defines>
@@ -55,6 +56,7 @@
 			<Config>
 				<Name>Debug</Name>
 				<Defines>
+					<Define>VULKAN_VALIDATION_LAYERS_ON 1</Define>
 					<Define></Define>
 				</Defines>
 			</Config>

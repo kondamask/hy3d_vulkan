@@ -1,6 +1,7 @@
 #ifndef HY3D_ENGINE_H
 #define HY3D_ENGINE_H 1
 
+//------------------------------------------------------------------------
 
 #define WINDOW_WIDTH 640
 #define WINDOW_HEIGHT 480
@@ -10,25 +11,18 @@
 #define MAX_STAGE_BUFFER_SLOTS 100
 #define MAX_TRANSFORM_SLOTS 1000
 
-#define VULKAN_UP {0.0f, -1.0f, 0.0f}
+//------------------------------------------------------------------------
 
 #include <chrono>
 #include "core.h"
-#include "mesh.h"
-#include "image.h"
-#include "math.h"
-#include "graphics_settings.h"
 #include "scene.h"
 #include "camera.h"
+#include "graphics_settings.h"
 #include "vulkan_platform.h"
 
+//------------------------------------------------------------------------
 
-struct debug_read_file_result
-{
-    void *content;
-    u32 size;
-};
-
+struct debug_read_file_result;
 #define DEBUG_READ_FILE(name) debug_read_file_result name(char *filename)
 typedef DEBUG_READ_FILE(debug_read_file);
 
@@ -44,6 +38,17 @@ typedef PLATFORM_CHANGE_GRAPHICS(platform_change_graphics);
 #define VULKAN_PUSH_STAGED_FUNC(name) bool name(staged_resources &)
 typedef VULKAN_PUSH_STAGED_FUNC(vulkan_push_staged_func);
 
+#define VULKAN_DRAW_FUNC(name) bool name(update_data *data)
+typedef VULKAN_DRAW_FUNC(vulkan_draw_func);
+
+//------------------------------------------------------------------------
+
+struct debug_read_file_result
+{
+    void *content;
+    u32 size;
+};
+
 struct update_data
 {
     // NOTE(heyyod): ENGINE -> VULKAN
@@ -57,9 +62,6 @@ struct update_data
     void *newSceneBuffer;
 };
 
-#define VULKAN_DRAW_FUNC(name) bool name(update_data *data)
-typedef VULKAN_DRAW_FUNC(vulkan_draw_func);
-
 struct platform_api
 {
     vulkan_draw_func *Draw;
@@ -72,21 +74,6 @@ struct platform_api
     debug_write_file *DEBUGWriteFile;
     debug_free_file *DEBUGFreeFileMemory;
     //#endif
-};
-
-struct camera_data
-{
-    mat4 view;
-    mat4 proj;
-};
-
-struct scene_data
-{
-    vec4 fogColor;        // w for exponent
-    vec4 fogDistances;    // x for min, y for max, zw unused
-    vec4 ambientColor;
-    vec4 sunlightDir;     // w for sun power
-    vec4 sunlightColor;
 };
 
 struct engine_memory
@@ -109,7 +96,6 @@ struct engine_memory
     
     bool isInitialized;
 };
-global_var platform_api platformAPI;
 
 struct memory_arena
 {
@@ -132,63 +118,57 @@ enum KEYBOARD_BUTTON
     KEY_EIGHT, KEY_NINE,  KEY_COUNT, KEY_INVALID
 };
 
-struct keyboard_t
-{
-    // TODO: USE A SINGLE VARIABLE INSTEAD OF A BOOL ARRAY
-    // WE ONLY NEED 1 BIT FOR A KEY
-    bool autoRepeatEnabled = false;
-    bool isPressed[KEY_COUNT];
-    
-    bool altWasUp = true;
-    
-    inline void Clear()
-    {
-        for (int i = 0; i < KEY_COUNT; i++)
-            isPressed[i] = false;
-    }
-    
-    inline void ToggleKey(KEYBOARD_BUTTON key)
-    {
-        isPressed[key] = !isPressed[key];
-    }
-};
-
-struct mouse_t
-{
-    vec2 lastPos;
-	vec2 newPos;
-    bool isInWindow;
-    bool leftIsPressed;
-    bool rightIsPressed;
-    bool wheelUp;
-    bool cursorEnabled;
-	bool firstMove;
-    
-/*    inline void SetPos(vec2 val)
-    {
-        pos = val;
-    }
-*/    
-    i32 WheelDelta()
-    {
-        i32 result = wheelDelta;
-        wheelDelta = 0;
-        return result;
-    }
-    
-    void SetWheelDelta(i32 delta)
-    {
-		wheelDelta = WheelDelta() + delta;
-    }
-    
-    private:
-    i32 wheelDelta;
-};
-
 struct engine_input
 {
-    mouse_t mouse;
-    keyboard_t keyboard;
+	struct
+	{
+		bool autoRepeatEnabled = false;
+		bool isPressed[KEY_COUNT]; // TODO: Use a bitfield
+    
+		bool altWasUp = true;
+    
+		//------------------------------------------------------------------------
+		
+		inline void Clear()
+		{
+			for (int i = 0; i < KEY_COUNT; i++)
+				isPressed[i] = false;
+		}
+    
+		inline void ToggleKey(KEYBOARD_BUTTON key)
+		{
+			isPressed[key] = !isPressed[key];
+		}
+	} keyboard;
+
+	struct
+	{
+		vec2 lastPos;
+		vec2 newPos;
+		bool isInWindow;
+		bool leftIsPressed;
+		bool rightIsPressed;
+		bool wheelUp;
+		bool cursorEnabled;
+		bool firstMove;
+	
+		//------------------------------------------------------------------------
+		
+		i32 GetWheelDelta()
+		{
+			i32 result = wheelDelta;
+			wheelDelta = 0;
+			return result;
+		}
+    
+		void UpdateWheelDelta(i32 delta)
+		{
+			wheelDelta += delta;
+		}
+    
+	private:
+		i32 wheelDelta;
+	} mouse;
 };
 
 struct engine_state
@@ -214,6 +194,12 @@ struct engine_context
     u32 windowWidth;
     u32 windowHeight;
 };
+
+//------------------------------------------------------------------------
+
+global_var platform_api platformAPI;
+
+//------------------------------------------------------------------------
 
 #define UPDATE_AND_RENDER(name) void name(engine_context *engine)
 typedef UPDATE_AND_RENDER(update_and_render);

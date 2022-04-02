@@ -339,8 +339,6 @@ static_func bool Win32ProcessMessages(win32_window &window, engine_input &input,
 				}
 				if (isInWindow)
 				{
-					//ShowCursor(false);
-					//input.mouse.SetPos({(f32)p.x, (f32)p.y});
 					if (!input.mouse.isInWindow) // if it wasn't in the window before
 					{
 						SetCapture(window.handle);
@@ -349,12 +347,7 @@ static_func bool Win32ProcessMessages(win32_window &window, engine_input &input,
 				}
 				else
 				{
-					//ShowCursor(true);
-					if (!(input.mouse.leftIsPressed || input.mouse.rightIsPressed))
-					{
-						//ReleaseCapture();
-						//input.mouse.isInWindow = false;
-					}
+					input.mouse.isInWindow = false;
 				}
 				break;
 			}
@@ -371,10 +364,10 @@ static_func bool Win32ProcessMessages(win32_window &window, engine_input &input,
 				input.mouse.rightIsPressed = false;
 				break;
 			case WM_MOUSEWHEEL:
-				input.mouse.SetWheelDelta(GET_WHEEL_DELTA_WPARAM(message.wParam));
+				input.mouse.UpdateWheelDelta(GET_WHEEL_DELTA_WPARAM(message.wParam));
 			case WM_MOUSELEAVE:
 				POINTS p = MAKEPOINTS(message.lParam);
-				//input.mouse.SetPos( { (f32)p.x, (f32)p.y });
+				input.mouse.isInWindow = false;
 				break;
 			case WM_KILLFOCUS:
 				input.keyboard.Clear();

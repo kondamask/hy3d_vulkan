@@ -67,13 +67,9 @@ static_func VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugCallback(VkDebugUtilsMessa
 	} while (c != '\0');
 	DebugPrint('\n');
 	if (isError)
-	{
 		Assert(0);
-		return VK_FALSE;
-	}
 	return VK_FALSE;
 }
-
 #endif
 
 static_func void VulkanPickMSAA(MSAA_OPTIONS msaa)

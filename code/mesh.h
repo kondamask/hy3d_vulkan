@@ -105,8 +105,6 @@ static_func bool LoadOBJ(const char *filename, mesh *meshOut)
     
     fast_obj_destroy(m);
 	
-	system("dir");
-	DebugPrint(filename);
     return true;
 }
 

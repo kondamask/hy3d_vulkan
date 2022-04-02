@@ -8,9 +8,9 @@
 #define VulkanFuncPtr(func) PFN_##func
 #define VulkanDeclareFunction(func) static_func VulkanFuncPtr(func) func
 
-//-----------------------------------------------------
-//            Global Functions         
-//-----------------------------------------------------
+//------------------------------------------------------------------------
+// Global Functions         
+//------------------------------------------------------------------------
 #define VK_GET_INSTANCE_PROC_ADDR(name) PFN_vkVoidFunction name(VkInstance instance, const char *pName)
 typedef VK_GET_INSTANCE_PROC_ADDR(vk_get_instance_proc_addr);
 VK_GET_INSTANCE_PROC_ADDR(vkGetInstanceProcAddrStub) { return 0; }
@@ -21,11 +21,11 @@ VulkanDeclareFunction(vkCreateInstance);
 VulkanDeclareFunction(vkEnumerateInstanceLayerProperties);
 VulkanDeclareFunction(vkEnumerateInstanceExtensionProperties);
 
-#define VulkanLoadGlobalFunc(func)                                     \
-	func = (VulkanFuncPtr(func))vkGetInstanceProcAddr(nullptr, #func); \
-	if (!(func))                                                       \
-	{ \
-	return false; \
+#define VulkanLoadGlobalFunc(func)										\
+	func = (VulkanFuncPtr(func))vkGetInstanceProcAddr(nullptr, #func);	\
+	if (!(func))														\
+	{ 																	\
+		return false;													\
 	}
 
 	static_func bool VulkanLoadGlobalFunctions()
@@ -40,9 +40,9 @@ VulkanDeclareFunction(vkEnumerateInstanceExtensionProperties);
 		return true;
 	}
 
-	//-----------------------------------------------------
-	//            Instance Functions         
-	//-----------------------------------------------------
+	//------------------------------------------------------------------------
+	// Instance Functions         
+	//------------------------------------------------------------------------
 	VulkanDeclareFunction(vkDestroyInstance);
 
 #if VULKAN_VALIDATION_LAYERS_ON
@@ -101,9 +101,9 @@ VulkanDeclareFunction(vkEnumerateInstanceExtensionProperties);
 		return true;
 	}
 
-	//-----------------------------------------------------
-	//            Device Functions         
-	//-----------------------------------------------------
+	//------------------------------------------------------------------------
+	// Device Functions         
+	//------------------------------------------------------------------------
 	VulkanDeclareFunction(vkDeviceWaitIdle);
 	VulkanDeclareFunction(vkDestroyDevice);
 	VulkanDeclareFunction(vkGetDeviceQueue);

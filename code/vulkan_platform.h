@@ -1,11 +1,7 @@
 #ifndef HY3D_VULKAN_H
 #define HY3D_VULKAN_H 1
 
-#include "core.h"
-
-#define VK_USE_PLATFORM_WIN32_KHR
-#define VK_NO_PROTOTYPES
-#include <vulkan\vulkan.h>
+//------------------------------------------------------------------------
 
 #define NUM_SWAPCHAIN_IMAGES 2
 #define NUM_RESOURCES 4
@@ -29,6 +25,16 @@
 #if INDEX_TYPE_U32
 #define VULKAN_INDEX_TYPE VK_INDEX_TYPE_UINT32
 #endif
+
+//------------------------------------------------------------------------
+
+#include "core.h"
+
+#define VK_USE_PLATFORM_WIN32_KHR
+#define VK_NO_PROTOTYPES
+#include <vulkan\vulkan.h>
+
+//------------------------------------------------------------------------
 
 struct vulkan_image
 {
@@ -91,7 +97,7 @@ struct vulkan_render_object
 	u32 transformID;
 };
 
-global_var struct
+struct vulkan_context
 {
 	VkPhysicalDeviceProperties gpuProperties;
 	VkPhysicalDeviceMemoryProperties memoryProperties;
@@ -155,18 +161,72 @@ global_var struct
 #ifdef VK_USE_PLATFORM_WIN32_KHR
 	HMODULE dll;
 #endif
-} vulkan;
+};
 
-#include "vulkan_functions.h"
+//------------------------------------------------------------------------
+// FUNCTIONS
+//------------------------------------------------------------------------
+static_func bool VulkanLoadCode();
+static_func bool VulkanInitialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name);
+static_func void VulkanDestroy();
+
+static_func bool VulkanCreateRenderPass();
+static_func void VulkanClearRenderPass();
+
+static_func bool VulkanCreateFrameBuffers();
+static_func void VulkanClearFrameBuffers();
+
+static_func bool VulkanCreateDepthBuffer();
+
+static_func bool VulkanCreateMSAABuffer();
+
+static_func bool VulkanCreateBuffer(VkBufferUsageFlags usage, VkDeviceSize size, VkMemoryPropertyFlags properties, vulkan_buffer &buffer, bool mapBuffer = false);
+static_func void VulkanClearBuffer(vulkan_buffer buffer);
+
+static_func bool VulkanCreateSwapchain();
+static_func void VulkanClearSwapchain();
+static_func void VulkanClearSwapchainImages();
+
+static_func bool VulkanCreateImage(VkImageType type, VkFormat format, VkExtent3D extent, u32 mipLevels, VkSampleCountFlagBits samples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memoryProperties, VkImageAspectFlags aspectMask, vulkan_image &imageOut);
+static_func void VulkanClearImage(vulkan_image &img);
+
+static_func bool VulkanCreatePipeline();
+static_func void VulkanClearPipeline();
+
+struct update_data;
+static_func bool VulkanDraw(update_data *data);
+
+static_func bool VulkanPushStaged(staged_resources &stagedResources);
+static_func bool VulkanLoadShader(char *filepath, VkShaderModule *shaderOut);
+
+static_func void VulkanPickMSAA(MSAA_OPTIONS msaa);
+static_func bool VulkanFindMemoryProperties(u32 memoryType, VkMemoryPropertyFlags requiredProperties, u32 &memoryIndexOut);
+static_func u64 VulkanGetUniformBufferPaddedSize(u64 originalSize);
+
+static_func bool VulkanChangeGraphicsSettings(graphics_settings settings, CHANGE_GRAPHICS_SETTINGS newSettings);
+static_func void VulkanCmdChangeImageLayout(VkCommandBuffer cmdBuffer, VkImage imgHandle, image *imageInfo, VkImageLayout oldLayout, VkImageLayout newLayout);
+
+static_func frame_prep_resource *VulkanGetNextAvailableResource();
+
+//static_func void GetVertexBindingDesc(vertex2 &v, VkVertexInputBindingDescription &bindingDesc);
+//static_func void GetVertexAttributeDesc(vertex2 &v, VkVertexInputAttributeDescription *attributeDescs);
+
+//------------------------------------------------------------------------
+// GLOBALS
+//------------------------------------------------------------------------
+global_var vulkan_context vulkan;
+
+#include "vulkan_functions.h" // NOTE: I INCLUDE THIS HERE BECAUSE IT USES THE GLOBAL VULKAN CONTEXT.
 
 global_var char* shaderFiles[2] = {
 	"../build/shaders/triangle.vert.spv",
 	"../build/shaders/triangle.frag.spv"
 };
 
-//-
-// NOTE: Macros
 
+//------------------------------------------------------------------------
+// MACROS
+//------------------------------------------------------------------------
 #if HY3D_DEBUG
 #define AssertSuccess(FuncResult) 	\
 	if (FuncResult != VK_SUCCESS)	\
@@ -180,56 +240,6 @@ global_var char* shaderFiles[2] = {
 	return false;
 #endif
 
-
 #define VulkanIsValidHandle(obj) obj != VK_NULL_HANDLE
-
-	/***********************************
- * FUNCTIONS
- **********************************/
-	static_func bool VulkanLoadCode();
-	static_func bool VulkanInitialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name);
-	static_func void VulkanDestroy();
-	
-	static_func bool VulkanCreateRenderPass();
-	static_func void VulkanClearRenderPass();
-	
-	static_func bool VulkanCreateFrameBuffers();
-	static_func void VulkanClearFrameBuffers();
-	
-	static_func bool VulkanCreateDepthBuffer();
-	
-	static_func bool VulkanCreateMSAABuffer();
-	
-	static_func bool VulkanCreateBuffer(VkBufferUsageFlags usage, VkDeviceSize size, VkMemoryPropertyFlags properties, vulkan_buffer &buffer, bool mapBuffer = false);
-	static_func void VulkanClearBuffer(vulkan_buffer buffer);
-	
-	static_func bool VulkanCreateSwapchain();
-	static_func void VulkanClearSwapchain();
-	static_func void VulkanClearSwapchainImages();
-	
-	static_func bool VulkanCreateImage(VkImageType type, VkFormat format, VkExtent3D extent, u32 mipLevels, VkSampleCountFlagBits samples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memoryProperties, VkImageAspectFlags aspectMask, vulkan_image &imageOut);
-	static_func void VulkanClearImage(vulkan_image &img);
-
-	static_func bool VulkanCreatePipeline();
-	static_func void VulkanClearPipeline();
-
-	
-	struct update_data;
-	static_func bool VulkanDraw(update_data *data);
-
-	static_func bool VulkanPushStaged(staged_resources &stagedResources);
-	static_func bool VulkanLoadShader(char *filepath, VkShaderModule *shaderOut);
-
-	static_func void VulkanPickMSAA(MSAA_OPTIONS msaa);
-	static_func bool VulkanFindMemoryProperties(u32 memoryType, VkMemoryPropertyFlags requiredProperties, u32 &memoryIndexOut);
-	static_func u64 VulkanGetUniformBufferPaddedSize(u64 originalSize);
-
-	static_func bool VulkanChangeGraphicsSettings(graphics_settings settings, CHANGE_GRAPHICS_SETTINGS newSettings);
-	static_func void VulkanCmdChangeImageLayout(VkCommandBuffer cmdBuffer, VkImage imgHandle, image *imageInfo, VkImageLayout oldLayout, VkImageLayout newLayout);
-
-	static_func frame_prep_resource *VulkanGetNextAvailableResource();
-
-	//static_func void GetVertexBindingDesc(vertex2 &v, VkVertexInputBindingDescription &bindingDesc);
-	//static_func void GetVertexAttributeDesc(vertex2 &v, VkVertexInputAttributeDescription *attributeDescs);
-
+//------------------------------------------------------------------------
 #endif

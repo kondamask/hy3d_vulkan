@@ -31,10 +31,10 @@ inline static_func void InitializeEngine(engine_context *engine)
 	engine->state->updateData.clearColor[0] = 0.1f;
 	engine->state->updateData.clearColor[1] = 0.3f;
 	engine->state->updateData.clearColor[2] = 0.6f;
-	
+
 	engine->memory.nextStagingAddr = engine->memory.stagingMemory;
 	engine->memory.sceneData->ambientColor = { 0.5f, 0.5f, 0.65f, 0.0f };
-	
+
 	staged_resources sceneResources = {};
 	sceneResources.nextWriteAddr = engine->memory.nextStagingAddr;
 
@@ -54,43 +54,40 @@ inline static_func void InitializeEngine(engine_context *engine)
 
 inline static_func void ProcessInput(engine_context *engine)
 {
-	keyboard_t &kbd = engine->input.keyboard;
-	mouse_t &mouse = engine->input.mouse;
-	
 	// NOTE(heyyod): SETTINGS CONTROL
 	engine->state->updateData.clearColor = { 0.7f, 0.4f, 0.3f };
 
 	{
-		if (!kbd.isPressed[KEY_ALT] && !kbd.altWasUp)
-			kbd.altWasUp = true;
-		if (kbd.isPressed[KEY_ALT] && kbd.altWasUp)
+		if (!engine->input.keyboard.isPressed[KEY_ALT] && !engine->input.keyboard.altWasUp)
+			engine->input.keyboard.altWasUp = true;
+		if (engine->input.keyboard.isPressed[KEY_ALT] && engine->input.keyboard.altWasUp)
 		{
 
 			CHANGE_GRAPHICS_SETTINGS newSettings = CHANGE_NONE;
 			MSAA_OPTIONS newMSAA = engine->state->settings.msaa;
 
-			if (kbd.isPressed[KEY_ONE])
+			if (engine->input.keyboard.isPressed[KEY_ONE])
 				newMSAA = MSAA_OFF;
-			if (kbd.isPressed[KEY_TWO])
+			if (engine->input.keyboard.isPressed[KEY_TWO])
 				newMSAA = MSAA_2;
-			if (kbd.isPressed[KEY_THREE])
+			if (engine->input.keyboard.isPressed[KEY_THREE])
 				newMSAA = MSAA_4;
-			if (kbd.isPressed[KEY_FOUR])
+			if (engine->input.keyboard.isPressed[KEY_FOUR])
 				newMSAA = MSAA_8;
 			if (newMSAA != engine->state->settings.msaa)
 			{
 				engine->state->settings.msaa = newMSAA;
 				newSettings |= CHANGE_MSAA;
-				kbd.altWasUp = false;
+				engine->input.keyboard.altWasUp = false;
 			}
 			if (newSettings)
 				platformAPI.ChangeGraphicsSettings(engine->state->settings, newSettings);
 
-			if (kbd.isPressed[KEY_TILDE])
+			if (engine->input.keyboard.isPressed[KEY_TILDE])
 			{
-				mouse.cursorEnabled = !mouse.cursorEnabled;
-				mouse.firstMove = true;
-				kbd.altWasUp = false;
+				engine->input.mouse.cursorEnabled = !engine->input.mouse.cursorEnabled;
+				engine->input.mouse.firstMove = true;
+				engine->input.keyboard.altWasUp = false;
 			}
 		}
 	}
@@ -101,37 +98,37 @@ inline static_func void ProcessInput(engine_context *engine)
 	{
 		camera &player = engine->state->player;
 		vec3 dPos = {};
-		if (kbd.isPressed[KEY_W])
+		if (engine->input.keyboard.isPressed[KEY_W])
 			dPos += player.dir;
-		if (kbd.isPressed[KEY_S])
+		if (engine->input.keyboard.isPressed[KEY_S])
 			dPos -= player.dir;
-		if (kbd.isPressed[KEY_A])
+		if (engine->input.keyboard.isPressed[KEY_A])
 			dPos += Cross(VEC3_DOWN, player.dir);
-		if (kbd.isPressed[KEY_D])
+		if (engine->input.keyboard.isPressed[KEY_D])
 			dPos += Cross(player.dir, VEC3_DOWN);
-		if (kbd.isPressed[KEY_Q])
+		if (engine->input.keyboard.isPressed[KEY_Q])
 			dPos.Y -= 1.0f;
-		if (kbd.isPressed[KEY_E])
+		if (engine->input.keyboard.isPressed[KEY_E])
 			dPos.Y += 1.0f;
 		dPos *= engine->state->dt;
 
 		vec2 dLook = {};
-		if (!mouse.cursorEnabled)
+		if (!engine->input.mouse.cursorEnabled && engine->input.mouse.isInWindow)
 		{
-			if (mouse.firstMove)
+			if (engine->input.mouse.firstMove)
 			{
-				mouse.lastPos = mouse.newPos;
-				mouse.firstMove = false;
+				engine->input.mouse.lastPos = engine->input.mouse.newPos;
+				engine->input.mouse.firstMove = false;
 			}
 
 			dLook = {
-				mouse.lastPos.X - mouse.newPos.X,
-				mouse.lastPos.Y - mouse.newPos.Y
+				engine->input.mouse.lastPos.X - engine->input.mouse.newPos.X,
+				engine->input.mouse.lastPos.Y - engine->input.mouse.newPos.Y
 			} * engine->state->dt;
 		}
 		player.Update(dPos, dLook);
-		
-		mouse.lastPos = mouse.newPos;
+
+		engine->input.mouse.lastPos = engine->input.mouse.newPos;
 	}
 }
 
@@ -145,7 +142,7 @@ extern "C" UPDATE_AND_RENDER(UpdateAndRender)
 	{
 		InitializeEngine(engine);
 	}
-	
+
 	// NOTE(heyyod): Frame time
 	// TODO: Use cpu timing instead
 	std::chrono::steady_clock::time_point frameEnd = std::chrono::steady_clock::now();
