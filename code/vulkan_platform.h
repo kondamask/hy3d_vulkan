@@ -1,7 +1,7 @@
 #ifndef HY3D_VULKAN_H
 #define HY3D_VULKAN_H 1
 
-#include "hy3d_base.h"
+#include "core.h"
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #define VK_NO_PROTOTYPES
@@ -157,7 +157,7 @@ global_var struct
 #endif
 } vulkan;
 
-#include "hy3d_vulkan_functions.h"
+#include "vulkan_functions.h"
 
 global_var char* shaderFiles[2] = {
     "../build/shaders/triangle.vert.spv",

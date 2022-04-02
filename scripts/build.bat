@@ -29,7 +29,7 @@ rc /fo win32_hy3d.res /nologo ..\code\win32_resource.rc
 del *.pdb > NUL 2> NUL
 set EXPOTED_FUNCS=-EXPORT:UpdateAndRender
 
-cl %INCLUDES% %COMPILER_FLAGS% ..\code\hy3d_engine.cpp -Fmhy3d_engine.map -LD -link -incremental:no -opt:ref -PDB:hy3d_engine_%RANDOM%.pdb %EXPOTED_FUNCS%
+cl %INCLUDES% %COMPILER_FLAGS% ..\code\engine_platform.cpp -Fmengine_platform.map -LD -link -incremental:no -opt:ref -PDB:engine_platform_%RANDOM%.pdb %EXPOTED_FUNCS%
 
 cl %INCLUDES% %COMPILER_FLAGS% ..\code\win32_platform.cpp  win32_hy3d.res -Fwin32_platform.map -Fe%EXE_NAME% -link %LINKER_FLAGS%
 popd

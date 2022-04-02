@@ -11,7 +11,7 @@
 		<RebuildCommand>$(WorkspaceDirectory)/scripts/build_shaders</RebuildCommand>
 		<BuildFileCommand></BuildFileCommand>
 		<CleanCommand></CleanCommand>
-		<RunCommand>$(WorkspaceDirectory)/scripts/run</RunCommand>
+		<RunCommand>build/hy3d_vulkan.exe</RunCommand>
 		<DebugCommand>devenv $(WorkspaceDirectory)/build/hy3d_vulkan.exe</DebugCommand>
 		<ExePathCommand>$(WorkspaceDirectory)/build/hy3d_vulkan.exe</ExePathCommand>
 		<DebugSln>$(WorkspaceDirectory)/build/hy3d_vulkan.sln</DebugSln>

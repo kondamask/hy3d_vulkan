@@ -1,5 +1,5 @@
 #include "win32_platform.h"
-#include "hy3d_vulkan.cpp"
+#include "vulkan_platform.cpp"
 
 // NOTE: These file I/O functions should only be used for DEBUG purposes.
 DEBUG_FREE_FILE(DEBUGFreeFileMemory)

@@ -3,8 +3,8 @@
 #ifndef HY3D_MESH_H
 #define HY3D_MESH_H
 
-#include "hy3d_math.h"
-#include "hy3d_base.h"
+#include "math.h"
+#include "core.h"
 
 #define FAST_OBJ_IMPLEMENTATION
 #include "libs/fast_obj.h"

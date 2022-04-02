@@ -5,7 +5,7 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "libs/stb_image.h"
-#include "hy3d_base.h"
+#include "core.h"
 
 // NOTE(heyyod): for RGBA
 #define IMAGE_TOTAL_SIZE(i) i.width * i.height * 4 + 4

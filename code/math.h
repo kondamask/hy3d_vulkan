@@ -4,7 +4,7 @@
 #define HY3D_MATH_H
 
 #include "libs/HandmadeMath.h"
-#include "hy3d_base.h"
+#include "core.h"
 
 #define VEC3_UP { 0.0f, 1.0f, 0.0f }
 #define VEC3_DOWN { 0.0f, -1.0f, 0.0f }

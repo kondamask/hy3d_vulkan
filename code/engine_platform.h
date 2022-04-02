@@ -13,14 +13,14 @@
 #define VULKAN_UP {0.0f, -1.0f, 0.0f}
 
 #include <chrono>
-#include "hy3d_base.h"
-#include "hy3d_mesh.h"
-#include "hy3d_image.h"
-#include "hy3d_math.h"
-#include "hy3d_graphics_settings.h"
-#include "hy3d_scene.h"
-#include "hy3d_vulkan.h"
+#include "core.h"
+#include "mesh.h"
+#include "image.h"
+#include "math.h"
+#include "graphics_settings.h"
+#include "scene.h"
 #include "camera.h"
+#include "vulkan_platform.h"
 
 
 struct debug_read_file_result

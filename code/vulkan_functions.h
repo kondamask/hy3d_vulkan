@@ -3,7 +3,7 @@
 #ifndef HY3D_VULKAN_FUNCTIONS_H
 #define HY3D_VULKAN_FUNCTIONS_H
 
-#include "hy3d_base.h"
+#include "core.h"
 
 #define VulkanFuncPtr(func) PFN_##func
 #define VulkanDeclareFunction(func) static_func VulkanFuncPtr(func) func

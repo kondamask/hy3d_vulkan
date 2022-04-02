@@ -1,9 +1,9 @@
 #ifndef HY3D_WIN32_PLATFORM_H
 #define HY3D_WIN32_PLATFORM_H 1
 
-#include "hy3d_windows.h"
-#include "hy3d_base.h"
-#include "hy3d_engine.h"
+#include "windows_configed.h"
+#include "core.h"
+#include "engine_platform.h"
 #include "win32_resource.h"
 
 #define WIN32_WINDOW_Y_BORDER 39
