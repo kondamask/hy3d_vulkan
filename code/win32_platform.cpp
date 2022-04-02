@@ -157,83 +157,83 @@ static_func KEYBOARD_BUTTON Win32TranslateKeyInput(VK_CODE code)
 {
 	switch (code)
 	{
-		case VK_UP: { return KEY_UP ; }
+		case VK_UP: { return KEY_UP; }
 		break;
-		case VK_LEFT: { return KEY_LEFT ; }
+		case VK_LEFT: { return KEY_LEFT; }
 		break;
-		case VK_DOWN: { return KEY_DOWN ; }
+		case VK_DOWN: { return KEY_DOWN; }
 		break;
-		case VK_RIGHT: { return KEY_RIGHT ; }
+		case VK_RIGHT: { return KEY_RIGHT; }
 		break;
-		case 0x57: { return KEY_W ; }
+		case 0x57: { return KEY_W; }
 		break;
-		case 0x41: { return KEY_A ; }
+		case 0x41: { return KEY_A; }
 		break;
-		case 0x53: { return KEY_S ; }
+		case 0x53: { return KEY_S; }
 		break;
-		case 0x44: { return KEY_D ; }
+		case 0x44: { return KEY_D; }
 		break;
-		case 0x51: { return KEY_Q ; }
+		case 0x51: { return KEY_Q; }
 		break;
-		case 0x45: { return KEY_E ; }
+		case 0x45: { return KEY_E; }
 		break;
-		case 0x52: { return KEY_R ; }
+		case 0x52: { return KEY_R; }
 		break;
-		case 0x46: { return KEY_F ; }
+		case 0x46: { return KEY_F; }
 		break;
-		case 0x5A: { return KEY_Z ; }
+		case 0x5A: { return KEY_Z; }
 		break;
-		case 0x58: { return KEY_X ; }
+		case 0x58: { return KEY_X; }
 		break;
-		case 0x43: { return KEY_C ; }
+		case 0x43: { return KEY_C; }
 		break;
-		case 0x56: { return KEY_V ; }
+		case 0x56: { return KEY_V; }
 		break;
-		case 0x49: { return KEY_I ; }
+		case 0x49: { return KEY_I; }
 		break;
-		case 0x4A: { return KEY_J ; }
+		case 0x4A: { return KEY_J; }
 		break;
-		case 0x4B: { return KEY_K ; }
+		case 0x4B: { return KEY_K; }
 		break;
-		case 0x4C: { return KEY_L ; }
+		case 0x4C: { return KEY_L; }
 		break;
-		case 0x55: { return KEY_U ; }
+		case 0x55: { return KEY_U; }
 		break;
-		case 0x4F: { return KEY_O ; }
+		case 0x4F: { return KEY_O; }
 		break;
-		case VK_SHIFT: { return KEY_SHIFT;  }
+		case VK_SHIFT: { return KEY_SHIFT; }
 		break;
-		case VK_CONTROL: { return KEY_CTRL ; }
+		case VK_CONTROL: { return KEY_CTRL; }
 		break;
-		case VK_MENU: { return KEY_ALT ; }
+		case VK_MENU: { return KEY_ALT; }
 		break;
-		case VK_SPACE: { return KEY_SPACE ; }
+		case VK_SPACE: { return KEY_SPACE; }
 		break;
-		case VK_F4: { return KEY_F4 ; }
+		case VK_F4: { return KEY_F4; }
 		break;
-		case VK_OEM_3: { return KEY_TILDE ; }
+		case VK_OEM_3: { return KEY_TILDE; }
 		break;
-		case 0x30: { return KEY_ZERO ; }
+		case 0x30: { return KEY_ZERO; }
 		break;
-		case 0x31: { return KEY_ONE ; }
+		case 0x31: { return KEY_ONE; }
 		break;
-		case 0x32: { return KEY_TWO ; }
+		case 0x32: { return KEY_TWO; }
 		break;
-		case 0x33: { return KEY_THREE ; }
+		case 0x33: { return KEY_THREE; }
 		break;
-		case 0x34: { return KEY_FOUR ; }
+		case 0x34: { return KEY_FOUR; }
 		break;
-		case 0x35: { return KEY_FIVE ; }
+		case 0x35: { return KEY_FIVE; }
 		break;
-		case 0x36: { return KEY_SIX ; }
+		case 0x36: { return KEY_SIX; }
 		break;
-		case 0x37: { return KEY_SEVEN ; }
+		case 0x37: { return KEY_SEVEN; }
 		break;
-		case 0x38: { return KEY_EIGHT ; }
+		case 0x38: { return KEY_EIGHT; }
 		break;
-		case 0x39: { return KEY_NINE ; }
+		case 0x39: { return KEY_NINE; }
 		break;
-		default: { return KEY_INVALID ; }
+		default: { return KEY_INVALID; }
 		break;
 	}
 }
@@ -270,7 +270,7 @@ static_func bool Win32ProcessMessages(win32_window &window, engine_input &input,
 				break;
 			}
 
-            /***************** KEYBOARD EVENTS ****************/
+			/***************** KEYBOARD EVENTS ****************/
 			case WM_SYSKEYDOWN:
 			case WM_KEYDOWN:
 			{
@@ -296,9 +296,9 @@ static_func bool Win32ProcessMessages(win32_window &window, engine_input &input,
 					input.keyboard.ToggleKey(key);
 				break;
 			}
-            /**************************************************/
+			/**************************************************/
 
-            /****************** MOUSE EVENTS ******************/
+			/****************** MOUSE EVENTS ******************/
 			case WM_INPUT:
 			{
 				UINT dwSize = sizeof(RAWINPUT);
@@ -569,9 +569,9 @@ static_func bool Win32InitializeMemory(engine_memory &memory)
 
 	memory.isInitialized = false;
 
-	memory.platformAPI_.Draw = Vulkan::Draw;
-	memory.platformAPI_.PushStaged = Vulkan::PushStaged;
-	memory.platformAPI_.ChangeGraphicsSettings = Vulkan::ChangeGraphicsSettings;
+	memory.platformAPI_.Draw = VulkanDraw;
+	memory.platformAPI_.PushStaged = VulkanPushStaged;
+	memory.platformAPI_.ChangeGraphicsSettings = VulkanChangeGraphicsSettings;
 
 	//#if HY3D_DEBUG
 	memory.platformAPI_.DEBUGFreeFileMemory = DEBUGFreeFileMemory;
@@ -616,8 +616,8 @@ int CALLBACK WinMain(
 
 	win32_engine_code engineCode = {};
 	// TODO: make this less explicit
-	char *sourceDLLPath = "build\\hy3d_engine.dll";
-	char *sourceDLLCopyPath = "build\\hy3d_engine_copy.dll";
+	char *sourceDLLPath = "build\\engine_platform.dll";
+	char *sourceDLLCopyPath = "build\\engine_platform_copy.dll";
 	Win32LoadEngineCode(&engineCode, sourceDLLPath, sourceDLLCopyPath);
 
 	engine_context engine = {};
@@ -626,7 +626,7 @@ int CALLBACK WinMain(
 		return 3;
 	}
 
-	if (!Vulkan::Win32Initialize(window.instance, window.handle, window.name))
+	if (!VulkanInitialize(window.instance, window.handle, window.name))
 	{
 		return 4;
 	}
@@ -650,14 +650,14 @@ int CALLBACK WinMain(
 		if (Win32FileUpdated(shaderFiles[0], shadersWriteTime))
 		{
 			shadersWriteTime = Win32GetWriteTime(shaderFiles[0]);
-			if (!Vulkan::CreatePipeline())
+			if (!VulkanCreatePipeline())
 			{
 				return 5;
 			}
 		}
 		if (window.onResize)
 		{
-			if (!Vulkan::CreateSwapchain())
+			if (!VulkanCreateSwapchain())
 			{
 				return 6;
 			}
@@ -669,6 +669,6 @@ int CALLBACK WinMain(
 			engineCode.UpdateAndRender(&engine);
 		Win32Update(window);
 	}
-	Vulkan::Destroy();
+	VulkanDestroy();
 	return quitMessage;
 }

@@ -1,59 +1,7 @@
 #include "vulkan_platform.h"
 
-namespace Vulkan
-{
-	static_func bool Win32LoadDLL();
-	static_func bool Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name);
-
-	static_func bool CreateRenderPass();
-	static_func bool CreateFrameBuffers();
-	static_func bool CreateSwapchain();
-	static_func bool CreatePipeline();
-	static_func bool CreateBuffer(VkBufferUsageFlags usage, VkDeviceSize size, VkMemoryPropertyFlags properties, vulkan_buffer &buffer, bool mapBuffer = false);
-	static_func bool CreateImage(VkImageType type, VkFormat format, VkExtent3D extent, u32 mipLevels, VkSampleCountFlagBits samples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memoryProperties, VkImageAspectFlags aspectMask, vulkan_image &imageOut);
-
-	static_func bool CreateDepthBuffer();
-	static_func bool CreateMSAABuffer();
-
-	static_func void ClearRenderPass();
-	static_func void ClearFrameBuffers();
-	static_func void ClearSwapchainImages();
-	static_func void ClearImage(vulkan_image &img);
-	static_func void ClearPipeline();
-	static_func void ClearBuffer(vulkan_buffer buffer);
-	static_func void ClearSwapchain();
-	static_func void Destroy();
-
-	static_func bool ChangeGraphicsSettings(graphics_settings settings, CHANGE_GRAPHICS_SETTINGS newSettings);
-
-	static_func bool Draw(update_data *data);
-
-	static_func bool PushStaged(staged_resources &stagedResources);
-	static_func bool LoadShader(char *filepath, VkShaderModule *shaderOut);
-
-	static_func void PickMSAA(MSAA_OPTIONS msaa);
-	static_func bool FindMemoryProperties(u32 memoryType, VkMemoryPropertyFlags requiredProperties, u32 &memoryIndexOut);
-	static_func u64 GetUniformBufferPaddedSize(u64 originalSize);
-
-	static_func void CmdChangeImageLayout(VkCommandBuffer cmdBuffer, VkImage imgHandle, image *imageInfo, VkImageLayout oldLayout, VkImageLayout newLayout);
-
-	static_func frame_prep_resource *GetNextAvailableResource();
-	/*
-    static_func void GetVertexBindingDesc(vertex2 &v, VkVertexInputBindingDescription &bindingDesc);
-    static_func void GetVertexAttributeDesc(vertex2 &v, VkVertexInputAttributeDescription *attributeDescs);
-    */
 #if VULKAN_VALIDATION_LAYERS_ON
-	static_func VKAPI_ATTR VkBool32 VKAPI_CALL
-	DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-		VkDebugUtilsMessageTypeFlagsEXT messageType,
-		const VkDebugUtilsMessengerCallbackDataEXT *callbackData,
-		void *pUserData);
-#endif
-}
-
-#if VULKAN_VALIDATION_LAYERS_ON
-static_func VKAPI_ATTR VkBool32 VKAPI_CALL Vulkan::
-DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+static_func VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
 	VkDebugUtilsMessageTypeFlagsEXT messageType,
 	const VkDebugUtilsMessengerCallbackDataEXT *callbackData,
 	void *pUserData)
@@ -128,7 +76,7 @@ DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
 
 #endif
 
-static_func void Vulkan::PickMSAA(MSAA_OPTIONS msaa)
+static_func void VulkanPickMSAA(MSAA_OPTIONS msaa)
 {
 	VkSampleCountFlags counts = vulkan.gpuProperties.limits.framebufferColorSampleCounts & vulkan.gpuProperties.limits.framebufferDepthSampleCounts;
 	if (counts & VK_SAMPLE_COUNT_64_BIT && msaa >= MSAA_64)
@@ -147,7 +95,7 @@ static_func void Vulkan::PickMSAA(MSAA_OPTIONS msaa)
 		vulkan.msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 }
 
-static_func bool Vulkan::FindMemoryProperties(u32 reqMemType, VkMemoryPropertyFlags reqMemProperties, u32 &memoryIndexOut)
+static_func bool VulkanFindMemoryProperties(u32 reqMemType, VkMemoryPropertyFlags reqMemProperties, u32 &memoryIndexOut)
 {
 	// NOTE(heyyod): We assume we have already set the memory properties during creation.
 	u32 memoryCount = vulkan.memoryProperties.memoryTypeCount;
@@ -166,7 +114,7 @@ static_func bool Vulkan::FindMemoryProperties(u32 reqMemType, VkMemoryPropertyFl
 	return false;
 }
 
-static_func u64 Vulkan::GetUniformBufferPaddedSize(u64 originalSize)
+static_func u64 VulkanGetUniformBufferPaddedSize(u64 originalSize)
 {
 	u64 minUboAlignment = vulkan.gpuProperties.limits.minUniformBufferOffsetAlignment;
 	u64 alignedSize = originalSize;
@@ -177,7 +125,7 @@ static_func u64 Vulkan::GetUniformBufferPaddedSize(u64 originalSize)
 }
 
 // TODO: make this cross-platform
-static_func bool Vulkan::Win32LoadDLL()
+static_func bool VulkanLoadCode()
 {
 	vulkan.dll = LoadLibraryA("vulkan-1.dll");
 	if (!vulkan.dll)
@@ -191,10 +139,10 @@ static_func bool Vulkan::Win32LoadDLL()
 
 
 // TODO: Make it cross-platform
-static_func bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
+static_func bool VulkanInitialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
 {
 	DebugPrint("Initialize Vulkan\n");
-	if (!Win32LoadDLL())
+	if (!VulkanLoadCode())
 	{
 		return false;
 	}
@@ -265,7 +213,7 @@ static_func bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle
 		VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
 		VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT
 		;
-		debugMessengerInfo.pfnUserCallback = DebugCallback;
+		debugMessengerInfo.pfnUserCallback = VulkanDebugCallback;
 		DebugPrint("Created Vulkan Debug Messenger\n");
 #endif
 
@@ -287,7 +235,7 @@ static_func bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle
 #elif defined(VK_USE_PLATFORM_XCB_KHR)
 				VK_KHR_XCB_SURFACE_EXTENSION_NAME
 #elif defined(VK_USE_PLATFORM_XLIB_KHR)
-			VK_KHR_XLIB_SURFACE_EXTENSION_NAME
+				VK_KHR_XLIB_SURFACE_EXTENSION_NAME
 #endif
 		};
 		u32 instanceExtensionsCount;
@@ -381,7 +329,7 @@ static_func bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle
 		vkGetPhysicalDeviceMemoryProperties(vulkan.gpu, &vulkan.memoryProperties);
 
 		// NOTE(heyyod): Pick number of samples to use for antialiasig
-		PickMSAA(START_UP_MSAA);
+		VulkanPickMSAA(START_UP_MSAA);
 
 		DebugPrint("Selected a GPU\n");
 	}
@@ -586,21 +534,21 @@ static_func bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle
 		u32 vertexBufferSize = MEGABYTES(128);
 		u32 indexBufferSize = MEGABYTES(128);
 		u32 stagingBufferSize = vertexBufferSize + indexBufferSize;
-		if (!CreateBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, stagingBufferSize, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, vulkan.stagingBuffer, MAP_BUFFER_TRUE))
+		if (!VulkanCreateBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, stagingBufferSize, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, vulkan.stagingBuffer, MAP_BUFFER_TRUE))
 		{
 			DebugPrint("Could not create index buffer\n");
 			Assert("Could not create staging buffer");
 			return false;
 		}
 
-		if (!CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, vertexBufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vulkan.vertexBuffer))
+		if (!VulkanCreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, vertexBufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vulkan.vertexBuffer))
 		{
 			DebugPrint("Could not create vertex buffer\n");
 			Assert("Could not create vertex buffer");
 			return false;
 		}
 
-		if (!CreateBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, indexBufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vulkan.indexBuffer))
+		if (!VulkanCreateBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, indexBufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vulkan.indexBuffer))
 		{
 			DebugPrint("Could not create index buffer\n");
 			Assert("Could not create index buffer");
@@ -632,7 +580,7 @@ static_func bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle
 	}
 
 	// NOTE(heyyod): Create static transforms buffer
-	if (!CreateBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, MAX_RENDER_OBJECTS * sizeof(object_transform),
+	if (!VulkanCreateBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, MAX_RENDER_OBJECTS * sizeof(object_transform),
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 		vulkan.staticTransformsBuffer, MAP_BUFFER_TRUE))
 	{
@@ -690,7 +638,7 @@ static_func bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle
 			// NOTE(heyyod): Camera buffer and descriptor
 			VkDescriptorBufferInfo cameraBufferInfo = {};
 			VkWriteDescriptorSet writeCameraDesc = {};
-			if (CreateBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(camera_data),
+			if (VulkanCreateBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(camera_data),
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 				vulkan.frameData[i].cameraBuffer, MAP_BUFFER_TRUE))
 			{
@@ -729,7 +677,7 @@ static_func bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle
 
 			VkDescriptorBufferInfo sceneBufferInfo = {};
 			VkWriteDescriptorSet writeSceneDesc = {};
-			if (CreateBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(scene_data),
+			if (VulkanCreateBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(scene_data),
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 				vulkan.frameData[i].sceneBuffer, MAP_BUFFER_TRUE))
 			{
@@ -759,7 +707,7 @@ static_func bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle
 		}
 	}
 
-	if (!CreateRenderPass() || !CreatePipeline())
+	if (!VulkanCreateRenderPass() || !VulkanCreatePipeline())
 	{
 		Assert("Could not create renderpass or pipeline");
 		return false;
@@ -785,7 +733,7 @@ static_func bool Vulkan::Win32Initialize(HINSTANCE &wndInstance, HWND &wndHandle
 	return true;
 }
 
-static_func void Vulkan::ClearRenderPass()
+static_func void VulkanClearRenderPass()
 {
 	if (VulkanIsValidHandle(vulkan.device))
 	{
@@ -795,9 +743,9 @@ static_func void Vulkan::ClearRenderPass()
 	}
 }
 
-static_func bool Vulkan::CreateRenderPass()
+static_func bool VulkanCreateRenderPass()
 {
-	ClearRenderPass();
+	VulkanClearRenderPass();
 
 	VkAttachmentDescription colorAttachment = {};
 	colorAttachment.flags = 0;
@@ -894,7 +842,7 @@ static_func bool Vulkan::CreateRenderPass()
 	return true;
 }
 
-static_func void Vulkan::ClearFrameBuffers()
+static_func void VulkanClearFrameBuffers()
 {
 	if (VulkanIsValidHandle(vulkan.device))
 	{
@@ -911,9 +859,9 @@ static_func void Vulkan::ClearFrameBuffers()
 	}
 }
 
-static_func bool Vulkan::CreateFrameBuffers()
+static_func bool VulkanCreateFrameBuffers()
 {
-	ClearFrameBuffers();
+	VulkanClearFrameBuffers();
 	local_var VkFramebufferCreateInfo framebufferInfo = {};
 	framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 	framebufferInfo.renderPass = vulkan.renderPass;
@@ -940,7 +888,7 @@ static_func bool Vulkan::CreateFrameBuffers()
 	return true;
 }
 
-static_func void Vulkan::ClearImage(vulkan_image &img)
+static_func void VulkanClearImage(vulkan_image &img)
 {
 	if (VulkanIsValidHandle(vulkan.device))
 	{
@@ -958,9 +906,9 @@ static_func void Vulkan::ClearImage(vulkan_image &img)
 	}
 }
 
-static_func bool Vulkan::CreateImage(VkImageType type, VkFormat format, VkExtent3D extent, u32 mipLevels, VkSampleCountFlagBits samples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memoryProperties, VkImageAspectFlags aspectMask, vulkan_image &imageOut)
+static_func bool VulkanCreateImage(VkImageType type, VkFormat format, VkExtent3D extent, u32 mipLevels, VkSampleCountFlagBits samples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memoryProperties, VkImageAspectFlags aspectMask, vulkan_image &imageOut)
 {
-	ClearImage(imageOut);
+	VulkanClearImage(imageOut);
 
 	VkImageCreateInfo imageInfo = {};
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -980,7 +928,7 @@ static_func bool Vulkan::CreateImage(VkImageType type, VkFormat format, VkExtent
 	VkMemoryRequirements memoryReq = {};
 	u32 memIndex = 0;
 	vkGetImageMemoryRequirements(vulkan.device, imageOut.handle, &memoryReq);
-	if (Vulkan::FindMemoryProperties(memoryReq.memoryTypeBits, memoryProperties, memIndex))
+	if (VulkanFindMemoryProperties(memoryReq.memoryTypeBits, memoryProperties, memIndex))
 	{
 		VkMemoryAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -1047,25 +995,25 @@ static_func bool Vulkan::CreateImage(VkImageType type, VkFormat format, VkExtent
     */
 }
 
-static_func bool Vulkan::CreateDepthBuffer()
+static_func bool VulkanCreateDepthBuffer()
 {
-	return CreateImage(VK_IMAGE_TYPE_2D, DEPTH_BUFFER_FORMAT,
+	return VulkanCreateImage(VK_IMAGE_TYPE_2D, DEPTH_BUFFER_FORMAT,
 		{ vulkan.windowExtent.width, vulkan.windowExtent.height, 1 }, 1, vulkan.msaaSamples,
 			VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, vulkan.depthBuffer);
 }
 
-static_func bool Vulkan::CreateMSAABuffer()
+static_func bool VulkanCreateMSAABuffer()
 {
 	if (vulkan.msaaSamples == VK_SAMPLE_COUNT_1_BIT)
 	{
-		ClearImage(vulkan.msaa);
+		VulkanClearImage(vulkan.msaa);
 		return true;
 	}
-	return CreateImage(VK_IMAGE_TYPE_2D, vulkan.surfaceFormat.format, { vulkan.windowExtent.width, vulkan.windowExtent.height, 1 }, 1, vulkan.msaaSamples, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, vulkan.msaa);
+	return VulkanCreateImage(VK_IMAGE_TYPE_2D, vulkan.surfaceFormat.format, { vulkan.windowExtent.width, vulkan.windowExtent.height, 1 }, 1, vulkan.msaaSamples, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, vulkan.msaa);
 }
 
-static_func bool Vulkan::CreateSwapchain()
+static_func bool VulkanCreateSwapchain()
 {
 	if (VulkanIsValidHandle(vulkan.device))
 		vkDeviceWaitIdle(vulkan.device);
@@ -1121,7 +1069,7 @@ static_func bool Vulkan::CreateSwapchain()
 
 		uint32_t presentModeCount;
 		AssertSuccess(vkGetPhysicalDeviceSurfacePresentModesKHR(vulkan.gpu, vulkan.surface, &presentModeCount, NULL));
-		VkPresentModeKHR presentModes[16] = {};;
+		VkPresentModeKHR presentModes[16] = {}; ;
 		Assert(presentModeCount <= ArrayCount(presentModes));
 		AssertSuccess(vkGetPhysicalDeviceSurfacePresentModesKHR(vulkan.gpu, vulkan.surface, &presentModeCount, presentModes));
 		bool desiredPresentModeSupported = false;
@@ -1202,7 +1150,7 @@ static_func bool Vulkan::CreateSwapchain()
 
 	// NOTE: Create the Image views
 	{
-		ClearSwapchainImages();
+		VulkanClearSwapchainImages();
 		AssertSuccess(vkGetSwapchainImagesKHR(vulkan.device, vulkan.swapchain, &vulkan.swapchainImageCount, 0));
 		Assert(vulkan.swapchainImageCount == ArrayCount(vulkan.swapchainImages));
 		AssertSuccess(vkGetSwapchainImagesKHR(vulkan.device, vulkan.swapchain, &vulkan.swapchainImageCount, vulkan.swapchainImages));
@@ -1228,15 +1176,15 @@ static_func bool Vulkan::CreateSwapchain()
 	}
 	DebugPrint("Created SwapChain\n");
 
-	if (!CreateDepthBuffer())
+	if (!VulkanCreateDepthBuffer())
 	{
 		return false;
 	}
-	if (!CreateMSAABuffer())
+	if (!VulkanCreateMSAABuffer())
 	{
 		return false;
 	}
-	if (!CreateFrameBuffers())
+	if (!VulkanCreateFrameBuffers())
 	{
 		return false;
 	}
@@ -1244,7 +1192,7 @@ static_func bool Vulkan::CreateSwapchain()
 	return true;
 }
 
-static_func void Vulkan::ClearSwapchainImages()
+static_func void VulkanClearSwapchainImages()
 {
 	if (VulkanIsValidHandle(vulkan.device))
 	{
@@ -1260,17 +1208,17 @@ static_func void Vulkan::ClearSwapchainImages()
 	}
 }
 
-static_func void Vulkan::ClearSwapchain()
+static_func void VulkanClearSwapchain()
 {
-	ClearImage(vulkan.depthBuffer);
-	ClearImage(vulkan.msaa);
-	ClearFrameBuffers();
-	ClearSwapchainImages();
+	VulkanClearImage(vulkan.depthBuffer);
+	VulkanClearImage(vulkan.msaa);
+	VulkanClearFrameBuffers();
+	VulkanClearSwapchainImages();
 	if (VulkanIsValidHandle(vulkan.swapchain))
 		vkDestroySwapchainKHR(vulkan.device, vulkan.swapchain, 0);
 }
 
-static_func bool Vulkan::LoadShader(char *filepath, VkShaderModule *shaderOut)
+static_func bool VulkanLoadShader(char *filepath, VkShaderModule *shaderOut)
 {
 	debug_read_file_result shaderCode = platformAPI.DEBUGReadFile(filepath);
 	Assert(shaderCode.size < SHADER_CODE_BUFFER_SIZE);
@@ -1292,15 +1240,15 @@ static_func bool Vulkan::LoadShader(char *filepath, VkShaderModule *shaderOut)
 
 }
 
-static_func bool Vulkan::CreatePipeline()
+static_func bool VulkanCreatePipeline()
 {
-	ClearPipeline();
+	VulkanClearPipeline();
 
 	// NOTE(heyyod): LOAD THE SHADERS
 	VkShaderModule triangleVertShader = {};
 	VkShaderModule triangleFragShader = {};
-	if (!LoadShader(".\\assets\\shaders\\default.frag.spv", &triangleFragShader) ||
-		!LoadShader(".\\assets\\shaders\\default.vert.spv", &triangleVertShader))
+	if (!VulkanLoadShader(".\\assets\\shaders\\default.frag.spv", &triangleFragShader) ||
+		!VulkanLoadShader(".\\assets\\shaders\\default.vert.spv", &triangleVertShader))
 	{
 		DebugPrint("Couldn't load shaders\n");
 		Assert("Couldn't load shaders");
@@ -1357,7 +1305,7 @@ static_func bool Vulkan::CreatePipeline()
 	//-
 	// NOTE(heyyod): 128bytes limit (at least on my device)
 
-	VkPushConstantRange pushConstants[1] = {};;
+	VkPushConstantRange pushConstants[1] = {}; ;
 	pushConstants[0].offset = 0;
 	pushConstants[0].size = sizeof(u32); // index of transform in transforms buffer
 	pushConstants[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
@@ -1476,7 +1424,7 @@ static_func bool Vulkan::CreatePipeline()
 	return true;
 }
 
-static_func void Vulkan::ClearPipeline()
+static_func void VulkanClearPipeline()
 {
 	if (VulkanIsValidHandle(vulkan.device))
 	{
@@ -1494,7 +1442,7 @@ static_func void Vulkan::ClearPipeline()
 	}
 }
 
-static_func bool Vulkan::CreateBuffer(VkBufferUsageFlags usage, u64 size, VkMemoryPropertyFlags properties, vulkan_buffer &bufferOut, bool mapBuffer)
+static_func bool VulkanCreateBuffer(VkBufferUsageFlags usage, u64 size, VkMemoryPropertyFlags properties, vulkan_buffer &bufferOut, bool mapBuffer)
 {
 	// TODO(heyyod): make this able to create multiple buffers of the same type and usage if I pass an array
 	if (!(VulkanIsValidHandle(bufferOut.handle)))
@@ -1512,7 +1460,7 @@ static_func bool Vulkan::CreateBuffer(VkBufferUsageFlags usage, u64 size, VkMemo
 		vkGetBufferMemoryRequirements(vulkan.device, bufferOut.handle, &memoryReq);
 
 		u32 memIndex = 0;
-		if (Vulkan::FindMemoryProperties(memoryReq.memoryTypeBits, properties, memIndex))
+		if (VulkanFindMemoryProperties(memoryReq.memoryTypeBits, properties, memIndex))
 		{
 			VkMemoryAllocateInfo allocInfo = {};
 			allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -1534,7 +1482,7 @@ static_func bool Vulkan::CreateBuffer(VkBufferUsageFlags usage, u64 size, VkMemo
 	return true;
 }
 
-static_func void Vulkan::ClearBuffer(vulkan_buffer buffer)
+static_func void VulkanClearBuffer(vulkan_buffer buffer)
 {
 	if (VulkanIsValidHandle(vulkan.device))
 	{
@@ -1547,7 +1495,7 @@ static_func void Vulkan::ClearBuffer(vulkan_buffer buffer)
 	}
 }
 
-static_func void Vulkan::Destroy()
+static_func void VulkanDestroy()
 {
 	if (VulkanIsValidHandle(vulkan.device))
 	{
@@ -1556,32 +1504,31 @@ static_func void Vulkan::Destroy()
 		if (VulkanIsValidHandle(vulkan.textureSampler))
 			vkDestroySampler(vulkan.device, vulkan.textureSampler, 0);
 
-		ClearImage(vulkan.texture);
+		VulkanClearImage(vulkan.texture);
 
-		ClearPipeline();
+		VulkanClearPipeline();
 
 		if (VulkanIsValidHandle(vulkan.globalDescSetLayout))
 			vkDestroyDescriptorSetLayout(vulkan.device, vulkan.globalDescSetLayout, 0);
 
 		for (u32 i = 0; i < ArrayCount(vulkan.frameData); i++)
 		{
-			ClearBuffer(vulkan.frameData[i].cameraBuffer);
-			ClearBuffer(vulkan.frameData[i].sceneBuffer);
+			VulkanClearBuffer(vulkan.frameData[i].cameraBuffer);
+			VulkanClearBuffer(vulkan.frameData[i].sceneBuffer);
 		}
-		ClearBuffer(vulkan.staticTransformsBuffer);
+		VulkanClearBuffer(vulkan.staticTransformsBuffer);
 
 		if (VulkanIsValidHandle(vulkan.globalDescPool))
 			vkDestroyDescriptorPool(vulkan.device, vulkan.globalDescPool, 0);
 
 		vkUnmapMemory(vulkan.device, vulkan.stagingBuffer.memoryHandle);
-		ClearBuffer(vulkan.stagingBuffer);
-		ClearBuffer(vulkan.vertexBuffer);
-		ClearBuffer(vulkan.indexBuffer);
+		VulkanClearBuffer(vulkan.stagingBuffer);
+		VulkanClearBuffer(vulkan.vertexBuffer);
+		VulkanClearBuffer(vulkan.indexBuffer);
 
-		ClearRenderPass();
+		VulkanClearRenderPass();
 
-		ClearSwapchain();
-
+		VulkanClearSwapchain();
 
 		for (u32 i = 0; i < NUM_RESOURCES; i++)
 		{
@@ -1606,7 +1553,7 @@ static_func void Vulkan::Destroy()
 
 #if VULKAN_VALIDATION_LAYERS_ON
 		if (VulkanIsValidHandle(vulkan.debugMessenger))
-		vkDestroyDebugUtilsMessengerEXT(vulkan.instance, vulkan.debugMessenger, 0);
+			vkDestroyDebugUtilsMessengerEXT(vulkan.instance, vulkan.debugMessenger, 0);
 #endif
 
 		vkDestroyInstance(vulkan.instance, 0);
@@ -1619,16 +1566,16 @@ static_func void Vulkan::Destroy()
 	return;
 }
 
-static_func bool Vulkan::ChangeGraphicsSettings(graphics_settings settings, CHANGE_GRAPHICS_SETTINGS newSettings)
+static_func bool VulkanChangeGraphicsSettings(graphics_settings settings, CHANGE_GRAPHICS_SETTINGS newSettings)
 {
 	if (newSettings & CHANGE_MSAA)
 	{
-		PickMSAA(settings.msaa);
-		if (!CreateRenderPass() ||
-			!CreateDepthBuffer() ||
-			!CreateMSAABuffer() ||
-			!CreateFrameBuffers() ||
-			!CreatePipeline())
+		VulkanPickMSAA(settings.msaa);
+		if (!VulkanCreateRenderPass() ||
+			!VulkanCreateDepthBuffer() ||
+			!VulkanCreateMSAABuffer() ||
+			!VulkanCreateFrameBuffers() ||
+			!VulkanCreatePipeline())
 		{
 			Assert("Could not change msaa settings");
 			return false;
@@ -1637,7 +1584,7 @@ static_func bool Vulkan::ChangeGraphicsSettings(graphics_settings settings, CHAN
 	return true;
 }
 
-static_func void Vulkan::CmdChangeImageLayout(VkCommandBuffer cmdBuffer, VkImage imgHandle, image *imageInfo, VkImageLayout oldLayout, VkImageLayout newLayout)
+static_func void VulkanCmdChangeImageLayout(VkCommandBuffer cmdBuffer, VkImage imgHandle, image *imageInfo, VkImageLayout oldLayout, VkImageLayout newLayout)
 {
 	// NOTE(heyyod): ONLY CALL AFRER WE START RECORDING A COMMAND BUFFER
 	VkImageMemoryBarrier barrier = {};
@@ -1701,7 +1648,7 @@ static_func void Vulkan::CmdChangeImageLayout(VkCommandBuffer cmdBuffer, VkImage
 	vkCmdPipelineBarrier(cmdBuffer, sourceStage, destinationStage, 0, 0, 0, 0, 0, 1, &barrier);
 }
 
-static_func frame_prep_resource * Vulkan::GetNextAvailableResource()
+static_func frame_prep_resource * VulkanGetNextAvailableResource()
 {
 	frame_prep_resource *result = &vulkan.resources[vulkan.currentResource];
 	vulkan.currentResource = (vulkan.currentResource + 1) % NUM_RESOURCES;
@@ -1712,9 +1659,9 @@ static_func frame_prep_resource * Vulkan::GetNextAvailableResource()
 	return result;
 }
 
-static_func bool Vulkan::PushStaged(staged_resources &staged)
+static_func bool VulkanPushStaged(staged_resources &staged)
 {
-	frame_prep_resource *res = GetNextAvailableResource();
+	frame_prep_resource *res = VulkanGetNextAvailableResource();
 
 	VkMappedMemoryRange flushRange = {};
 	flushRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
@@ -1780,7 +1727,7 @@ static_func bool Vulkan::PushStaged(staged_resources &staged)
 			{
 				pushedImage = true;
 				image *img = (image *)staged.resources[resourceId];
-				if (!CreateImage(VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, { img->width, img->height, 1 }, img->mipLevels, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_TILING_OPTIMAL,
+				if (!VulkanCreateImage(VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, { img->width, img->height, 1 }, img->mipLevels, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_TILING_OPTIMAL,
 					VK_IMAGE_USAGE_TRANSFER_SRC_BIT | // to create the mipmaps
 					VK_IMAGE_USAGE_TRANSFER_DST_BIT | // to copy buffer into image
 					VK_IMAGE_USAGE_SAMPLED_BIT,
@@ -1794,7 +1741,7 @@ static_func bool Vulkan::PushStaged(staged_resources &staged)
 				// NOTE(heyyod): We need to write into the image from the stage buffer.
 				// So we change the layout.
 				{
-					CmdChangeImageLayout(res->cmdBuffer, vulkan.texture.handle, img, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+					VulkanCmdChangeImageLayout(res->cmdBuffer, vulkan.texture.handle, img, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
 					VkBufferImageCopy bufferToImageCopy = {};
 					bufferToImageCopy.bufferOffset = staged.offsets[resourceId];
@@ -1954,10 +1901,9 @@ static_func bool Vulkan::PushStaged(staged_resources &staged)
 	return true;
 }
 
-
-static_func bool Vulkan::Draw(update_data *data)
+static_func bool VulkanDraw(update_data *data)
 {
-	frame_prep_resource *res = GetNextAvailableResource();
+	frame_prep_resource *res = VulkanGetNextAvailableResource();
 
 	// NOTE: Get the next image that we'll use to create the frame and draw it
 	// Signal the semaphore when it's available
@@ -1968,7 +1914,7 @@ static_func bool Vulkan::Draw(update_data *data)
 
 		if (result == VK_ERROR_OUT_OF_DATE_KHR)
 		{
-			if (!CreateSwapchain())
+			if (!VulkanCreateSwapchain())
 				return false;
 		}
 		else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
@@ -1987,7 +1933,7 @@ static_func bool Vulkan::Draw(update_data *data)
 		// NOTE(heyyod): THE ORDER OF THESE VALUES MUST BE IDENTICAL
 		// TO THE ORDER WE SPECIFIED THE RENDERPASS ATTACHMENTS
 		local_var VkClearValue clearValues[2] = {}; // NOTE(heyyod): this is a union
-		clearValues[0].color = VulkanClearColor(data->clearColor[0], data->clearColor[1], data->clearColor[2], 0.0f);
+		clearValues[0].color = { data->clearColor[0], data->clearColor[1], data->clearColor[2], 0.0f };
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		local_var VkRenderPassBeginInfo renderpassInfo = {};
@@ -2063,7 +2009,7 @@ static_func bool Vulkan::Draw(update_data *data)
 
 		if (result == VK_ERROR_OUT_OF_DATE_KHR)
 		{
-			if (!CreateSwapchain())
+			if (!VulkanCreateSwapchain())
 			{
 				Assert("Could not recreate after queue sumbit.\n");
 				return false;
@@ -2090,7 +2036,7 @@ static_func bool Vulkan::Draw(update_data *data)
 
 		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
 		{
-			if (!CreateSwapchain())
+			if (!VulkanCreateSwapchain())
 			{
 				Assert("Could not recreate after queue present.\n");
 				return false;
@@ -2115,7 +2061,7 @@ static_func bool Vulkan::Draw(update_data *data)
 }
 
 #if 0
-static_func bool Vulkan::CreateCommandBuffers()
+static_func bool VulkanCreateCommandBuffers()
 {
 	VkCommandPoolCreateInfo cmdPoolInfo = {};
 	cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -2138,7 +2084,7 @@ static_func bool Vulkan::CreateCommandBuffers()
 }
 
 
-static_func bool Vulkan::ResetCommandBuffers()
+static_func bool VulkanResetCommandBuffers()
 {
 	if (VulkanIsValidHandle(vulkan.device) && VulkanIsValidHandle(vulkan.cmdPool))
 	{
@@ -2150,14 +2096,14 @@ static_func bool Vulkan::ResetCommandBuffers()
 	return false;
 }
 
-static_func void Vulkan::GetVertexBindingDesc(vertex2 &v, VkVertexInputBindingDescription &bindingDesc)
+static_func void VulkanGetVertexBindingDesc(vertex2 &v, VkVertexInputBindingDescription &bindingDesc)
 {
 	bindingDesc.binding = 0;
 	bindingDesc.stride = sizeof(v);
 	bindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 }
 
-static_func void Vulkan::GetVertexAttributeDesc(vertex2 &v, VkVertexInputAttributeDescription *attributeDescs)
+static_func void VulkanGetVertexAttributeDesc(vertex2 &v, VkVertexInputAttributeDescription *attributeDescs)
 {
 	//Assert(ArrayCount(attributeDescs) == 2); // for pos and color
 	attributeDescs[0].binding = 0;
