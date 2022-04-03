@@ -103,9 +103,9 @@ inline static_func void ProcessInput(engine_context *engine)
 		if (engine->input.keyboard.isPressed[KEY_S])
 			dPos -= player.dir;
 		if (engine->input.keyboard.isPressed[KEY_A])
-			dPos += Cross(VEC3_DOWN, player.dir);
+			dPos += Cross(VEC3_UP, player.dir);
 		if (engine->input.keyboard.isPressed[KEY_D])
-			dPos += Cross(player.dir, VEC3_DOWN);
+			dPos += Cross(player.dir, VEC3_UP);
 		if (engine->input.keyboard.isPressed[KEY_Q])
 			dPos.Y -= 1.0f;
 		if (engine->input.keyboard.isPressed[KEY_E])
@@ -123,7 +123,7 @@ inline static_func void ProcessInput(engine_context *engine)
 			}
 
 			dLook = {
-				engine->input.mouse.lastPos.X - engine->input.mouse.newPos.X,
+				engine->input.mouse.newPos.X - engine->input.mouse.lastPos.X,
 				engine->input.mouse.lastPos.Y - engine->input.mouse.newPos.Y
 			} * engine->state->dt;
 		}
@@ -158,7 +158,7 @@ extern "C" UPDATE_AND_RENDER(UpdateAndRender)
 
 	ProcessInput(engine);
 
-	memory->cameraData->view = LookAt(state->player.pos, state->player.pos + state->player.dir, VEC3_DOWN);
+	memory->cameraData->view = LookAt(state->player.pos, state->player.pos + state->player.dir, VEC3_UP);
 	memory->cameraData->proj = Perspective(state->player.fov, engine->windowWidth / (f32) engine->windowHeight, 0.1f, 100.0f);
 
 	platformAPI.Draw(&state->updateData);

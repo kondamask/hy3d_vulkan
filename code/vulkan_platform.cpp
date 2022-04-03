@@ -1949,8 +1949,10 @@ static_func bool VulkanDraw(update_data *data)
 		renderpassInfo.framebuffer = vulkan.framebuffers[nextImage];
 
 		local_var VkViewport viewport = {};
-		viewport.width = (f32) vulkan.windowExtent.width;
-		viewport.height = (f32) vulkan.windowExtent.height;
+		viewport.x = 0.0f;
+		viewport.y = (f32)vulkan.windowExtent.height;
+		viewport.width = (f32)vulkan.windowExtent.width;
+		viewport.height = -(f32)vulkan.windowExtent.height;
 		viewport.maxDepth = 1.0f;
 
 		local_var VkRect2D scissor = {};
