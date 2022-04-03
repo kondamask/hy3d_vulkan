@@ -219,8 +219,8 @@ global_var vulkan_context vulkan;
 #include "vulkan_functions.h" // NOTE: I INCLUDE THIS HERE BECAUSE IT USES THE GLOBAL VULKAN CONTEXT.
 
 global_var char* shaderFiles[2] = {
-	"../build/shaders/triangle.vert.spv",
-	"../build/shaders/triangle.frag.spv"
+	".\\assets\\shaders\\default.frag.spv",
+	".\\assets\\shaders\\default.frag.spv"
 };
 
 

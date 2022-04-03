@@ -451,6 +451,8 @@ static_func bool VulkanInitialize(HINSTANCE &wndInstance, HWND &wndHandle, const
 		// TODO(heyyod): Check if these features are supported;
 		VkPhysicalDeviceFeatures desiredFeatures = {};
 		desiredFeatures.samplerAnisotropy = VK_TRUE;
+		desiredFeatures.fillModeNonSolid = VK_TRUE;
+		desiredFeatures.wideLines = VK_TRUE;
 
 		VkDeviceCreateInfo deviceInfo = {};
 		deviceInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -492,7 +494,7 @@ static_func bool VulkanInitialize(HINSTANCE &wndInstance, HWND &wndHandle, const
 		}
 		Assert(desiredSurfaceFormatSupported);
 	}
-
+	
 	// NOTE(heyyod): Create the rendering resources
 	{
 		VkCommandPoolCreateInfo cmdPoolInfo = {};
@@ -509,7 +511,7 @@ static_func bool VulkanInitialize(HINSTANCE &wndInstance, HWND &wndHandle, const
 
 		VkSemaphoreCreateInfo semaphoreInfo = {};
 		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
+		
 		VkFenceCreateInfo fenceInfo = {};
 		fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 		fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
@@ -635,7 +637,7 @@ static_func bool VulkanInitialize(HINSTANCE &wndInstance, HWND &wndHandle, const
 			VkDescriptorBufferInfo cameraBufferInfo = {};
 			VkWriteDescriptorSet writeCameraDesc = {};
 			if (VulkanCreateBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(camera_data),
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 				vulkan.frameData[i].cameraBuffer, MAP_BUFFER_TRUE))
 			{
 				cameraBufferInfo.range = sizeof(camera_data);
@@ -674,7 +676,7 @@ static_func bool VulkanInitialize(HINSTANCE &wndInstance, HWND &wndHandle, const
 			VkDescriptorBufferInfo sceneBufferInfo = {};
 			VkWriteDescriptorSet writeSceneDesc = {};
 			if (VulkanCreateBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(scene_data),
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 				vulkan.frameData[i].sceneBuffer, MAP_BUFFER_TRUE))
 			{
 				sceneBufferInfo.range = sizeof(scene_data);
@@ -1298,39 +1300,42 @@ static_func bool VulkanCreatePipeline()
 		vertShaderStageInfo,
 		fragShaderStageInfo
 	};
-	//-
+	//------------------------------------------------------------------------
+	
 	// NOTE(heyyod): 128bytes limit (at least on my device)
-
 	VkPushConstantRange pushConstants[1] = {}; ;
 	pushConstants[0].offset = 0;
 	pushConstants[0].size = sizeof(u32); // index of transform in transforms buffer
 	pushConstants[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-	//-
-	VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo{};
+	//------------------------------------------------------------------------
+	VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo = {};
 	inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 	inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 	inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
-	//-
+	
+	//------------------------------------------------------------------------
 	//NOTE(heyyod): Viewport and scissor are  dynamic and update them with vkCmd commands 
 	VkPipelineViewportStateCreateInfo viewportInfo = {};
 	viewportInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 	viewportInfo.viewportCount = 1;
 	viewportInfo.scissorCount = 1;
-	//-
+	
+	//------------------------------------------------------------------------
 	VkPipelineRasterizationStateCreateInfo rasterizerInfo = {};
 	rasterizerInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 	//rasterizerInfo.depthClampEnable = VK_FALSE;
 	//rasterizerInfo.rasterizerDiscardEnable = VK_FALSE;
-	rasterizerInfo.polygonMode = VK_POLYGON_MODE_FILL;
-	rasterizerInfo.lineWidth = 1.0f;
+	rasterizerInfo.polygonMode = VK_POLYGON_MODE_LINE; //VK_POLYGON_MODE_FILL;
+	rasterizerInfo.lineWidth = 0.8f;
 	rasterizerInfo.cullMode = VK_CULL_MODE_BACK_BIT;
 	rasterizerInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
 	//rasterizerInfo.depthBiasEnable = VK_FALSE;
 	//rasterizerInfo.depthBiasConstantFactor = 0.0f; // Optional
 	//rasterizerInfo.depthBiasClamp = 0.0f; // Optional
 	//rasterizerInfo.depthBiasSlopeFactor = 0.0f; // Optional
-	//-
+	
+	//------------------------------------------------------------------------
 	VkPipelineMultisampleStateCreateInfo multisamplingInfo = {};
 	multisamplingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 	//multisamplingInfo.sampleShadingEnable = VK_FALSE;
@@ -1339,7 +1344,8 @@ static_func bool VulkanCreatePipeline()
 	//multisamplingInfo.pSampleMask = nullptr; // Optional
 	//multisamplingInfo.alphaToCoverageEnable = VK_FALSE; // Optional
 	//multisamplingInfo.alphaToOneEnable = VK_FALSE; // Optional
-	//-
+	
+	//------------------------------------------------------------------------
 	VkPipelineDepthStencilStateCreateInfo depthStencil = {};
 	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
 	depthStencil.depthTestEnable = VK_TRUE;
@@ -1351,8 +1357,8 @@ static_func bool VulkanCreatePipeline()
 	//depthStencil.stencilTestEnable = VK_FALSE;
 	//depthStencil.front = {}; // Optional
 	//depthStencil.back = {}; // Optional
-	//-
-
+	
+	//------------------------------------------------------------------------
 	VkPipelineColorBlendAttachmentState blendAttachment = {};
 	blendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 	blendAttachment.blendEnable = VK_FALSE;
@@ -1373,7 +1379,8 @@ static_func bool VulkanCreatePipeline()
 	//blendingInfo.blendConstants[1] = 0.0f; // Optional
 	//blendingInfo.blendConstants[2] = 0.0f; // Optional
 	//blendingInfo.blendConstants[3] = 0.0f; // Optional
-	//-
+	
+	//------------------------------------------------------------------------
 	VkDynamicState dynamicStates[] = {
 		VK_DYNAMIC_STATE_VIEWPORT,
 		VK_DYNAMIC_STATE_SCISSOR,
@@ -1383,7 +1390,8 @@ static_func bool VulkanCreatePipeline()
 	dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 	dynamicStateInfo.dynamicStateCount = ArrayCount(dynamicStates);
 	dynamicStateInfo.pDynamicStates = dynamicStates;
-	//-
+	
+	//------------------------------------------------------------------------
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.setLayoutCount = 1;

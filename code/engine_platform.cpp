@@ -113,8 +113,9 @@ inline static_func void ProcessInput(engine_context *engine)
 		dPos *= engine->state->dt;
 
 		vec2 dLook = {};
-		if (!engine->input.mouse.cursorEnabled && engine->input.mouse.isInWindow)
+		if (engine->input.mouse.rightIsPressed)
 		{
+			engine->input.mouse.cursorEnabled = false;
 			if (engine->input.mouse.firstMove)
 			{
 				engine->input.mouse.lastPos = engine->input.mouse.newPos;
@@ -125,6 +126,10 @@ inline static_func void ProcessInput(engine_context *engine)
 				engine->input.mouse.lastPos.X - engine->input.mouse.newPos.X,
 				engine->input.mouse.lastPos.Y - engine->input.mouse.newPos.Y
 			} * engine->state->dt;
+		}
+		else
+		{
+			engine->input.mouse.cursorEnabled = true;
 		}
 		player.Update(dPos, dLook);
 

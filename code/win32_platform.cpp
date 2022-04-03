@@ -347,6 +347,7 @@ static_func bool Win32ProcessMessages(win32_window &window, engine_input &input,
 				}
 				else
 				{
+					ReleaseCapture();
 					input.mouse.isInWindow = false;
 				}
 				break;
@@ -460,7 +461,7 @@ static_func bool Win32InitializeWindow(win32_window &window, u16 width, u16 heig
 	windowClass.hInstance = window.instance;
 	windowClass.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
 	windowClass.hIcon = LoadIconA(windowClass.hInstance, MAKEINTRESOURCEA(IDI_MYAPP_ICON));
-	//windowClass.hCursor = LoadCursorA(0, IDC_CROSS);
+	windowClass.hCursor = LoadCursorA(0, IDC_ARROW);
 
 	if (!RegisterClassA(&windowClass))
 	{
@@ -511,6 +512,8 @@ static_func bool Win32InitializeWindow(win32_window &window, u16 width, u16 heig
 	RegisterRawInputDevices(&rid, 1, sizeof(rid));
 
 	ShowWindow(window.handle, SW_SHOWDEFAULT);
+	SetFocus(window.handle);
+	SetCapture(window.handle);
 	return true;
 }
 
