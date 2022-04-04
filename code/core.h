@@ -51,6 +51,13 @@ typedef double f64;
 #define DebugPrintFunctionResult(res)
 #endif
 	
+#if HY3D_DEBUG
+#define DebugPrintSeperator() std::cout << "===============================================================\n"
+#else
+#define DebugPrintSeperator()
+#endif
+	
+	
 #define ArrayCount(array) (sizeof(array) / sizeof((array)[0]))
 
 #if HY3D_DEBUG

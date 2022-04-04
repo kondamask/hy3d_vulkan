@@ -35,23 +35,15 @@ static_func bool VulkanFindMemoryProperties(u32 reqMemType, VkMemoryPropertyFlag
 #if HY3D_DEBUG
 #define VK_CHECK_RESULT(call)	\
 	{	\
-		VkResult _result = call;	\
-		if (_result != VK_SUCCESS)	\
-		{	\
-			DebugPrint(_result << " " << __FILE__ << " at line " << __LINE__ );	\
-			AssertBreak();	\
-		}	\
+	VkResult _result = call;	\
+	if (_result != VK_SUCCESS)	\
+	{	\
+	DebugPrint("VULKAN CALL FAILED: " << __FILE__ << " at line " << __LINE__ << ": " << #call); \
+	return false; \
+	}	\
 	}
 #else
-#define VK_CHECK_RESULT(call)	\
-	{	\
-		VkResult _result = call;	\
-		if (_result != VK_SUCCESS)	\
-		{	\
-	DebugPrint("VULKAN CALL FAILED: " << __FILE__ << " at line " << __LINE__ << ": " << #call); \
-			return false; \
-		}	\
-	}
+#define VK_CHECK_RESULT(call) call
 #endif
 
 #define VK_CHECK_HANDLE(handle) (handle != VK_NULL_HANDLE)

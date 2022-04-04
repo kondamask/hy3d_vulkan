@@ -280,6 +280,8 @@ inline static_func bool VulkanCreateInstance(window_context *window)
 #endif
 
 	VK_CHECK_RESULT(vkCreateInstance(&instanceInfo, 0, &vulkan.instance));
+	
+	DebugPrintFunctionResult(true);
 
 	if (!VulkanLoadInstanceFunctions())
 	{
@@ -291,7 +293,6 @@ inline static_func bool VulkanCreateInstance(window_context *window)
 	VK_CHECK_RESULT(vkCreateDebugUtilsMessengerEXT(vulkan.instance, &debugMessengerInfo, 0, &vulkan.debugMessenger));
 #endif
 
-	DebugPrintFunctionResult(true);
 	return true;
 }
 
@@ -315,9 +316,9 @@ inline static_func bool VulkanCreatePhysicalDevice(window_context *window)
 		vkGetPhysicalDeviceProperties(vulkan.gpu, &vulkan.gpuProperties);
 		vkGetPhysicalDeviceMemoryProperties(vulkan.gpu, &vulkan.memoryProperties);
 	}
-	
+
 	result = VulkanCreateSurface(window);
-	
+
 	if (result)
 		VulkanPickCommandQueues();
 
@@ -524,9 +525,42 @@ inline static_func bool VulkanPickCommandQueues()
 	//queueInfo[1].queueCount = 1;
 	//queueInfo[1].pQueuePriorities = &queuePriority;
 
-	
+
 	DebugPrintFunctionResult(result);
 	return result;
+}
+
+inline static_func bool VulkanCreateCommandResources()
+{
+	VkCommandPoolCreateInfo cmdPoolInfo = {};
+	cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	cmdPoolInfo.queueFamilyIndex = vulkan.presentQueueFamilyIndex;
+	cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT | VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+	VK_CHECK_RESULT(vkCreateCommandPool(vulkan.device, &cmdPoolInfo, 0, &vulkan.cmdPool));
+
+	VkCommandBufferAllocateInfo cmdBufferAllocInfo = {};
+	cmdBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	cmdBufferAllocInfo.commandPool = vulkan.cmdPool;
+	cmdBufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	cmdBufferAllocInfo.commandBufferCount = 1;
+
+	VkSemaphoreCreateInfo semaphoreInfo = {};
+	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+	VkFenceCreateInfo fenceInfo = {};
+	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+	for (u32 i = 0; i < NUM_RESOURCES; i++)
+	{
+		VK_CHECK_RESULT(vkAllocateCommandBuffers(vulkan.device, &cmdBufferAllocInfo, &vulkan.resources[i].cmdBuffer));
+		VK_CHECK_RESULT(vkCreateSemaphore(vulkan.device, &semaphoreInfo, 0, &vulkan.resources[i].imgAvailableSem));
+		VK_CHECK_RESULT(vkCreateSemaphore(vulkan.device, &semaphoreInfo, 0, &vulkan.resources[i].frameReadySem));
+		VK_CHECK_RESULT(vkCreateFence(vulkan.device, &fenceInfo, 0, &vulkan.resources[i].fence));
+	}
+	
+	DebugPrintFunctionResult(true);
+	return true;
 }
 
 static_func bool VulkanInitialize(window_context *window)
@@ -546,40 +580,9 @@ static_func bool VulkanInitialize(window_context *window)
 
 	if (result)
 		result = VulkanCreatePhysicalDevice(window);
-
-	//------------------------------------------------------------------------
-	// CREATE THE RENDERING RESOURCES
-	//------------------------------------------------------------------------
-	{
-		VkCommandPoolCreateInfo cmdPoolInfo = {};
-		cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-		cmdPoolInfo.queueFamilyIndex = vulkan.presentQueueFamilyIndex;
-		cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT | VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-		VK_CHECK_RESULT(vkCreateCommandPool(vulkan.device, &cmdPoolInfo, 0, &vulkan.cmdPool));
-
-		VkCommandBufferAllocateInfo cmdBufferAllocInfo = {};
-		cmdBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		cmdBufferAllocInfo.commandPool = vulkan.cmdPool;
-		cmdBufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		cmdBufferAllocInfo.commandBufferCount = 1;
-
-		VkSemaphoreCreateInfo semaphoreInfo = {};
-		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-		VkFenceCreateInfo fenceInfo = {};
-		fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-		fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-
-		for (u32 i = 0; i < NUM_RESOURCES; i++)
-		{
-			VK_CHECK_RESULT(vkAllocateCommandBuffers(vulkan.device, &cmdBufferAllocInfo, &vulkan.resources[i].cmdBuffer));
-			VK_CHECK_RESULT(vkCreateSemaphore(vulkan.device, &semaphoreInfo, 0, &vulkan.resources[i].imgAvailableSem));
-			VK_CHECK_RESULT(vkCreateSemaphore(vulkan.device, &semaphoreInfo, 0, &vulkan.resources[i].frameReadySem));
-			VK_CHECK_RESULT(vkCreateFence(vulkan.device, &fenceInfo, 0, &vulkan.resources[i].fence));
-		}
-		DebugPrint("Created rendering resources.\n");
-	}
+	
+	if (result)
+		result = VulkanCreateCommandResources();
 
 	//------------------------------------------------------------------------
 	// CREATE BUFFERS
@@ -590,21 +593,18 @@ static_func bool VulkanInitialize(window_context *window)
 		u32 stagingBufferSize = vertexBufferSize + indexBufferSize;
 		if (!VulkanCreateBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT, stagingBufferSize, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, vulkan.stagingBuffer, MAP_BUFFER_TRUE))
 		{
-			DebugPrint("Could not create index buffer\n");
 			Assert("Could not create staging buffer");
 			return false;
 		}
 
 		if (!VulkanCreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, vertexBufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vulkan.vertexBuffer))
 		{
-			DebugPrint("Could not create vertex buffer\n");
 			Assert("Could not create vertex buffer");
 			return false;
 		}
 
 		if (!VulkanCreateBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, indexBufferSize, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vulkan.indexBuffer))
 		{
-			DebugPrint("Could not create index buffer\n");
 			Assert("Could not create index buffer");
 			return false;
 		}
@@ -749,7 +749,7 @@ static_func bool VulkanInitialize(window_context *window)
 			vkUpdateDescriptorSets(vulkan.device, ArrayCount(writes), writes, 0, 0);
 		}
 	}
-	
+
 	VulkanPickMSAA(START_UP_MSAA);
 	if (!VulkanCreateRenderPass() || !VulkanCreatePipeline())
 	{
@@ -757,23 +757,23 @@ static_func bool VulkanInitialize(window_context *window)
 		return false;
 	}
 
-	// NOTE(heyyod): It looks like window always sends a WM_SIZE message
-	// at startup. This Recreats the following. So we don't need to create these here
-	/* 
-        if (!CreateSwapchain())
-        {
-            Assert("Failed to create swapchain");
-            return false;
-        }
-        
-        if (!CreateFrameBuffers())
-        {
-            Assert("Failed to create framebuffers");
-            return false;
-        }
-         */
+	/* NOTE(heyyod): It looks like window always sends a WM_SIZE message
+	   at startup. This Recreats the following. So we don't need to create these here 
+	if (!CreateSwapchain())
+	{
+		Assert("Failed to create swapchain");
+		return false;
+	}
+	
+	if (!CreateFrameBuffers())
+	{
+		Assert("Failed to create framebuffers");
+		return false;
+	}
+	*/
 
 	vulkan.canRender = true;
+	DebugPrintFunctionResult(true);
 	return true;
 }
 
@@ -881,8 +881,9 @@ static_func bool VulkanCreateRenderPass()
 		renderPassInfo.pAttachments = attachments;
 		VK_CHECK_RESULT(vkCreateRenderPass(vulkan.device, &renderPassInfo, 0, &vulkan.renderPass));
 	}
-	DebugPrint("Created a renderpass\n");
-
+	
+	DebugPrintFunctionResult(true);
+	DebugPrintSeperator();
 	return true;
 }
 
@@ -897,7 +898,6 @@ static_func void VulkanClearFrameBuffers()
 			{
 				vkDestroyFramebuffer(vulkan.device, vulkan.framebuffers[i], 0);
 				//vulkan.framebuffers[i] = VK_NULL_HANDLE;
-				DebugPrint("Cleared FrameBuffer\n");
 			}
 		}
 	}
@@ -1129,7 +1129,7 @@ static_func bool VulkanCreateSwapchain()
 
 		uint32_t presentModeCount;
 		VK_CHECK_RESULT(vkGetPhysicalDeviceSurfacePresentModesKHR(vulkan.gpu, vulkan.surface, &presentModeCount, NULL));
-		VkPresentModeKHR presentModes[16] = {};;
+		VkPresentModeKHR presentModes[16] = {}; ;
 		Assert(presentModeCount <= ArrayCount(presentModes));
 		VK_CHECK_RESULT(vkGetPhysicalDeviceSurfacePresentModesKHR(vulkan.gpu, vulkan.surface, &presentModeCount, presentModes));
 		bool desiredPresentModeSupported = false;
@@ -1236,7 +1236,7 @@ static_func bool VulkanCreateSwapchain()
 	}
 
 	DebugPrintFunctionResult(result);
-	
+
 	if (result)
 		result = VulkanCreateDepthBuffer();
 
@@ -1245,6 +1245,8 @@ static_func bool VulkanCreateSwapchain()
 
 	if (result)
 		result = VulkanCreateFrameBuffers();
+	
+	DebugPrintSeperator();
 
 	vulkan.canRender = result;
 	return true;
@@ -1260,7 +1262,6 @@ static_func void VulkanClearSwapchainImages()
 			if (VK_CHECK_HANDLE(vulkan.swapchainImageViews[i]))
 			{
 				vkDestroyImageView(vulkan.device, vulkan.swapchainImageViews[i], 0);
-				DebugPrint("Cleared Swapchain Image View\n");
 			}
 		}
 	}
@@ -1290,7 +1291,7 @@ static_func bool VulkanLoadShader(char *filepath, VkShaderModule *shaderOut)
 		platformAPI.DEBUGFreeFileMemory(shaderCode.content);
 		if (res == VK_SUCCESS)
 		{
-			DebugPrint("Loaded Shader\n");
+			DebugPrint("LOADED SHADER: " << filepath << "\n");
 			return true;
 		}
 	}
@@ -1363,7 +1364,7 @@ static_func bool VulkanCreatePipeline()
 	//------------------------------------------------------------------------
 
 	// NOTE(heyyod): 128bytes limit (at least on my device)
-	VkPushConstantRange pushConstants[1] = {};;
+	VkPushConstantRange pushConstants[1] = {}; ;
 	pushConstants[0].offset = 0;
 	pushConstants[0].size = sizeof(u32); // index of transform in transforms buffer
 	pushConstants[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
@@ -1481,10 +1482,10 @@ static_func bool VulkanCreatePipeline()
 
 	VK_CHECK_RESULT(vkCreateGraphicsPipelines(vulkan.device, VK_NULL_HANDLE, 1, &pipelineInfo, 0, &vulkan.pipeline[PIPELINE_MESH].handle));
 
-	DebugPrint("Created Pipeline\n");
 	vkDestroyShaderModule(vulkan.device, triangleVertShader, 0);
 	vkDestroyShaderModule(vulkan.device, triangleFragShader, 0);
 
+	DebugPrintFunctionResult(true);
 	return true;
 }
 
@@ -1496,7 +1497,6 @@ static_func void VulkanClearPipeline()
 		if (VK_CHECK_HANDLE(vulkan.pipeline))
 		{
 			vkDestroyPipeline(vulkan.device, vulkan.pipeline[PIPELINE_MESH].handle, 0);
-			DebugPrint("Cleared Pipeline\n");
 		}
 
 		if (VK_CHECK_HANDLE(vulkan.pipeline[PIPELINE_MESH].layout))
@@ -1558,7 +1558,7 @@ static_func void VulkanClearBuffer(vulkan_buffer buffer)
 	}
 }
 
-static_func void VulkanDestroy()
+inline static_func void VulkanDestroy()
 {
 	if (VK_CHECK_HANDLE(vulkan.device))
 	{
@@ -1624,9 +1624,8 @@ static_func void VulkanDestroy()
 
 	if (vulkan.dll)
 		FreeLibrary(vulkan.dll);
-
-	DebugPrint("Destroyed Vulkan\n");
-	return;
+	
+	DebugPrintFunctionResult(true);
 }
 
 static_func bool VulkanChangeGraphicsSettings(graphics_settings settings, CHANGE_GRAPHICS_SETTINGS newSettings)
