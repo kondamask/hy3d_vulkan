@@ -1,7 +1,9 @@
 #include "vulkan_platform.h"
+#include "vulkan_utils.h"
 
 #if VULKAN_VALIDATION_LAYERS_ON
-static_func VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+static_func VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugCallback(
+	VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
 	VkDebugUtilsMessageTypeFlagsEXT messageType,
 	const VkDebugUtilsMessengerCallbackDataEXT *callbackData,
 	void *pUserData)
@@ -67,7 +69,7 @@ static_func VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugCallback(VkDebugUtilsMessa
 	} while (c != '\0');
 	DebugPrint('\n');
 	if (isError)
-		Assert(0);
+	Assert(0);
 	return VK_FALSE;
 }
 #endif
@@ -91,401 +93,213 @@ static_func void VulkanPickMSAA(MSAA_OPTIONS msaa)
 		vulkan.msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 }
 
-static_func bool VulkanFindMemoryProperties(u32 reqMemType, VkMemoryPropertyFlags reqMemProperties, u32 &memoryIndexOut)
+inline static_func bool VulkanLoadCode()
 {
-	// NOTE(heyyod): We assume we have already set the memory properties during creation.
-	u32 memoryCount = vulkan.memoryProperties.memoryTypeCount;
-	for (memoryIndexOut = 0; memoryIndexOut < memoryCount; ++memoryIndexOut)
-	{
-		uint32_t memoryType = (1 << memoryIndexOut);
-		bool isRequiredMemoryType = reqMemType & memoryType;
-		if (isRequiredMemoryType)
-		{
-			VkMemoryPropertyFlags properties = vulkan.memoryProperties.memoryTypes[memoryIndexOut].propertyFlags;
-			bool hasRequiredProperties = ((properties & reqMemProperties) == reqMemProperties);
-			if (hasRequiredProperties)
-				return true;
-		}
-	}
-	return false;
-}
-
-static_func u64 VulkanGetUniformBufferPaddedSize(u64 originalSize)
-{
-	u64 minUboAlignment = vulkan.gpuProperties.limits.minUniformBufferOffsetAlignment;
-	u64 alignedSize = originalSize;
-	if (minUboAlignment > 0) {
-		alignedSize = (alignedSize + minUboAlignment - 1) & ~(minUboAlignment - 1);
-	}
-	return alignedSize;
-}
-
-// TODO: make this cross-platform
-static_func bool VulkanLoadCode()
-{
+	// TODO: make this cross-platform
 	vulkan.dll = LoadLibraryA("vulkan-1.dll");
 	if (!vulkan.dll)
+	{
+		DebugPrintFunctionFail();
 		return false;
+	}
 
 	vkGetInstanceProcAddr = (vk_get_instance_proc_addr *)GetProcAddress(vulkan.dll, "vkGetInstanceProcAddr");
 
-	DebugPrint("Loaded DLL\n");
+	DebugPrintFunctionSuccess();
 	return true;
 }
 
-
-// TODO: Make it cross-platform
-static_func bool VulkanInitialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name)
+inline static_func bool VulkanCreateInstance(window_context *window)
 {
-	DebugPrint("Initialize Vulkan\n");
-	if (!VulkanLoadCode())
-	{
-		return false;
-	}
+	//------------------------------------------------------------------------
+	VkApplicationInfo appInfo = {};
+	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+	appInfo.pApplicationName = window->name;
+	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+	appInfo.pEngineName = window->name;
+	appInfo.engineVersion = VK_API_VERSION_1_0;
+	appInfo.apiVersion = VK_API_VERSION_1_2;
 
-	if (!VulkanLoadGlobalFunctions())
-	{
-		return false;
-	}
-
-	// NOTE: Create an instance
-	{
+	//------------------------------------------------------------------------
 #if VULKAN_VALIDATION_LAYERS_ON
-		char *instanceLayers[] = {
-			"VK_LAYER_KHRONOS_validation"
-		};
+	char *instanceLayers[] = {
+		"VK_LAYER_KHRONOS_validation"
+	};
+
+	VkDebugUtilsMessengerCreateInfoEXT debugMessengerInfo = {};
+	debugMessengerInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+	debugMessengerInfo.messageSeverity =
+	VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+	VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT
+	//VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+	//VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT
+	;
+	debugMessengerInfo.messageType =
+	VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+	VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+	VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT
+	;
+	debugMessengerInfo.pfnUserCallback = VulkanDebugCallback;
 #else
-		/* NOTE(heyyod): Normaly:
-        char *instanceLayers[] = {
-...
-};
-            */
-		char **instanceLayers = 0;
+	//char *instanceLayers[] = {};
+	char **instanceLayers = 0;
 #endif
-		if (instanceLayers)
+
+	if (instanceLayers)
+	{
+		u32 layerCount;
+		VK_CHECK_RESULT(vkEnumerateInstanceLayerProperties(&layerCount, 0));
+
+		VkLayerProperties availableLayers[32];
+		Assert(layerCount <= ArrayCount(availableLayers));
+		VK_CHECK_RESULT(vkEnumerateInstanceLayerProperties(&layerCount, availableLayers));
+
+		for (u32 i = 0; i < ArrayCount(instanceLayers); i++)
 		{
-			u32 layerCount;
-			AssertSuccess(vkEnumerateInstanceLayerProperties(&layerCount, 0));
-
-			VkLayerProperties availableLayers[32];
-			Assert(layerCount <= ArrayCount(availableLayers));
-			AssertSuccess(vkEnumerateInstanceLayerProperties(&layerCount, availableLayers));
-
-			for (u32 i = 0; i < ArrayCount(instanceLayers); i++)
+			char *layerName = instanceLayers[i];
+			bool layerFound = false;
+			for (VkLayerProperties &layerProperties : availableLayers)
 			{
-				char *layerName = instanceLayers[i];
-				bool layerFound = false;
-				for (VkLayerProperties &layerProperties : availableLayers)
+				if (strcmp(layerName, layerProperties.layerName) == 0)
 				{
-					if (strcmp(layerName, layerProperties.layerName) == 0)
-					{
-						layerFound = true;
-						break;
-					}
-				}
-				if (!layerFound)
-				{
-					Assert("ERROR: Layer not found");
-					return false;
-				}
-			}
-		}
-		else
-		{
-
-		}
-
-#if VULKAN_VALIDATION_LAYERS_ON
-		VkDebugUtilsMessengerCreateInfoEXT debugMessengerInfo = {};
-		debugMessengerInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-		debugMessengerInfo.messageSeverity =
-		VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-		VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT
-		//VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-		//VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT
-		;
-		debugMessengerInfo.messageType =
-		VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-		VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-		VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT
-		;
-		debugMessengerInfo.pfnUserCallback = VulkanDebugCallback;
-		DebugPrint("Created Vulkan Debug Messenger\n");
-#endif
-
-		VkApplicationInfo appInfo = {};
-		appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-		appInfo.pApplicationName = name;
-		appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-		appInfo.pEngineName = name;
-		appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-		appInfo.apiVersion = VK_API_VERSION_1_0;
-
-		char *desiredInstanceExtensions[] = {
-#if VULKAN_VALIDATION_LAYERS_ON
-			VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-#endif
-			VK_KHR_SURFACE_EXTENSION_NAME,
-#if defined(VK_USE_PLATFORM_WIN32_KHR)
-			VK_KHR_WIN32_SURFACE_EXTENSION_NAME
-#elif defined(VK_USE_PLATFORM_XCB_KHR)
-				VK_KHR_XCB_SURFACE_EXTENSION_NAME
-#elif defined(VK_USE_PLATFORM_XLIB_KHR)
-				VK_KHR_XLIB_SURFACE_EXTENSION_NAME
-#endif
-		};
-		u32 instanceExtensionsCount;
-		VkExtensionProperties availableInstanceExtensions[255] = {};
-		AssertSuccess(vkEnumerateInstanceExtensionProperties(0, &instanceExtensionsCount, 0));
-		Assert(instanceExtensionsCount <= ArrayCount(availableInstanceExtensions));
-		AssertSuccess(vkEnumerateInstanceExtensionProperties(0, &instanceExtensionsCount, availableInstanceExtensions));
-		for (char *desiredInstanceExtension : desiredInstanceExtensions)
-		{
-			bool found = false;
-			for (VkExtensionProperties &availableExtension : availableInstanceExtensions)
-			{
-				if (strcmp(desiredInstanceExtension, availableExtension.extensionName) == 0)
-				{
-					found = true;
+					layerFound = true;
 					break;
 				}
 			}
-			if (!found)
+			if (!layerFound)
 			{
-				Assert("ERROR: Requested instance extension not supported");
+				Assert("ERROR: Layer not found");
 				return false;
 			}
 		}
+	}
 
-		// NOTE: Create an instance and attach extensions
-		VkInstanceCreateInfo instanceInfo = {};
-		instanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-		instanceInfo.pApplicationInfo = &appInfo;
-		instanceInfo.enabledExtensionCount = ArrayCount(desiredInstanceExtensions);
-		instanceInfo.ppEnabledExtensionNames = desiredInstanceExtensions;
-		if (instanceLayers)
-		{
-			instanceInfo.enabledLayerCount = ArrayCount(instanceLayers);
-			instanceInfo.ppEnabledLayerNames = instanceLayers;
-		}
+	//------------------------------------------------------------------------
+	char *extensions[] = {
 #if VULKAN_VALIDATION_LAYERS_ON
-		instanceInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT *)&debugMessengerInfo;
+		VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
 #endif
+		VK_KHR_SURFACE_EXTENSION_NAME,
+#if defined(VK_USE_PLATFORM_WIN32_KHR)
+		VK_KHR_WIN32_SURFACE_EXTENSION_NAME
+#elif defined(VK_USE_PLATFORM_XCB_KHR)
+			VK_KHR_XCB_SURFACE_EXTENSION_NAME
+#elif defined(VK_USE_PLATFORM_XLIB_KHR)
+		VK_KHR_XLIB_SURFACE_EXTENSION_NAME
+#endif
+	};
 
-		AssertSuccess(vkCreateInstance(&instanceInfo, 0, &vulkan.instance));
-		DebugPrint("Created Vulkan Instance\n");
-
-		if (!VulkanLoadInstanceFunctions())
+	u32 availableExtensionsCount;
+	VkExtensionProperties availableInstanceExtensions[255] = {};
+	VK_CHECK_RESULT(vkEnumerateInstanceExtensionProperties(0, &availableExtensionsCount, 0));
+	Assert(availableExtensionsCount <= ArrayCount(availableInstanceExtensions));
+	VK_CHECK_RESULT(vkEnumerateInstanceExtensionProperties(0, &availableExtensionsCount, availableInstanceExtensions));
+	for (char *desiredInstanceExtension : extensions)
+	{
+		bool found = false;
+		for (VkExtensionProperties &availableExtension : availableInstanceExtensions)
 		{
-			Assert("ERROR: Instance Functions not loaded\n");
+			if (strcmp(desiredInstanceExtension, availableExtension.extensionName) == 0)
+			{
+				found = true;
+				break;
+			}
+		}
+		if (!found)
+		{
+			Assert("ERROR: Requested instance extension not supported");
 			return false;
 		}
+	}
+
+	//------------------------------------------------------------------------
+	VkInstanceCreateInfo instanceInfo = {};
+	instanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+	instanceInfo.pApplicationInfo = &appInfo;
+	instanceInfo.enabledExtensionCount = ArrayCount(extensions);
+	instanceInfo.ppEnabledExtensionNames = extensions;
+	if (instanceLayers)
+	{
+		instanceInfo.enabledLayerCount = ArrayCount(instanceLayers);
+		instanceInfo.ppEnabledLayerNames = instanceLayers;
+	}
+#if VULKAN_VALIDATION_LAYERS_ON
+	instanceInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT *)&debugMessengerInfo;
+#endif
+
+	VK_CHECK_RESULT(vkCreateInstance(&instanceInfo, 0, &vulkan.instance));
+
+	if (!VulkanLoadInstanceFunctions())
+	{
+		Assert("ERROR: Instance Functions not loaded\n");
+		return false;
+	}
 
 #if VULKAN_VALIDATION_LAYERS_ON
-		AssertSuccess(vkCreateDebugUtilsMessengerEXT(vulkan.instance, &debugMessengerInfo, 0, &vulkan.debugMessenger));
+	VK_CHECK_RESULT(vkCreateDebugUtilsMessengerEXT(vulkan.instance, &debugMessengerInfo, 0, &vulkan.debugMessenger));
 #endif
-	}
 
-	// NOTE: Create a surface
-	{
-#if defined(VK_USE_PLATFORM_WIN32_KHR)
-		VkWin32SurfaceCreateInfoKHR surfaceInfo = {};
-		surfaceInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-		surfaceInfo.hinstance = wndInstance;
-		surfaceInfo.hwnd = wndHandle;
-		AssertSuccess(vkCreateWin32SurfaceKHR(vulkan.instance, &surfaceInfo, 0, &vulkan.surface));
+	DebugPrintFunctionSuccess();
+	return true;
+}
 
-#elif defined(VK_USE_PLATFORM_XCB_KHR)
-		VkXcbSurfaceCreateInfoKHR surfaceInfo = {};
-		surfaceInfo.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
-		surfaceInfo.connection = 0; //we'll have these if we implement a linux window
-		surfaceInfo.window = 0;     //we'll have these if we implement a linux window
-		AssertSuccess(vkCreateXcbSurfaceKHR(vulkan.instance, &surfaceInfo, 0, &vulkan.surface));
-
-#elif defined(VK_USE_PLATFORM_XLIB_KHR)
-		VkXcbSurfaceCreateInfoKHR surfaceInfo = {};
-		surfaceInfo.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
-		surfaceInfo.dpy = 0;    //we'll have these if we implement a mac(?) window
-		surfaceInfo.window = 0; //we'll have these if we implement a mac(?) window
-		AssertSuccess(vkCreateXlibSurfaceKHR(vulkan.instance, &surfaceInfo, 0, &vulkan.surface));
-#endif
-	}
-	// NOTE: Select a gpu to use
+inline static_func bool VulkanCreatePhysicalDevice(window_context *window)
+{
+	//------------------------------------------------------------------------
+	// PICK PHYSICAL DEVICE
+	//------------------------------------------------------------------------
 	{
 		u32 gpuCount = 0;
 		VkPhysicalDevice gpuBuffer[16] = {};
-		AssertSuccess(vkEnumeratePhysicalDevices(vulkan.instance, &gpuCount, 0));
+		VK_CHECK_RESULT(vkEnumeratePhysicalDevices(vulkan.instance, &gpuCount, 0));
 		Assert(gpuCount > 0 && gpuCount <= ArrayCount(gpuBuffer));
-		AssertSuccess(vkEnumeratePhysicalDevices(vulkan.instance, &gpuCount, gpuBuffer));
+		VK_CHECK_RESULT(vkEnumeratePhysicalDevices(vulkan.instance, &gpuCount, gpuBuffer));
 		vulkan.gpu = gpuBuffer[0];
+
 		// TODO: ACTUALY CHECK WHICH GPU IS BEST TO USE BY CHECKING THEIR QUEUES
-		//For now it's ok since I only have 1 gpu.
+		// For now it's ok since I only have 1 gpu.
 
 		vkGetPhysicalDeviceProperties(vulkan.gpu, &vulkan.gpuProperties);
 		vkGetPhysicalDeviceMemoryProperties(vulkan.gpu, &vulkan.memoryProperties);
 
 		// NOTE(heyyod): Pick number of samples to use for antialiasig
 		VulkanPickMSAA(START_UP_MSAA);
-
-		DebugPrint("Selected a GPU\n");
 	}
-
-	// NOTE: Pick a queue family the supports both present and graphics operations
-	vulkan.graphicsQueueFamilyIndex = UINT32_MAX;
-	vulkan.presentQueueFamilyIndex = UINT32_MAX;
-	vulkan.transferQueueFamilyIndex = UINT32_MAX;
+	//------------------------------------------------------------------------
+	// CREATE A SURFACE
+	//------------------------------------------------------------------------
 	{
-		u32 queueFamilyCount;
-		VkQueueFamilyProperties availableQueueFamilies[16] = {};
-		VkBool32 supportsPresent[16] = {};
-		vkGetPhysicalDeviceQueueFamilyProperties(vulkan.gpu, &queueFamilyCount, 0);
-		Assert(queueFamilyCount <= ArrayCount(availableQueueFamilies));
-		vkGetPhysicalDeviceQueueFamilyProperties(vulkan.gpu, &queueFamilyCount, availableQueueFamilies);
+#if defined(VK_USE_PLATFORM_WIN32_KHR)
+		VkWin32SurfaceCreateInfoKHR surfaceInfo = {};
+		surfaceInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+		surfaceInfo.hinstance = window->instance;
+		surfaceInfo.hwnd = window->handle;
+		VK_CHECK_RESULT(vkCreateWin32SurfaceKHR(vulkan.instance, &surfaceInfo, 0, &vulkan.surface));
 
-		for (u32 i = 0; i < queueFamilyCount; i++)
-			AssertSuccess(vkGetPhysicalDeviceSurfaceSupportKHR(vulkan.gpu, i, vulkan.surface, &supportsPresent[i]));
+#elif defined(VK_USE_PLATFORM_XCB_KHR)
+		VkXcbSurfaceCreateInfoKHR surfaceInfo = {};
+		surfaceInfo.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
+		surfaceInfo.connection = 0; //we'll have these if we implement a linux window
+		surfaceInfo.window = 0;     //we'll have these if we implement a linux window
+		VK_CHECK_RESULT(vkCreateXcbSurfaceKHR(vulkan.instance, &surfaceInfo, 0, &vulkan.surface));
 
-		for (u32 i = 0; i < queueFamilyCount; ++i)
-		{
-			// NOTE(heyyod): Find a graphics queue
-			if ((availableQueueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0)
-			{
-				if (vulkan.graphicsQueueFamilyIndex == UINT32_MAX)
-					vulkan.graphicsQueueFamilyIndex = i;
-				if (supportsPresent[i] == VK_TRUE)
-				{
-					vulkan.graphicsQueueFamilyIndex = i;
-					vulkan.presentQueueFamilyIndex = i;
-					break;
-				}
-			}
-		}
-		for (u32 i = 0; i < queueFamilyCount; ++i)
-		{
-			// NOTE(heyyod): Find a transfer queue
-			if ((availableQueueFamilies[i].queueFlags & VK_QUEUE_TRANSFER_BIT) != 0)
-			{
-				if (vulkan.transferQueueFamilyIndex == UINT32_MAX)
-					vulkan.transferQueueFamilyIndex = i;
-			}
-		}
-		if (vulkan.presentQueueFamilyIndex == UINT32_MAX) //didn't find a queue that supports both graphics and present
-		{
-			for (u32 i = 0; i < queueFamilyCount; ++i)
-				if (supportsPresent[i] == VK_TRUE)
-				{
-					vulkan.presentQueueFamilyIndex = i;
-					break;
-				}
-		}
-		if (vulkan.graphicsQueueFamilyIndex == UINT32_MAX)
-		{
-			Assert("ERROR: No graphics queue found.\n");
-			return false;
-		}
-		if (vulkan.presentQueueFamilyIndex == UINT32_MAX)
-		{
-			Assert("ERROR: No present queue found.\n");
-			return false;
-		}
-	}
+#elif defined(VK_USE_PLATFORM_XLIB_KHR)
+		VkXcbSurfaceCreateInfoKHR surfaceInfo = {};
+		surfaceInfo.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
+		surfaceInfo.dpy = 0;    //we'll have these if we implement a mac(?) window
+		surfaceInfo.window = 0; //we'll have these if we implement a mac(?) window
+		VK_CHECK_RESULT(vkCreateXlibSurfaceKHR(vulkan.instance, &surfaceInfo, 0, &vulkan.surface));
+#endif
 
-	// TODO: make this work for seperate queues if needed
-	if (vulkan.graphicsQueueFamilyIndex != vulkan.presentQueueFamilyIndex)
-	{
-		Assert("vulkan.graphicsQueueFamilyIndex != vulkan.presentQueueFamilyIndex\n");
-		return false;
-	}
-	DebugPrint("Selected a queue family\n");
-
-	// TODO: Need to do some stuff if they are different like:
-	//VkDeviceQueueCreateInfo queueInfo[2] = {};
-	//float queuePriority = 1.0; // must be array of size queueCount
-	//
-	//queueInfo[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	//queueInfo[0].queueFamilyIndex = graphicsQueueFamilyIndex;
-	//queueInfo[0].queueCount = 1;
-	//queueInfo[0].pQueuePriorities = &queuePriority;
-	//
-	//queueInfo[1].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	//queueInfo[1].queueFamilyIndex = presentQueueFamilyIndex;
-	//queueInfo[1].queueCount = 1;
-	//queueInfo[1].pQueuePriorities = &queuePriority;
-
-	// NOTE: Create a device
-	VkDeviceQueueCreateInfo queueInfo = {};
-	{
-		float queuePriority = 1.0; // must be array of size queueCount
-		queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		queueInfo.queueFamilyIndex = vulkan.graphicsQueueFamilyIndex;
-		queueInfo.queueCount = 1;
-		queueInfo.pQueuePriorities = &queuePriority;
-
-		char *desiredDeviceExtensions[] = {
-			VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-		};
-
-		u32 deviceExtensionsCount;
-		VkExtensionProperties availableDeviceExtensions[255] = {};
-		AssertSuccess(vkEnumerateDeviceExtensionProperties(vulkan.gpu, 0, &deviceExtensionsCount, 0));
-		Assert(deviceExtensionsCount <= ArrayCount(availableDeviceExtensions));
-		AssertSuccess(vkEnumerateDeviceExtensionProperties(vulkan.gpu, 0, &deviceExtensionsCount, availableDeviceExtensions));
-		for (char *desiredDeviceExtension : desiredDeviceExtensions)
-		{
-			bool found = false;
-			for (VkExtensionProperties &availableExtension : availableDeviceExtensions)
-			{
-				if (strcmp(desiredDeviceExtension, availableExtension.extensionName) == 0)
-				{
-					found = true;
-					break;
-				}
-			}
-			if (!found)
-			{
-				Assert("ERROR: Requested device extension not supported");
-				return false;
-			}
-		}
-
-		// TODO(heyyod): Check if these features are supported;
-		VkPhysicalDeviceFeatures desiredFeatures = {};
-		desiredFeatures.samplerAnisotropy = VK_TRUE;
-		desiredFeatures.fillModeNonSolid = VK_TRUE;
-		desiredFeatures.wideLines = VK_TRUE;
-
-		VkDeviceCreateInfo deviceInfo = {};
-		deviceInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-		deviceInfo.queueCreateInfoCount = 1; // NOTE: Only if graphicsQueueFamilyIndex == presentQueueFamilyIndex
-		deviceInfo.pQueueCreateInfos = &queueInfo;
-		deviceInfo.enabledExtensionCount = ArrayCount(desiredDeviceExtensions);
-		deviceInfo.ppEnabledExtensionNames = desiredDeviceExtensions;
-		deviceInfo.pEnabledFeatures = &desiredFeatures;
-		AssertSuccess(vkCreateDevice(vulkan.gpu, &deviceInfo, 0, &vulkan.device));
-		DebugPrint("\nCreated a Vulkan Device\n");
-
-		if (!VulkanLoadDeviceFunctions())
-		{
-			Assert("ERROR: Device Functions not loaded\n");
-			return false;
-		}
-	}
-
-	// NOTE: Get the queues and save it into our vulkan object
-	vkGetDeviceQueue(vulkan.device, vulkan.graphicsQueueFamilyIndex, 0, &vulkan.graphicsQueue);
-	vkGetDeviceQueue(vulkan.device, vulkan.presentQueueFamilyIndex, 0, &vulkan.presentQueue);
-
-	// NOTE: Set a proper surface format
-	{
 		vulkan.surfaceFormat.colorSpace = SURFACE_FORMAT_COLOR_SPACE;
 		vulkan.surfaceFormat.format = SURFACE_FORMAT_FORMAT;
 		u32 formatCount = 0;
 		VkSurfaceFormatKHR availableFormats[16] = {};
 		bool desiredSurfaceFormatSupported = false;
-		AssertSuccess(vkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.gpu, vulkan.surface, &formatCount, 0));
+		VK_CHECK_RESULT(vkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.gpu, vulkan.surface, &formatCount, 0));
 		Assert(formatCount <= ArrayCount(availableFormats));
 		for (u32 i = 0; i < formatCount; ++i)
-			AssertSuccess(vkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.gpu, vulkan.surface, &formatCount, &availableFormats[i]));
+			VK_CHECK_RESULT(vkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.gpu, vulkan.surface, &formatCount, &availableFormats[i]));
 		for (u32 i = 0; i < formatCount; ++i)
 		{
 			if (vulkan.surfaceFormat.format == availableFormats[i].format &&
@@ -494,14 +308,182 @@ static_func bool VulkanInitialize(HINSTANCE &wndInstance, HWND &wndHandle, const
 		}
 		Assert(desiredSurfaceFormatSupported);
 	}
-	
-	// NOTE(heyyod): Create the rendering resources
+	//------------------------------------------------------------------------
+	// PICK QUEUES
+	//------------------------------------------------------------------------
+	{
+		vulkan.graphicsQueueFamilyIndex = UINT32_MAX;
+		vulkan.presentQueueFamilyIndex = UINT32_MAX;
+		vulkan.transferQueueFamilyIndex = UINT32_MAX;
+		{
+			u32 queueFamilyCount;
+			VkQueueFamilyProperties availableQueueFamilies[16] = {};
+			VkBool32 supportsPresent[16] = {};
+			vkGetPhysicalDeviceQueueFamilyProperties(vulkan.gpu, &queueFamilyCount, 0);
+			Assert(queueFamilyCount <= ArrayCount(availableQueueFamilies));
+			vkGetPhysicalDeviceQueueFamilyProperties(vulkan.gpu, &queueFamilyCount, availableQueueFamilies);
+
+			for (u32 i = 0; i < queueFamilyCount; i++)
+				VK_CHECK_RESULT(vkGetPhysicalDeviceSurfaceSupportKHR(vulkan.gpu, i, vulkan.surface, &supportsPresent[i]));
+
+			for (u32 i = 0; i < queueFamilyCount; ++i)
+			{
+				// NOTE(heyyod): Find a graphics queue
+				if ((availableQueueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0)
+				{
+					if (vulkan.graphicsQueueFamilyIndex == UINT32_MAX)
+						vulkan.graphicsQueueFamilyIndex = i;
+					if (supportsPresent[i] == VK_TRUE)
+					{
+						vulkan.graphicsQueueFamilyIndex = i;
+						vulkan.presentQueueFamilyIndex = i;
+						break;
+					}
+				}
+			}
+			for (u32 i = 0; i < queueFamilyCount; ++i)
+			{
+				// NOTE(heyyod): Find a transfer queue
+				if ((availableQueueFamilies[i].queueFlags & VK_QUEUE_TRANSFER_BIT) != 0)
+				{
+					if (vulkan.transferQueueFamilyIndex == UINT32_MAX)
+						vulkan.transferQueueFamilyIndex = i;
+				}
+			}
+			if (vulkan.presentQueueFamilyIndex == UINT32_MAX) //didn't find a queue that supports both graphics and present
+			{
+				for (u32 i = 0; i < queueFamilyCount; ++i)
+					if (supportsPresent[i] == VK_TRUE)
+					{
+						vulkan.presentQueueFamilyIndex = i;
+						break;
+					}
+			}
+			if (vulkan.graphicsQueueFamilyIndex == UINT32_MAX)
+			{
+				Assert("ERROR: No graphics queue found.\n");
+				return false;
+			}
+			if (vulkan.presentQueueFamilyIndex == UINT32_MAX)
+			{
+				Assert("ERROR: No present queue found.\n");
+				return false;
+			}
+		}
+
+		// TODO: make this work for seperate queues if needed
+		if (vulkan.graphicsQueueFamilyIndex != vulkan.presentQueueFamilyIndex)
+		{
+			Assert("vulkan.graphicsQueueFamilyIndex != vulkan.presentQueueFamilyIndex\n");
+			return false;
+		}
+
+		// TODO: Need to do some stuff if they are different like:
+		//VkDeviceQueueCreateInfo queueInfo[2] = {};
+		//float queuePriority = 1.0; // must be array of size queueCount
+		//
+		//queueInfo[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		//queueInfo[0].queueFamilyIndex = graphicsQueueFamilyIndex;
+		//queueInfo[0].queueCount = 1;
+		//queueInfo[0].pQueuePriorities = &queuePriority;
+		//
+		//queueInfo[1].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		//queueInfo[1].queueFamilyIndex = presentQueueFamilyIndex;
+		//queueInfo[1].queueCount = 1;
+		//queueInfo[1].pQueuePriorities = &queuePriority;
+
+		// NOTE: Create a device
+		VkDeviceQueueCreateInfo queueInfo = {};
+		{
+			float queuePriority = 1.0; // must be array of size queueCount
+			queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+			queueInfo.queueFamilyIndex = vulkan.graphicsQueueFamilyIndex;
+			queueInfo.queueCount = 1;
+			queueInfo.pQueuePriorities = &queuePriority;
+
+			char *desiredDeviceExtensions[] = {
+				VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+			};
+
+			u32 deviceExtensionsCount;
+			VkExtensionProperties availableDeviceExtensions[255] = {};
+			VK_CHECK_RESULT(vkEnumerateDeviceExtensionProperties(vulkan.gpu, 0, &deviceExtensionsCount, 0));
+			Assert(deviceExtensionsCount <= ArrayCount(availableDeviceExtensions));
+			VK_CHECK_RESULT(vkEnumerateDeviceExtensionProperties(vulkan.gpu, 0, &deviceExtensionsCount, availableDeviceExtensions));
+			for (char *desiredDeviceExtension : desiredDeviceExtensions)
+			{
+				bool found = false;
+				for (VkExtensionProperties &availableExtension : availableDeviceExtensions)
+				{
+					if (strcmp(desiredDeviceExtension, availableExtension.extensionName) == 0)
+					{
+						found = true;
+						break;
+					}
+				}
+				if (!found)
+				{
+					Assert("ERROR: Requested device extension not supported");
+					return false;
+				}
+			}
+
+			// TODO(heyyod): Check if these features are supported;
+			VkPhysicalDeviceFeatures desiredFeatures = {};
+			desiredFeatures.samplerAnisotropy = VK_TRUE;
+			desiredFeatures.fillModeNonSolid = VK_TRUE;
+			desiredFeatures.wideLines = VK_TRUE;
+
+			VkDeviceCreateInfo deviceInfo = {};
+			deviceInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+			deviceInfo.queueCreateInfoCount = 1; // NOTE: Only if graphicsQueueFamilyIndex == presentQueueFamilyIndex
+			deviceInfo.pQueueCreateInfos = &queueInfo;
+			deviceInfo.enabledExtensionCount = ArrayCount(desiredDeviceExtensions);
+			deviceInfo.ppEnabledExtensionNames = desiredDeviceExtensions;
+			deviceInfo.pEnabledFeatures = &desiredFeatures;
+			VK_CHECK_RESULT(vkCreateDevice(vulkan.gpu, &deviceInfo, 0, &vulkan.device));
+
+			if (!VulkanLoadDeviceFunctions())
+			{
+				return false;
+			}
+		}
+
+		vkGetDeviceQueue(vulkan.device, vulkan.graphicsQueueFamilyIndex, 0, &vulkan.graphicsQueue);
+		vkGetDeviceQueue(vulkan.device, vulkan.presentQueueFamilyIndex, 0, &vulkan.presentQueue);
+	}
+
+	DebugPrintFunctionSuccess();
+	return true;
+}
+
+static_func bool VulkanInitialize(window_context *window)
+{
+	// TODO: Make it cross-platform
+	DebugPrint("INITIALIZING VULKAN...\n");
+
+	bool result;
+
+	result = VulkanLoadCode();
+
+	if (result)
+		result = VulkanLoadGlobalFunctions();
+
+	if (result)
+		result = VulkanCreateInstance(window);
+
+	if (result)
+		result = VulkanCreatePhysicalDevice(window);
+
+	//------------------------------------------------------------------------
+	// CREATE THE RENDERING RESOURCES
+	//------------------------------------------------------------------------
 	{
 		VkCommandPoolCreateInfo cmdPoolInfo = {};
 		cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 		cmdPoolInfo.queueFamilyIndex = vulkan.presentQueueFamilyIndex;
 		cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT | VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-		AssertSuccess(vkCreateCommandPool(vulkan.device, &cmdPoolInfo, 0, &vulkan.cmdPool));
+		VK_CHECK_RESULT(vkCreateCommandPool(vulkan.device, &cmdPoolInfo, 0, &vulkan.cmdPool));
 
 		VkCommandBufferAllocateInfo cmdBufferAllocInfo = {};
 		cmdBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -511,7 +493,7 @@ static_func bool VulkanInitialize(HINSTANCE &wndInstance, HWND &wndHandle, const
 
 		VkSemaphoreCreateInfo semaphoreInfo = {};
 		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-		
+
 		VkFenceCreateInfo fenceInfo = {};
 		fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 		fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
@@ -519,15 +501,17 @@ static_func bool VulkanInitialize(HINSTANCE &wndInstance, HWND &wndHandle, const
 
 		for (u32 i = 0; i < NUM_RESOURCES; i++)
 		{
-			AssertSuccess(vkAllocateCommandBuffers(vulkan.device, &cmdBufferAllocInfo, &vulkan.resources[i].cmdBuffer));
-			AssertSuccess(vkCreateSemaphore(vulkan.device, &semaphoreInfo, 0, &vulkan.resources[i].imgAvailableSem));
-			AssertSuccess(vkCreateSemaphore(vulkan.device, &semaphoreInfo, 0, &vulkan.resources[i].frameReadySem));
-			AssertSuccess(vkCreateFence(vulkan.device, &fenceInfo, 0, &vulkan.resources[i].fence));
+			VK_CHECK_RESULT(vkAllocateCommandBuffers(vulkan.device, &cmdBufferAllocInfo, &vulkan.resources[i].cmdBuffer));
+			VK_CHECK_RESULT(vkCreateSemaphore(vulkan.device, &semaphoreInfo, 0, &vulkan.resources[i].imgAvailableSem));
+			VK_CHECK_RESULT(vkCreateSemaphore(vulkan.device, &semaphoreInfo, 0, &vulkan.resources[i].frameReadySem));
+			VK_CHECK_RESULT(vkCreateFence(vulkan.device, &fenceInfo, 0, &vulkan.resources[i].fence));
 		}
 		DebugPrint("Created rendering resources.\n");
 	}
 
-	// NOTE(heyyod): Make buffers
+	//------------------------------------------------------------------------
+	// CREATE BUFFERS
+	//------------------------------------------------------------------------
 	{
 		u32 vertexBufferSize = MEGABYTES(128);
 		u32 indexBufferSize = MEGABYTES(128);
@@ -555,7 +539,9 @@ static_func bool VulkanInitialize(HINSTANCE &wndInstance, HWND &wndHandle, const
 	}
 
 
-	// NOTE(heyyod): Create texture sampler
+	//------------------------------------------------------------------------
+	// CREATE TEXTURE SAMPLER
+	//------------------------------------------------------------------------
 	{
 		VkSamplerCreateInfo samplerInfo{};
 		samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -574,68 +560,54 @@ static_func bool VulkanInitialize(HINSTANCE &wndInstance, HWND &wndHandle, const
 		samplerInfo.maxLod = 11.0f; // TODO(heyyod): THIS IS HARDCODED AND BAD
 		samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
 		samplerInfo.unnormalizedCoordinates = VK_FALSE;
-		AssertSuccess(vkCreateSampler(vulkan.device, &samplerInfo, 0, &vulkan.textureSampler));
+		VK_CHECK_RESULT(vkCreateSampler(vulkan.device, &samplerInfo, 0, &vulkan.textureSampler));
 	}
 
-	// NOTE(heyyod): Create static transforms buffer
-	if (!VulkanCreateBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, MAX_RENDER_OBJECTS * sizeof(object_transform),
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		vulkan.staticTransformsBuffer, MAP_BUFFER_TRUE))
+	//------------------------------------------------------------------------
+	// CREATE DESCRIPTORS
+	//------------------------------------------------------------------------
 	{
-		DebugPrint("Could not create static transforms storage buffer\n");
-		Assert("Could not create static transforms storage buffer");
-		return false;
-	}
+		VkDescriptorSetLayoutBinding bindings[] = {
+			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, 0 }, // camera
+			{ 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, 0 }, // objects
+			{ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, 0 }, //texture sampler
+			{ 3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0 }, //scene
+		};
 
-	// NOTE(heyyod): Create descriptors
-	{
-		// NOTE(heyyod): layout
-		{
-			VkDescriptorSetLayoutBinding bindings[] = {
-				{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, 0 }, // camera
-				{ 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, 0 }, // objects
-				{ 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, 0 }, //texture sampler
-				{ 3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0 }, //scene
-			};
-
-			VkDescriptorSetLayoutCreateInfo layoutInfo = {};
-			layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-			layoutInfo.bindingCount = ArrayCount(bindings);
-			layoutInfo.pBindings = bindings;
-			AssertSuccess(vkCreateDescriptorSetLayout(vulkan.device, &layoutInfo, 0, &vulkan.globalDescSetLayout));
-		}
+		VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutInfo.bindingCount = ArrayCount(bindings);
+		layoutInfo.pBindings = bindings;
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(vulkan.device, &layoutInfo, 0, &vulkan.globalDescSetLayout));
 
 		u32 nDescriptors = ArrayCount(vulkan.frameData);
-		// NOTE(heyyod): pool
-		{
-			VkDescriptorPoolSize poolSizes[] = {
-				{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nDescriptors },
-				{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nDescriptors },
-				{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nDescriptors },
-				{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nDescriptors },
-			};
+		VkDescriptorPoolSize poolSizes[] = {
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nDescriptors },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nDescriptors },
+			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nDescriptors },
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nDescriptors },
+		};
 
-			VkDescriptorPoolCreateInfo poolInfo = {};
-			poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-			poolInfo.poolSizeCount = ArrayCount(poolSizes);
-			poolInfo.pPoolSizes = poolSizes;
-			poolInfo.maxSets = nDescriptors;
-			AssertSuccess(vkCreateDescriptorPool(vulkan.device, &poolInfo, 0, &vulkan.globalDescPool));
-		}
+		VkDescriptorPoolCreateInfo poolInfo = {};
+		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		poolInfo.poolSizeCount = ArrayCount(poolSizes);
+		poolInfo.pPoolSizes = poolSizes;
+		poolInfo.maxSets = nDescriptors;
+		VK_CHECK_RESULT(vkCreateDescriptorPool(vulkan.device, &poolInfo, 0, &vulkan.globalDescPool));
 
-		// NOTE(heyyod): Allocate and write the descriptor sets
 		VkDescriptorSetAllocateInfo globalDescAlloc = {};
 		globalDescAlloc.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 		globalDescAlloc.descriptorPool = vulkan.globalDescPool;
 		globalDescAlloc.descriptorSetCount = 1;
 		globalDescAlloc.pSetLayouts = &vulkan.globalDescSetLayout;
+
 		for (u8 i = 0; i < nDescriptors; i++)
 		{
-			AssertSuccess(vkAllocateDescriptorSets(vulkan.device, &globalDescAlloc, &vulkan.frameData[i].globalDescriptor));
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(vulkan.device, &globalDescAlloc, &vulkan.frameData[i].globalDescriptor));
 
 			// NOTE(heyyod): Camera buffer and descriptor
 			VkDescriptorBufferInfo cameraBufferInfo = {};
-			VkWriteDescriptorSet writeCameraDesc = {};
+			VkWriteDescriptorSet writeCameraDesc = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
 			if (VulkanCreateBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(camera_data),
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 				vulkan.frameData[i].cameraBuffer, MAP_BUFFER_TRUE))
@@ -643,7 +615,6 @@ static_func bool VulkanInitialize(HINSTANCE &wndInstance, HWND &wndHandle, const
 				cameraBufferInfo.range = sizeof(camera_data);
 				cameraBufferInfo.buffer = vulkan.frameData[i].cameraBuffer.handle;
 
-				writeCameraDesc.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 				writeCameraDesc.dstBinding = 0;
 				writeCameraDesc.dstArrayElement = 0;
 				writeCameraDesc.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -658,23 +629,26 @@ static_func bool VulkanInitialize(HINSTANCE &wndInstance, HWND &wndHandle, const
 			}
 
 			// NOTE(heyyod): Storage buffer and descriptor
-			VkDescriptorBufferInfo objectsBufferInfo;
-			VkWriteDescriptorSet writeObjectsDesc = {};
-			{
-				objectsBufferInfo.range = sizeof(object_transform) * MAX_RENDER_OBJECTS;
-				objectsBufferInfo.buffer = vulkan.staticTransformsBuffer.handle;
+			// NOTE: I know the create buffer call will be called multiple time but it will only create the buffer
+			// once. It will fail the other times. I just want everything to be together for now.
+			VkDescriptorBufferInfo objectsBufferInfo = {};
+			VkWriteDescriptorSet writeObjectsDesc = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+			VulkanCreateBuffer(
+				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, MAX_RENDER_OBJECTS * sizeof(object_transform),
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				vulkan.staticTransformsBuffer, MAP_BUFFER_TRUE);
+			objectsBufferInfo.range = sizeof(object_transform) * MAX_RENDER_OBJECTS;
+			objectsBufferInfo.buffer = vulkan.staticTransformsBuffer.handle;
 
-				writeObjectsDesc.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-				writeObjectsDesc.dstBinding = 1;
-				writeObjectsDesc.dstArrayElement = 0;
-				writeObjectsDesc.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-				writeObjectsDesc.descriptorCount = 1;
-				writeObjectsDesc.pBufferInfo = &objectsBufferInfo;
-				writeObjectsDesc.dstSet = vulkan.frameData[i].globalDescriptor;
-			}
+			writeObjectsDesc.dstBinding = 1;
+			writeObjectsDesc.dstArrayElement = 0;
+			writeObjectsDesc.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+			writeObjectsDesc.descriptorCount = 1;
+			writeObjectsDesc.pBufferInfo = &objectsBufferInfo;
+			writeObjectsDesc.dstSet = vulkan.frameData[i].globalDescriptor;
 
 			VkDescriptorBufferInfo sceneBufferInfo = {};
-			VkWriteDescriptorSet writeSceneDesc = {};
+			VkWriteDescriptorSet writeSceneDesc = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
 			if (VulkanCreateBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(scene_data),
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 				vulkan.frameData[i].sceneBuffer, MAP_BUFFER_TRUE))
@@ -682,7 +656,6 @@ static_func bool VulkanInitialize(HINSTANCE &wndInstance, HWND &wndHandle, const
 				sceneBufferInfo.range = sizeof(scene_data);
 				sceneBufferInfo.buffer = vulkan.frameData[i].sceneBuffer.handle;
 
-				writeSceneDesc.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 				writeSceneDesc.dstBinding = 3;
 				writeSceneDesc.dstArrayElement = 0;
 				writeSceneDesc.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -733,10 +706,10 @@ static_func bool VulkanInitialize(HINSTANCE &wndInstance, HWND &wndHandle, const
 
 static_func void VulkanClearRenderPass()
 {
-	if (VulkanIsValidHandle(vulkan.device))
+	if (VK_CHECK_HANDLE(vulkan.device))
 	{
 		vkDeviceWaitIdle(vulkan.device);
-		if (VulkanIsValidHandle(vulkan.renderPass))
+		if (VK_CHECK_HANDLE(vulkan.renderPass))
 			vkDestroyRenderPass(vulkan.device, vulkan.renderPass, 0);
 	}
 }
@@ -808,7 +781,7 @@ static_func bool VulkanCreateRenderPass()
 		VkAttachmentDescription attachments[] = { colorAttachment, depthAttachment };
 		renderPassInfo.attachmentCount = ArrayCount(attachments);
 		renderPassInfo.pAttachments = attachments;
-		AssertSuccess(vkCreateRenderPass(vulkan.device, &renderPassInfo, 0, &vulkan.renderPass));
+		VK_CHECK_RESULT(vkCreateRenderPass(vulkan.device, &renderPassInfo, 0, &vulkan.renderPass));
 	}
 	else
 	{
@@ -833,7 +806,7 @@ static_func bool VulkanCreateRenderPass()
 		VkAttachmentDescription attachments[] = { colorAttachment, depthAttachment, colorAttachmentResolve };
 		renderPassInfo.attachmentCount = ArrayCount(attachments);
 		renderPassInfo.pAttachments = attachments;
-		AssertSuccess(vkCreateRenderPass(vulkan.device, &renderPassInfo, 0, &vulkan.renderPass));
+		VK_CHECK_RESULT(vkCreateRenderPass(vulkan.device, &renderPassInfo, 0, &vulkan.renderPass));
 	}
 	DebugPrint("Created a renderpass\n");
 
@@ -842,12 +815,12 @@ static_func bool VulkanCreateRenderPass()
 
 static_func void VulkanClearFrameBuffers()
 {
-	if (VulkanIsValidHandle(vulkan.device))
+	if (VK_CHECK_HANDLE(vulkan.device))
 	{
 		vkDeviceWaitIdle(vulkan.device);
 		for (u32 i = 0; i < NUM_SWAPCHAIN_IMAGES; i++)
 		{
-			if (VulkanIsValidHandle(vulkan.framebuffers[i]))
+			if (VK_CHECK_HANDLE(vulkan.framebuffers[i]))
 			{
 				vkDestroyFramebuffer(vulkan.device, vulkan.framebuffers[i], 0);
 				//vulkan.framebuffers[i] = VK_NULL_HANDLE;
@@ -873,14 +846,14 @@ static_func bool VulkanCreateFrameBuffers()
 			VkImageView attachments[] = { vulkan.swapchainImageViews[i], vulkan.depthBuffer.view };
 			framebufferInfo.pAttachments = attachments;
 			framebufferInfo.attachmentCount = ArrayCount(attachments);
-			AssertSuccess(vkCreateFramebuffer(vulkan.device, &framebufferInfo, 0, &vulkan.framebuffers[i]));
+			VK_CHECK_RESULT(vkCreateFramebuffer(vulkan.device, &framebufferInfo, 0, &vulkan.framebuffers[i]));
 		}
 		else
 		{
 			VkImageView attachments[] = { vulkan.msaa.view, vulkan.depthBuffer.view, vulkan.swapchainImageViews[i] };
 			framebufferInfo.pAttachments = attachments;
 			framebufferInfo.attachmentCount = ArrayCount(attachments);
-			AssertSuccess(vkCreateFramebuffer(vulkan.device, &framebufferInfo, 0, &vulkan.framebuffers[i]));
+			VK_CHECK_RESULT(vkCreateFramebuffer(vulkan.device, &framebufferInfo, 0, &vulkan.framebuffers[i]));
 		}
 	}
 	return true;
@@ -888,14 +861,14 @@ static_func bool VulkanCreateFrameBuffers()
 
 static_func void VulkanClearImage(vulkan_image &img)
 {
-	if (VulkanIsValidHandle(vulkan.device))
+	if (VK_CHECK_HANDLE(vulkan.device))
 	{
 		vkDeviceWaitIdle(vulkan.device);
-		if (VulkanIsValidHandle(img.view))
+		if (VK_CHECK_HANDLE(img.view))
 			vkDestroyImageView(vulkan.device, img.view, 0);
-		if (VulkanIsValidHandle(img.handle))
+		if (VK_CHECK_HANDLE(img.handle))
 			vkDestroyImage(vulkan.device, img.handle, 0);
-		if (VulkanIsValidHandle(img.memoryHandle))
+		if (VK_CHECK_HANDLE(img.memoryHandle))
 			vkFreeMemory(vulkan.device, img.memoryHandle, 0);
 
 		img.view = VK_NULL_HANDLE;
@@ -921,7 +894,7 @@ static_func bool VulkanCreateImage(VkImageType type, VkFormat format, VkExtent3D
 	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	AssertSuccess(vkCreateImage(vulkan.device, &imageInfo, 0, &imageOut.handle));
+	VK_CHECK_RESULT(vkCreateImage(vulkan.device, &imageInfo, 0, &imageOut.handle));
 
 	VkMemoryRequirements memoryReq = {};
 	u32 memIndex = 0;
@@ -933,8 +906,8 @@ static_func bool VulkanCreateImage(VkImageType type, VkFormat format, VkExtent3D
 		allocInfo.allocationSize = memoryReq.size;
 		allocInfo.memoryTypeIndex = memIndex;
 
-		AssertSuccess(vkAllocateMemory(vulkan.device, &allocInfo, 0, &imageOut.memoryHandle));
-		AssertSuccess(vkBindImageMemory(vulkan.device, imageOut.handle, imageOut.memoryHandle, 0));
+		VK_CHECK_RESULT(vkAllocateMemory(vulkan.device, &allocInfo, 0, &imageOut.memoryHandle));
+		VK_CHECK_RESULT(vkBindImageMemory(vulkan.device, imageOut.handle, imageOut.memoryHandle, 0));
 	}
 	else
 	{
@@ -967,7 +940,7 @@ static_func bool VulkanCreateImage(VkImageType type, VkFormat format, VkExtent3D
 		0,                  //uint32_t              baseArrayLayer;
 		1                   //uint32_t              layerCount;
 	};
-	AssertSuccess(vkCreateImageView(vulkan.device, &imageViewInfo, 0, &imageOut.view));
+	VK_CHECK_RESULT(vkCreateImageView(vulkan.device, &imageViewInfo, 0, &imageOut.view));
 
 	return true;
 
@@ -1013,7 +986,7 @@ static_func bool VulkanCreateMSAABuffer()
 
 static_func bool VulkanCreateSwapchain()
 {
-	if (VulkanIsValidHandle(vulkan.device))
+	if (VK_CHECK_HANDLE(vulkan.device))
 		vkDeviceWaitIdle(vulkan.device);
 	else
 		return false;
@@ -1023,7 +996,7 @@ static_func bool VulkanCreateSwapchain()
 	// NOTE: Get Surface capabilities
 	{
 		VkSurfaceCapabilitiesKHR surfCapabilities = {};
-		AssertSuccess(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vulkan.gpu, vulkan.surface, &surfCapabilities));
+		VK_CHECK_RESULT(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vulkan.gpu, vulkan.surface, &surfCapabilities));
 
 		vulkan.windowExtent = {};
 		if (surfCapabilities.currentExtent.width == UINT32_MAX)
@@ -1066,10 +1039,10 @@ static_func bool VulkanCreateSwapchain()
 		//The FIFO present mode is guaranteed by the spec to be supported
 
 		uint32_t presentModeCount;
-		AssertSuccess(vkGetPhysicalDeviceSurfacePresentModesKHR(vulkan.gpu, vulkan.surface, &presentModeCount, NULL));
-		VkPresentModeKHR presentModes[16] = {}; ;
+		VK_CHECK_RESULT(vkGetPhysicalDeviceSurfacePresentModesKHR(vulkan.gpu, vulkan.surface, &presentModeCount, NULL));
+		VkPresentModeKHR presentModes[16] = {};;
 		Assert(presentModeCount <= ArrayCount(presentModes));
-		AssertSuccess(vkGetPhysicalDeviceSurfacePresentModesKHR(vulkan.gpu, vulkan.surface, &presentModeCount, presentModes));
+		VK_CHECK_RESULT(vkGetPhysicalDeviceSurfacePresentModesKHR(vulkan.gpu, vulkan.surface, &presentModeCount, presentModes));
 		bool desiredPresentModeSupported = false;
 		for (u32 i = 0; i < presentModeCount; i++)
 		{
@@ -1141,17 +1114,17 @@ static_func bool VulkanCreateSwapchain()
 
 		VkSwapchainKHR oldSwapchain = vulkan.swapchain;
 		swapchainInfo.oldSwapchain = oldSwapchain;
-		AssertSuccess(vkCreateSwapchainKHR(vulkan.device, &swapchainInfo, 0, &vulkan.swapchain));
-		if (VulkanIsValidHandle(oldSwapchain)) //old swapchain
+		VK_CHECK_RESULT(vkCreateSwapchainKHR(vulkan.device, &swapchainInfo, 0, &vulkan.swapchain));
+		if (VK_CHECK_HANDLE(oldSwapchain)) //old swapchain
 			vkDestroySwapchainKHR(vulkan.device, oldSwapchain, 0);
 	}
 
 	// NOTE: Create the Image views
 	{
 		VulkanClearSwapchainImages();
-		AssertSuccess(vkGetSwapchainImagesKHR(vulkan.device, vulkan.swapchain, &vulkan.swapchainImageCount, 0));
+		VK_CHECK_RESULT(vkGetSwapchainImagesKHR(vulkan.device, vulkan.swapchain, &vulkan.swapchainImageCount, 0));
 		Assert(vulkan.swapchainImageCount == ArrayCount(vulkan.swapchainImages));
-		AssertSuccess(vkGetSwapchainImagesKHR(vulkan.device, vulkan.swapchain, &vulkan.swapchainImageCount, vulkan.swapchainImages));
+		VK_CHECK_RESULT(vkGetSwapchainImagesKHR(vulkan.device, vulkan.swapchain, &vulkan.swapchainImageCount, vulkan.swapchainImages));
 
 		VkImageViewCreateInfo imageViewInfo = {};
 		imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -1169,7 +1142,7 @@ static_func bool VulkanCreateSwapchain()
 		for (u32 i = 0; i < vulkan.swapchainImageCount; i++)
 		{
 			imageViewInfo.image = vulkan.swapchainImages[i];
-			AssertSuccess(vkCreateImageView(vulkan.device, &imageViewInfo, 0, &vulkan.swapchainImageViews[i]));
+			VK_CHECK_RESULT(vkCreateImageView(vulkan.device, &imageViewInfo, 0, &vulkan.swapchainImageViews[i]));
 		}
 	}
 	DebugPrint("Created SwapChain\n");
@@ -1192,12 +1165,12 @@ static_func bool VulkanCreateSwapchain()
 
 static_func void VulkanClearSwapchainImages()
 {
-	if (VulkanIsValidHandle(vulkan.device))
+	if (VK_CHECK_HANDLE(vulkan.device))
 	{
 		vkDeviceWaitIdle(vulkan.device);
 		for (u32 i = 0; i < vulkan.swapchainImageCount; i++)
 		{
-			if (VulkanIsValidHandle(vulkan.swapchainImageViews[i]))
+			if (VK_CHECK_HANDLE(vulkan.swapchainImageViews[i]))
 			{
 				vkDestroyImageView(vulkan.device, vulkan.swapchainImageViews[i], 0);
 				DebugPrint("Cleared Swapchain Image View\n");
@@ -1212,7 +1185,7 @@ static_func void VulkanClearSwapchain()
 	VulkanClearImage(vulkan.msaa);
 	VulkanClearFrameBuffers();
 	VulkanClearSwapchainImages();
-	if (VulkanIsValidHandle(vulkan.swapchain))
+	if (VK_CHECK_HANDLE(vulkan.swapchain))
 		vkDestroySwapchainKHR(vulkan.device, vulkan.swapchain, 0);
 }
 
@@ -1301,9 +1274,9 @@ static_func bool VulkanCreatePipeline()
 		fragShaderStageInfo
 	};
 	//------------------------------------------------------------------------
-	
+
 	// NOTE(heyyod): 128bytes limit (at least on my device)
-	VkPushConstantRange pushConstants[1] = {}; ;
+	VkPushConstantRange pushConstants[1] = {};;
 	pushConstants[0].offset = 0;
 	pushConstants[0].size = sizeof(u32); // index of transform in transforms buffer
 	pushConstants[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
@@ -1313,14 +1286,14 @@ static_func bool VulkanCreatePipeline()
 	inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 	inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 	inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
-	
+
 	//------------------------------------------------------------------------
 	//NOTE(heyyod): Viewport and scissor are  dynamic and update them with vkCmd commands 
 	VkPipelineViewportStateCreateInfo viewportInfo = {};
 	viewportInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 	viewportInfo.viewportCount = 1;
 	viewportInfo.scissorCount = 1;
-	
+
 	//------------------------------------------------------------------------
 	VkPipelineRasterizationStateCreateInfo rasterizerInfo = {};
 	rasterizerInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
@@ -1329,12 +1302,12 @@ static_func bool VulkanCreatePipeline()
 	rasterizerInfo.polygonMode = VK_POLYGON_MODE_LINE; //VK_POLYGON_MODE_FILL;
 	rasterizerInfo.lineWidth = 0.8f;
 	rasterizerInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-	rasterizerInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	rasterizerInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	//rasterizerInfo.depthBiasEnable = VK_FALSE;
 	//rasterizerInfo.depthBiasConstantFactor = 0.0f; // Optional
 	//rasterizerInfo.depthBiasClamp = 0.0f; // Optional
 	//rasterizerInfo.depthBiasSlopeFactor = 0.0f; // Optional
-	
+
 	//------------------------------------------------------------------------
 	VkPipelineMultisampleStateCreateInfo multisamplingInfo = {};
 	multisamplingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
@@ -1344,7 +1317,7 @@ static_func bool VulkanCreatePipeline()
 	//multisamplingInfo.pSampleMask = nullptr; // Optional
 	//multisamplingInfo.alphaToCoverageEnable = VK_FALSE; // Optional
 	//multisamplingInfo.alphaToOneEnable = VK_FALSE; // Optional
-	
+
 	//------------------------------------------------------------------------
 	VkPipelineDepthStencilStateCreateInfo depthStencil = {};
 	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
@@ -1357,7 +1330,7 @@ static_func bool VulkanCreatePipeline()
 	//depthStencil.stencilTestEnable = VK_FALSE;
 	//depthStencil.front = {}; // Optional
 	//depthStencil.back = {}; // Optional
-	
+
 	//------------------------------------------------------------------------
 	VkPipelineColorBlendAttachmentState blendAttachment = {};
 	blendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
@@ -1379,7 +1352,7 @@ static_func bool VulkanCreatePipeline()
 	//blendingInfo.blendConstants[1] = 0.0f; // Optional
 	//blendingInfo.blendConstants[2] = 0.0f; // Optional
 	//blendingInfo.blendConstants[3] = 0.0f; // Optional
-	
+
 	//------------------------------------------------------------------------
 	VkDynamicState dynamicStates[] = {
 		VK_DYNAMIC_STATE_VIEWPORT,
@@ -1390,7 +1363,7 @@ static_func bool VulkanCreatePipeline()
 	dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 	dynamicStateInfo.dynamicStateCount = ArrayCount(dynamicStates);
 	dynamicStateInfo.pDynamicStates = dynamicStates;
-	
+
 	//------------------------------------------------------------------------
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -1398,7 +1371,7 @@ static_func bool VulkanCreatePipeline()
 	pipelineLayoutInfo.pSetLayouts = &vulkan.globalDescSetLayout;
 	pipelineLayoutInfo.pushConstantRangeCount = ArrayCount(pushConstants);
 	pipelineLayoutInfo.pPushConstantRanges = pushConstants;
-	AssertSuccess(vkCreatePipelineLayout(vulkan.device, &pipelineLayoutInfo, 0, &vulkan.pipeline[PIPELINE_MESH].layout));
+	VK_CHECK_RESULT(vkCreatePipelineLayout(vulkan.device, &pipelineLayoutInfo, 0, &vulkan.pipeline[PIPELINE_MESH].layout));
 
 	VkGraphicsPipelineCreateInfo pipelineInfo{};
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -1419,7 +1392,7 @@ static_func bool VulkanCreatePipeline()
 	pipelineInfo.basePipelineIndex = -1; // Optional
 
 
-	AssertSuccess(vkCreateGraphicsPipelines(vulkan.device, VK_NULL_HANDLE, 1, &pipelineInfo, 0, &vulkan.pipeline[PIPELINE_MESH].handle));
+	VK_CHECK_RESULT(vkCreateGraphicsPipelines(vulkan.device, VK_NULL_HANDLE, 1, &pipelineInfo, 0, &vulkan.pipeline[PIPELINE_MESH].handle));
 
 	DebugPrint("Created Pipeline\n");
 	vkDestroyShaderModule(vulkan.device, triangleVertShader, 0);
@@ -1430,16 +1403,16 @@ static_func bool VulkanCreatePipeline()
 
 static_func void VulkanClearPipeline()
 {
-	if (VulkanIsValidHandle(vulkan.device))
+	if (VK_CHECK_HANDLE(vulkan.device))
 	{
 		vkDeviceWaitIdle(vulkan.device);
-		if (VulkanIsValidHandle(vulkan.pipeline))
+		if (VK_CHECK_HANDLE(vulkan.pipeline))
 		{
 			vkDestroyPipeline(vulkan.device, vulkan.pipeline[PIPELINE_MESH].handle, 0);
 			DebugPrint("Cleared Pipeline\n");
 		}
 
-		if (VulkanIsValidHandle(vulkan.pipeline[PIPELINE_MESH].layout))
+		if (VK_CHECK_HANDLE(vulkan.pipeline[PIPELINE_MESH].layout))
 		{
 			vkDestroyPipelineLayout(vulkan.device, vulkan.pipeline[PIPELINE_MESH].layout, 0);
 		}
@@ -1449,16 +1422,15 @@ static_func void VulkanClearPipeline()
 static_func bool VulkanCreateBuffer(VkBufferUsageFlags usage, u64 size, VkMemoryPropertyFlags properties, vulkan_buffer &bufferOut, bool mapBuffer)
 {
 	// TODO(heyyod): make this able to create multiple buffers of the same type and usage if I pass an array
-	if (!(VulkanIsValidHandle(bufferOut.handle)))
+	if (!(VK_CHECK_HANDLE(bufferOut.handle)))
 	{
 		bufferOut.size = size;
 
-		VkBufferCreateInfo bufferInfo = {};
-		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		VkBufferCreateInfo bufferInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
 		bufferInfo.usage = usage;
 		bufferInfo.size = size;
 		bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		AssertSuccess(vkCreateBuffer(vulkan.device, &bufferInfo, 0, &bufferOut.handle));
+		VK_CHECK_RESULT(vkCreateBuffer(vulkan.device, &bufferInfo, 0, &bufferOut.handle));
 
 		VkMemoryRequirements memoryReq = {};
 		vkGetBufferMemoryRequirements(vulkan.device, bufferOut.handle, &memoryReq);
@@ -1471,28 +1443,30 @@ static_func bool VulkanCreateBuffer(VkBufferUsageFlags usage, u64 size, VkMemory
 			allocInfo.allocationSize = memoryReq.size;
 			allocInfo.memoryTypeIndex = memIndex;
 
-			AssertSuccess(vkAllocateMemory(vulkan.device, &allocInfo, 0, &bufferOut.memoryHandle));
-			AssertSuccess(vkBindBufferMemory(vulkan.device, bufferOut.handle, bufferOut.memoryHandle, 0));
+			VK_CHECK_RESULT(vkAllocateMemory(vulkan.device, &allocInfo, 0, &bufferOut.memoryHandle));
+			VK_CHECK_RESULT(vkBindBufferMemory(vulkan.device, bufferOut.handle, bufferOut.memoryHandle, 0));
 
 			if (mapBuffer)
-				AssertSuccess(vkMapMemory(vulkan.device, bufferOut.memoryHandle, 0, bufferOut.size, 0, &bufferOut.data));
+				VK_CHECK_RESULT(vkMapMemory(vulkan.device, bufferOut.memoryHandle, 0, bufferOut.size, 0, &bufferOut.data));
 		}
 		else
 		{
 			Assert("Could not allocate vertex buffer memory");
 			return false;
 		}
+		DebugPrintFunctionSuccess();
+		return true;
 	}
-	return true;
+	return false;
 }
 
 static_func void VulkanClearBuffer(vulkan_buffer buffer)
 {
-	if (VulkanIsValidHandle(vulkan.device))
+	if (VK_CHECK_HANDLE(vulkan.device))
 	{
-		if (VulkanIsValidHandle(buffer.handle))
+		if (VK_CHECK_HANDLE(buffer.handle))
 			vkDestroyBuffer(vulkan.device, buffer.handle, 0);
-		if (VulkanIsValidHandle(buffer.memoryHandle))
+		if (VK_CHECK_HANDLE(buffer.memoryHandle))
 		{
 			vkFreeMemory(vulkan.device, buffer.memoryHandle, 0);
 		}
@@ -1501,18 +1475,18 @@ static_func void VulkanClearBuffer(vulkan_buffer buffer)
 
 static_func void VulkanDestroy()
 {
-	if (VulkanIsValidHandle(vulkan.device))
+	if (VK_CHECK_HANDLE(vulkan.device))
 	{
 		vkDeviceWaitIdle(vulkan.device);
 
-		if (VulkanIsValidHandle(vulkan.textureSampler))
+		if (VK_CHECK_HANDLE(vulkan.textureSampler))
 			vkDestroySampler(vulkan.device, vulkan.textureSampler, 0);
 
 		VulkanClearImage(vulkan.texture);
 
 		VulkanClearPipeline();
 
-		if (VulkanIsValidHandle(vulkan.globalDescSetLayout))
+		if (VK_CHECK_HANDLE(vulkan.globalDescSetLayout))
 			vkDestroyDescriptorSetLayout(vulkan.device, vulkan.globalDescSetLayout, 0);
 
 		for (u32 i = 0; i < ArrayCount(vulkan.frameData); i++)
@@ -1522,7 +1496,7 @@ static_func void VulkanDestroy()
 		}
 		VulkanClearBuffer(vulkan.staticTransformsBuffer);
 
-		if (VulkanIsValidHandle(vulkan.globalDescPool))
+		if (VK_CHECK_HANDLE(vulkan.globalDescPool))
 			vkDestroyDescriptorPool(vulkan.device, vulkan.globalDescPool, 0);
 
 		vkUnmapMemory(vulkan.device, vulkan.stagingBuffer.memoryHandle);
@@ -1536,28 +1510,28 @@ static_func void VulkanDestroy()
 
 		for (u32 i = 0; i < NUM_RESOURCES; i++)
 		{
-			if (VulkanIsValidHandle(vulkan.resources[i].imgAvailableSem))
+			if (VK_CHECK_HANDLE(vulkan.resources[i].imgAvailableSem))
 				vkDestroySemaphore(vulkan.device, vulkan.resources[i].imgAvailableSem, 0);
-			if (VulkanIsValidHandle(vulkan.resources[i].frameReadySem))
+			if (VK_CHECK_HANDLE(vulkan.resources[i].frameReadySem))
 				vkDestroySemaphore(vulkan.device, vulkan.resources[i].frameReadySem, 0);
-			if (VulkanIsValidHandle(vulkan.resources[i].fence))
+			if (VK_CHECK_HANDLE(vulkan.resources[i].fence))
 				vkDestroyFence(vulkan.device, vulkan.resources[i].fence, 0);
 		}
 
-		if (VulkanIsValidHandle(vulkan.cmdPool))
+		if (VK_CHECK_HANDLE(vulkan.cmdPool))
 			vkDestroyCommandPool(vulkan.device, vulkan.cmdPool, 0);
 
 		vkDestroyDevice(vulkan.device, 0);
 	}
 
-	if (VulkanIsValidHandle(vulkan.instance))
+	if (VK_CHECK_HANDLE(vulkan.instance))
 	{
-		if (VulkanIsValidHandle(vulkan.surface))
+		if (VK_CHECK_HANDLE(vulkan.surface))
 			vkDestroySurfaceKHR(vulkan.instance, vulkan.surface, 0);
 
 #if VULKAN_VALIDATION_LAYERS_ON
-		if (VulkanIsValidHandle(vulkan.debugMessenger))
-			vkDestroyDebugUtilsMessengerEXT(vulkan.instance, vulkan.debugMessenger, 0);
+		if (VK_CHECK_HANDLE(vulkan.debugMessenger))
+		vkDestroyDebugUtilsMessengerEXT(vulkan.instance, vulkan.debugMessenger, 0);
 #endif
 
 		vkDestroyInstance(vulkan.instance, 0);
@@ -1657,8 +1631,8 @@ static_func frame_prep_resource * VulkanGetNextAvailableResource()
 	frame_prep_resource *result = &vulkan.resources[vulkan.currentResource];
 	vulkan.currentResource = (vulkan.currentResource + 1) % NUM_RESOURCES;
 
-	AssertSuccess(vkWaitForFences(vulkan.device, 1, &result->fence, true, UINT64_MAX));
-	AssertSuccess(vkResetFences(vulkan.device, 1, &result->fence));
+	VK_CHECK_RESULT(vkWaitForFences(vulkan.device, 1, &result->fence, true, UINT64_MAX));
+	VK_CHECK_RESULT(vkResetFences(vulkan.device, 1, &result->fence));
 
 	return result;
 }
@@ -1676,7 +1650,7 @@ static_func bool VulkanPushStaged(staged_resources &staged)
 	VkCommandBufferBeginInfo cmdBufferBeginInfo = {};
 	cmdBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	cmdBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-	AssertSuccess(vkBeginCommandBuffer(res->cmdBuffer, &cmdBufferBeginInfo));
+	VK_CHECK_RESULT(vkBeginCommandBuffer(res->cmdBuffer, &cmdBufferBeginInfo));
 
 	bool pushedMesh = false;
 	bool pushedImage = false;
@@ -1895,12 +1869,12 @@ static_func bool VulkanPushStaged(staged_resources &staged)
 		vkCmdPipelineBarrier(res->cmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, 0, ArrayCount(bufferBarriers), bufferBarriers, 0, 0);
 	}
 
-	AssertSuccess(vkEndCommandBuffer(res->cmdBuffer));
+	VK_CHECK_RESULT(vkEndCommandBuffer(res->cmdBuffer));
 	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &res->cmdBuffer;
-	AssertSuccess(vkQueueSubmit(vulkan.graphicsQueue, 1, &submitInfo, res->fence));
+	VK_CHECK_RESULT(vkQueueSubmit(vulkan.graphicsQueue, 1, &submitInfo, res->fence));
 
 	return true;
 }
@@ -1960,7 +1934,7 @@ static_func bool VulkanDraw(update_data *data)
 
 		local_var VkDeviceSize bufferOffset = 0;
 
-		AssertSuccess(vkBeginCommandBuffer(res->cmdBuffer, &commandBufferBeginInfo));
+		VK_CHECK_RESULT(vkBeginCommandBuffer(res->cmdBuffer, &commandBufferBeginInfo));
 		vkCmdBeginRenderPass(res->cmdBuffer, &renderpassInfo, VK_SUBPASS_CONTENTS_INLINE);
 		vkCmdSetViewport(res->cmdBuffer, 0, 1, &viewport);
 		vkCmdSetScissor(res->cmdBuffer, 0, 1, &scissor);
@@ -1996,7 +1970,7 @@ static_func bool VulkanDraw(update_data *data)
 		}
 
 		vkCmdEndRenderPass(res->cmdBuffer);
-		AssertSuccess(vkEndCommandBuffer(res->cmdBuffer));
+		VK_CHECK_RESULT(vkEndCommandBuffer(res->cmdBuffer));
 	}
 
 	// NOTE: Wait on imageAvailableSem and submit the command buffer and signal renderFinishedSem
@@ -2011,7 +1985,7 @@ static_func bool VulkanDraw(update_data *data)
 		submitInfo.pSignalSemaphores = &res->frameReadySem;
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &res->cmdBuffer;
-		AssertSuccess(vkQueueSubmit(vulkan.graphicsQueue, 1, &submitInfo, res->fence));
+		VK_CHECK_RESULT(vkQueueSubmit(vulkan.graphicsQueue, 1, &submitInfo, res->fence));
 
 		if (result == VK_ERROR_OUT_OF_DATE_KHR)
 		{
@@ -2073,7 +2047,7 @@ static_func bool VulkanCreateCommandBuffers()
 	cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	cmdPoolInfo.queueFamilyIndex = vulkan.presentQueueFamilyIndex;
 	cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT | VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-	AssertSuccess(vkCreateCommandPool(vulkan.device, &cmdPoolInfo, 0, &vulkan.cmdPool));
+	VK_CHECK_RESULT(vkCreateCommandPool(vulkan.device, &cmdPoolInfo, 0, &vulkan.cmdPool));
 
 	VkCommandBufferAllocateInfo cmdBufferAllocInfo = {};
 	cmdBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -2082,7 +2056,7 @@ static_func bool VulkanCreateCommandBuffers()
 	cmdBufferAllocInfo.commandBufferCount = 1;
 	for (u32 i = 0; i < NUM_RESOURCES; i++)
 	{
-		AssertSuccess(vkAllocateCommandBuffers(vulkan.device, &cmdBufferAllocInfo, &vulkan.resources[i].cmdBuffer));
+		VK_CHECK_RESULT(vkAllocateCommandBuffers(vulkan.device, &cmdBufferAllocInfo, &vulkan.resources[i].cmdBuffer));
 	}
 	DebugPrint("Created Command Pool and Command Buffers\n");
 
@@ -2092,7 +2066,7 @@ static_func bool VulkanCreateCommandBuffers()
 
 static_func bool VulkanResetCommandBuffers()
 {
-	if (VulkanIsValidHandle(vulkan.device) && VulkanIsValidHandle(vulkan.cmdPool))
+	if (VK_CHECK_HANDLE(vulkan.device) && VK_CHECK_HANDLE(vulkan.cmdPool))
 	{
 		vkDeviceWaitIdle(vulkan.device);
 		vkResetCommandPool(vulkan.device, vulkan.cmdPool, VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT);

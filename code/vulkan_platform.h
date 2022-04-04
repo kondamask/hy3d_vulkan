@@ -27,13 +27,11 @@
 #endif
 
 //------------------------------------------------------------------------
-
 #include "core.h"
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #define VK_NO_PROTOTYPES
 #include <vulkan\vulkan.h>
-
 //------------------------------------------------------------------------
 
 struct vulkan_image
@@ -227,19 +225,6 @@ global_var char* shaderFiles[2] = {
 //------------------------------------------------------------------------
 // MACROS
 //------------------------------------------------------------------------
-#if HY3D_DEBUG
-#define AssertSuccess(FuncResult) 	\
-	if (FuncResult != VK_SUCCESS)	\
-	{ \
-	DebugPrint(FuncResult); \
-	AssertBreak(); \
-	}
-#else
-#define AssertSuccess(FuncResult)	\
-	if (FuncResult != VK_SUCCESS)	\
-	return false;
-#endif
 
-#define VulkanIsValidHandle(obj) obj != VK_NULL_HANDLE
 //------------------------------------------------------------------------
 #endif

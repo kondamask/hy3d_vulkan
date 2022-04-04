@@ -12,6 +12,7 @@ Just a dude learning Vulkan.
 * https://www.youtube.com/playlist?list=PLUXvZMiAqNbK8jd7s52BIDtCbZnKNGp0P
 * https://www.youtube.com/playlist?list=PLRtjMdoYXLf4A8013lsFWHOgM9qdh0kjH
 * https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugYvd
+* https://www.youtube.com/playlist?list=PLv8Ddw9K0JPg1BEO-RS-0MYs423cvLVtj
 * the internet
 
 ## Progress (most recent first):

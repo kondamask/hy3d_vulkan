@@ -24,6 +24,7 @@ struct win32_window
 	const char *name = "hy3d vulkan";
 	bool onResize;
 };
+typedef win32_window window_context;
 
 struct win32_engine_code
 {

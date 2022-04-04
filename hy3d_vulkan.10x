@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <N10X>
 	<Workspace>
-		<FileTypes>All Code Files</FileTypes>
+		<FileTypes>Any File (*.*)</FileTypes>
 		<ExcludeFilters>.git</ExcludeFilters>
 		<SyncFiles>true</SyncFiles>
 		<Recursive>true</Recursive>
@@ -56,8 +56,8 @@
 			<Config>
 				<Name>Debug</Name>
 				<Defines>
-					<Define>VULKAN_VALIDATION_LAYERS_ON 1</Define>
-					<Define></Define>
+					<Define>VULKAN_VALIDATION_LAYERS_ON</Define>
+					<Define>HY3D_DEBUG</Define>
 				</Defines>
 			</Config>
 			<Platform>

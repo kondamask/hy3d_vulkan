@@ -622,7 +622,7 @@ int CALLBACK WinMain(
 		return 3;
 	}
 
-	if (!VulkanInitialize(window.instance, window.handle, window.name))
+	if (!VulkanInitialize(&window))
 	{
 		return 4;
 	}
@@ -638,11 +638,14 @@ int CALLBACK WinMain(
 	i32 quitMessage = -1;
 	while (Win32ProcessMessages(window, engine.input, quitMessage))
 	{
+		// Check if engine code has been updated
 		if (Win32FileUpdated(sourceDLLPath, engineCode.writeTime))
 		{
 			Win32UnloadEngineCode(&engineCode);
 			Win32LoadEngineCode(&engineCode, sourceDLLPath, sourceDLLCopyPath);
 		}
+		
+		// Check if shader have been updated
 		if (Win32FileUpdated(shaderFiles[0], shadersWriteTime))
 		{
 			shadersWriteTime = Win32GetWriteTime(shaderFiles[0]);
@@ -651,6 +654,7 @@ int CALLBACK WinMain(
 				return 5;
 			}
 		}
+		
 		if (window.onResize)
 		{
 			if (!VulkanCreateSwapchain())

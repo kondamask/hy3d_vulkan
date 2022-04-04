@@ -159,7 +159,7 @@ extern "C" UPDATE_AND_RENDER(UpdateAndRender)
 	ProcessInput(engine);
 
 	memory->cameraData->view = LookAt(state->player.pos, state->player.pos + state->player.dir, VEC3_UP);
-	memory->cameraData->proj = Perspective(state->player.fov, engine->windowWidth / (f32) engine->windowHeight, 0.1f, 100.0f);
+	memory->cameraData->proj = Perspective(state->player.fov, engine->windowWidth / (f32) engine->windowHeight, 0.01f, 100.0f);
 
 	platformAPI.Draw(&state->updateData);
 

@@ -4,6 +4,10 @@
 // NOTE(heyyod): This produces a compilation error all of a sudden. wtf????
 #include <cstdint>
 
+#if HY3D_DEBUG
+#include <iostream>
+#endif
+
 typedef int8_t i8;
 typedef int16_t i16;
 typedef int32_t i32;
@@ -42,13 +46,35 @@ typedef double f64;
 #endif
 
 #if HY3D_DEBUG
-// TODO(heyyod): Use fast_io instead?
-#include <iostream>
-#define DebugPrint(val) std::cerr << val
+#define DebugPrint(val) std::cout << val
 #else
 #define DebugPrint(val)
 #endif
 
+#if HY3D_DEBUG
+#define DebugPrintFunctionSuccess() std::cout << "SUCCESS: " << __FUNCTION__ << "\n"
+#else
+#define DebugPrintFunctionSuccess()
+#endif
+	
+#if HY3D_DEBUG
+#define DebugPrintFunctionSuccessMsg(msg) std::cout << "SUCCESS: " << __FUNCTION__ << " | " << msg <<  "\n"
+#else
+#define DebugPrintFunctionSuccessMsg(msg)
+#endif
+	
+#if HY3D_DEBUG
+#define DebugPrintFunctionFail() std::cout << "FAILED : " << __FUNCTION__ << "\n"
+#else
+#define DebugPrintFunctionFail()
+#endif
+	
+#if HY3D_DEBUG
+#define DebugPrintFunctionFailMsg(msg) std::cout << "FAILED : " << __FUNCTION__ << " | " << msg <<  "\n"
+#else
+#define DebugPrintFunctionFailMsg(msg)
+#endif
+	
 #define ArrayCount(array) (sizeof(array) / sizeof((array)[0]))
 
 #if HY3D_DEBUG
