@@ -162,69 +162,15 @@ struct vulkan_context
 };
 
 //------------------------------------------------------------------------
-// FUNCTIONS
-//------------------------------------------------------------------------
-static_func bool VulkanLoadCode();
-static_func bool VulkanInitialize(HINSTANCE &wndInstance, HWND &wndHandle, const char *name);
-static_func void VulkanDestroy();
-
-static_func bool VulkanCreateRenderPass();
-static_func void VulkanClearRenderPass();
-
-static_func bool VulkanCreateFrameBuffers();
-static_func void VulkanClearFrameBuffers();
-
-static_func bool VulkanCreateDepthBuffer();
-
-static_func bool VulkanCreateMSAABuffer();
-
-static_func bool VulkanCreateBuffer(VkBufferUsageFlags usage, VkDeviceSize size, VkMemoryPropertyFlags properties, vulkan_buffer &buffer, bool mapBuffer = false);
-static_func void VulkanClearBuffer(vulkan_buffer buffer);
-
-static_func bool VulkanCreateSwapchain();
-static_func void VulkanClearSwapchain();
-static_func void VulkanClearSwapchainImages();
-
-static_func bool VulkanCreateImage(VkImageType type, VkFormat format, VkExtent3D extent, u32 mipLevels, VkSampleCountFlagBits samples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memoryProperties, VkImageAspectFlags aspectMask, vulkan_image &imageOut);
-static_func void VulkanClearImage(vulkan_image &img);
-
-static_func bool VulkanCreatePipeline();
-static_func void VulkanClearPipeline();
-
-struct update_data;
-static_func bool VulkanDraw(update_data *data);
-
-static_func bool VulkanPushStaged(staged_resources &stagedResources);
-static_func bool VulkanLoadShader(char *filepath, VkShaderModule *shaderOut);
-
-static_func void VulkanPickMSAA(MSAA_OPTIONS msaa);
-static_func bool VulkanFindMemoryProperties(u32 memoryType, VkMemoryPropertyFlags requiredProperties, u32 &memoryIndexOut);
-static_func u64 VulkanGetUniformBufferPaddedSize(u64 originalSize);
-
-static_func bool VulkanChangeGraphicsSettings(graphics_settings settings, CHANGE_GRAPHICS_SETTINGS newSettings);
-static_func void VulkanCmdChangeImageLayout(VkCommandBuffer cmdBuffer, VkImage imgHandle, image *imageInfo, VkImageLayout oldLayout, VkImageLayout newLayout);
-
-static_func frame_prep_resource *VulkanGetNextAvailableResource();
-
-//static_func void GetVertexBindingDesc(vertex2 &v, VkVertexInputBindingDescription &bindingDesc);
-//static_func void GetVertexAttributeDesc(vertex2 &v, VkVertexInputAttributeDescription *attributeDescs);
-
-//------------------------------------------------------------------------
 // GLOBALS
 //------------------------------------------------------------------------
 global_var vulkan_context vulkan;
 
 #include "vulkan_functions.h" // NOTE: I INCLUDE THIS HERE BECAUSE IT USES THE GLOBAL VULKAN CONTEXT.
+#include "vulkan_utils.h"
 
 global_var char* shaderFiles[2] = {
 	".\\assets\\shaders\\default.frag.spv",
 	".\\assets\\shaders\\default.frag.spv"
 };
-
-
-//------------------------------------------------------------------------
-// MACROS
-//------------------------------------------------------------------------
-
-//------------------------------------------------------------------------
 #endif

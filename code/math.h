@@ -6,6 +6,12 @@
 #include "libs/HandmadeMath.h"
 #include "core.h"
 
+#define Min(a, b) ((a) > (b) ? (b) : (a))
+#define Max(a, b) ((a) < (b) ? (b) : (a))
+#define Abs(a) ((a) > 0 ? (a) : -(a))
+#define Mod(a, m) (((a) % (m)) >= 0 ? ((a) % (m)) : (((a) % (m)) + (m)))
+#define Square(x) ((x) * (x))
+
 #define VEC3_UP { 0.0f, 1.0f, 0.0f }
 #define VEC3_DOWN { 0.0f, -1.0f, 0.0f }
 #define VEC3_RIGHT { 1.0f, 0.0f, 0.0f }

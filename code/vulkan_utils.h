@@ -48,7 +48,7 @@ static_func bool VulkanFindMemoryProperties(u32 reqMemType, VkMemoryPropertyFlag
 		VkResult _result = call;	\
 		if (_result != VK_SUCCESS)	\
 		{	\
-			DebugPrint(_result << " " << __FILE__ << " at line " << __LINE__ );	\
+	DebugPrint("VULKAN CALL FAILED: " << __FILE__ << " at line " << __LINE__ << ": " << #call); \
 			return false; \
 		}	\
 	}

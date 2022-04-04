@@ -5,6 +5,7 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "libs/stb_image.h"
+#include "math.h"
 #include "core.h"
 
 // NOTE(heyyod): for RGBA

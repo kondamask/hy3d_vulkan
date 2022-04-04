@@ -38,6 +38,7 @@ typedef PLATFORM_CHANGE_GRAPHICS(platform_change_graphics);
 #define VULKAN_PUSH_STAGED_FUNC(name) bool name(staged_resources &)
 typedef VULKAN_PUSH_STAGED_FUNC(vulkan_push_staged_func);
 
+struct update_data;
 #define VULKAN_DRAW_FUNC(name) bool name(update_data *data)
 typedef VULKAN_DRAW_FUNC(vulkan_draw_func);
 

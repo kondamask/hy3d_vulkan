@@ -1,5 +1,57 @@
 #include "vulkan_platform.h"
-#include "vulkan_utils.h"
+
+//------------------------------------------------------------------------
+// FUNCTION DECLARATIONS
+//------------------------------------------------------------------------
+static_func bool VulkanLoadCode();
+static_func bool VulkanInitialize(window_context *window);
+static_func void VulkanDestroy();
+
+inline static_func bool VulkanCreateSurface(window_context *window);
+inline static_func bool VulkanPickCommandQueues();
+
+static_func bool VulkanCreateRenderPass();
+static_func void VulkanClearRenderPass();
+
+static_func bool VulkanCreateFrameBuffers();
+static_func void VulkanClearFrameBuffers();
+
+static_func bool VulkanCreateDepthBuffer();
+
+static_func bool VulkanCreateMSAABuffer();
+
+static_func bool VulkanCreateBuffer(VkBufferUsageFlags usage, VkDeviceSize size, VkMemoryPropertyFlags properties, vulkan_buffer &buffer, bool mapBuffer = false);
+static_func void VulkanClearBuffer(vulkan_buffer buffer);
+
+static_func bool VulkanCreateSwapchain();
+static_func void VulkanClearSwapchain();
+static_func void VulkanClearSwapchainImages();
+
+static_func bool VulkanCreateImage(VkImageType type, VkFormat format, VkExtent3D extent, u32 mipLevels, VkSampleCountFlagBits samples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags memoryProperties, VkImageAspectFlags aspectMask, vulkan_image &imageOut);
+static_func void VulkanClearImage(vulkan_image &img);
+
+static_func bool VulkanCreatePipeline();
+static_func void VulkanClearPipeline();
+
+static_func bool VulkanDraw(update_data *data);
+
+static_func bool VulkanPushStaged(staged_resources &stagedResources);
+static_func bool VulkanLoadShader(char *filepath, VkShaderModule *shaderOut);
+
+static_func void VulkanPickMSAA(MSAA_OPTIONS msaa);
+static_func bool VulkanFindMemoryProperties(u32 memoryType, VkMemoryPropertyFlags requiredProperties, u32 &memoryIndexOut);
+static_func u64 VulkanGetUniformBufferPaddedSize(u64 originalSize);
+
+static_func bool VulkanChangeGraphicsSettings(graphics_settings settings, CHANGE_GRAPHICS_SETTINGS newSettings);
+static_func void VulkanCmdChangeImageLayout(VkCommandBuffer cmdBuffer, VkImage imgHandle, image *imageInfo, VkImageLayout oldLayout, VkImageLayout newLayout);
+
+static_func frame_prep_resource *VulkanGetNextAvailableResource();
+
+//static_func void GetVertexBindingDesc(vertex2 &v, VkVertexInputBindingDescription &bindingDesc);
+//static_func void GetVertexAttributeDesc(vertex2 &v, VkVertexInputAttributeDescription *attributeDescs);
+
+//------------------------------------------------------------------------
+
 
 #if VULKAN_VALIDATION_LAYERS_ON
 static_func VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugCallback(
@@ -99,13 +151,13 @@ inline static_func bool VulkanLoadCode()
 	vulkan.dll = LoadLibraryA("vulkan-1.dll");
 	if (!vulkan.dll)
 	{
-		DebugPrintFunctionFail();
+		DebugPrintFunctionResult(false);
 		return false;
 	}
 
 	vkGetInstanceProcAddr = (vk_get_instance_proc_addr *)GetProcAddress(vulkan.dll, "vkGetInstanceProcAddr");
 
-	DebugPrintFunctionSuccess();
+	DebugPrintFunctionResult(true);
 	return true;
 }
 
@@ -239,12 +291,13 @@ inline static_func bool VulkanCreateInstance(window_context *window)
 	VK_CHECK_RESULT(vkCreateDebugUtilsMessengerEXT(vulkan.instance, &debugMessengerInfo, 0, &vulkan.debugMessenger));
 #endif
 
-	DebugPrintFunctionSuccess();
+	DebugPrintFunctionResult(true);
 	return true;
 }
 
 inline static_func bool VulkanCreatePhysicalDevice(window_context *window)
 {
+	bool result;
 	//------------------------------------------------------------------------
 	// PICK PHYSICAL DEVICE
 	//------------------------------------------------------------------------
@@ -261,200 +314,219 @@ inline static_func bool VulkanCreatePhysicalDevice(window_context *window)
 
 		vkGetPhysicalDeviceProperties(vulkan.gpu, &vulkan.gpuProperties);
 		vkGetPhysicalDeviceMemoryProperties(vulkan.gpu, &vulkan.memoryProperties);
-
-		// NOTE(heyyod): Pick number of samples to use for antialiasig
-		VulkanPickMSAA(START_UP_MSAA);
 	}
-	//------------------------------------------------------------------------
-	// CREATE A SURFACE
-	//------------------------------------------------------------------------
+	
+	result = VulkanCreateSurface(window);
+	
+	if (result)
+		VulkanPickCommandQueues();
+
+	// NOTE: Create a device
+	VkDeviceQueueCreateInfo queueInfo = {};
 	{
-#if defined(VK_USE_PLATFORM_WIN32_KHR)
-		VkWin32SurfaceCreateInfoKHR surfaceInfo = {};
-		surfaceInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-		surfaceInfo.hinstance = window->instance;
-		surfaceInfo.hwnd = window->handle;
-		VK_CHECK_RESULT(vkCreateWin32SurfaceKHR(vulkan.instance, &surfaceInfo, 0, &vulkan.surface));
+		float queuePriority = 1.0; // must be array of size queueCount
+		queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		queueInfo.queueFamilyIndex = vulkan.graphicsQueueFamilyIndex;
+		queueInfo.queueCount = 1;
+		queueInfo.pQueuePriorities = &queuePriority;
 
-#elif defined(VK_USE_PLATFORM_XCB_KHR)
-		VkXcbSurfaceCreateInfoKHR surfaceInfo = {};
-		surfaceInfo.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
-		surfaceInfo.connection = 0; //we'll have these if we implement a linux window
-		surfaceInfo.window = 0;     //we'll have these if we implement a linux window
-		VK_CHECK_RESULT(vkCreateXcbSurfaceKHR(vulkan.instance, &surfaceInfo, 0, &vulkan.surface));
+		char *desiredDeviceExtensions[] = {
+			VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+		};
 
-#elif defined(VK_USE_PLATFORM_XLIB_KHR)
-		VkXcbSurfaceCreateInfoKHR surfaceInfo = {};
-		surfaceInfo.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
-		surfaceInfo.dpy = 0;    //we'll have these if we implement a mac(?) window
-		surfaceInfo.window = 0; //we'll have these if we implement a mac(?) window
-		VK_CHECK_RESULT(vkCreateXlibSurfaceKHR(vulkan.instance, &surfaceInfo, 0, &vulkan.surface));
-#endif
-
-		vulkan.surfaceFormat.colorSpace = SURFACE_FORMAT_COLOR_SPACE;
-		vulkan.surfaceFormat.format = SURFACE_FORMAT_FORMAT;
-		u32 formatCount = 0;
-		VkSurfaceFormatKHR availableFormats[16] = {};
-		bool desiredSurfaceFormatSupported = false;
-		VK_CHECK_RESULT(vkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.gpu, vulkan.surface, &formatCount, 0));
-		Assert(formatCount <= ArrayCount(availableFormats));
-		for (u32 i = 0; i < formatCount; ++i)
-			VK_CHECK_RESULT(vkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.gpu, vulkan.surface, &formatCount, &availableFormats[i]));
-		for (u32 i = 0; i < formatCount; ++i)
+		u32 deviceExtensionsCount;
+		VkExtensionProperties availableDeviceExtensions[255] = {};
+		VK_CHECK_RESULT(vkEnumerateDeviceExtensionProperties(vulkan.gpu, 0, &deviceExtensionsCount, 0));
+		Assert(deviceExtensionsCount <= ArrayCount(availableDeviceExtensions));
+		VK_CHECK_RESULT(vkEnumerateDeviceExtensionProperties(vulkan.gpu, 0, &deviceExtensionsCount, availableDeviceExtensions));
+		for (char *desiredDeviceExtension : desiredDeviceExtensions)
 		{
-			if (vulkan.surfaceFormat.format == availableFormats[i].format &&
-				vulkan.surfaceFormat.colorSpace == availableFormats[i].colorSpace)
-				desiredSurfaceFormatSupported = true;
-		}
-		Assert(desiredSurfaceFormatSupported);
-	}
-	//------------------------------------------------------------------------
-	// PICK QUEUES
-	//------------------------------------------------------------------------
-	{
-		vulkan.graphicsQueueFamilyIndex = UINT32_MAX;
-		vulkan.presentQueueFamilyIndex = UINT32_MAX;
-		vulkan.transferQueueFamilyIndex = UINT32_MAX;
-		{
-			u32 queueFamilyCount;
-			VkQueueFamilyProperties availableQueueFamilies[16] = {};
-			VkBool32 supportsPresent[16] = {};
-			vkGetPhysicalDeviceQueueFamilyProperties(vulkan.gpu, &queueFamilyCount, 0);
-			Assert(queueFamilyCount <= ArrayCount(availableQueueFamilies));
-			vkGetPhysicalDeviceQueueFamilyProperties(vulkan.gpu, &queueFamilyCount, availableQueueFamilies);
-
-			for (u32 i = 0; i < queueFamilyCount; i++)
-				VK_CHECK_RESULT(vkGetPhysicalDeviceSurfaceSupportKHR(vulkan.gpu, i, vulkan.surface, &supportsPresent[i]));
-
-			for (u32 i = 0; i < queueFamilyCount; ++i)
+			bool found = false;
+			for (VkExtensionProperties &availableExtension : availableDeviceExtensions)
 			{
-				// NOTE(heyyod): Find a graphics queue
-				if ((availableQueueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0)
+				if (strcmp(desiredDeviceExtension, availableExtension.extensionName) == 0)
 				{
-					if (vulkan.graphicsQueueFamilyIndex == UINT32_MAX)
-						vulkan.graphicsQueueFamilyIndex = i;
-					if (supportsPresent[i] == VK_TRUE)
-					{
-						vulkan.graphicsQueueFamilyIndex = i;
-						vulkan.presentQueueFamilyIndex = i;
-						break;
-					}
+					found = true;
+					break;
 				}
 			}
-			for (u32 i = 0; i < queueFamilyCount; ++i)
+			if (!found)
 			{
-				// NOTE(heyyod): Find a transfer queue
-				if ((availableQueueFamilies[i].queueFlags & VK_QUEUE_TRANSFER_BIT) != 0)
-				{
-					if (vulkan.transferQueueFamilyIndex == UINT32_MAX)
-						vulkan.transferQueueFamilyIndex = i;
-				}
-			}
-			if (vulkan.presentQueueFamilyIndex == UINT32_MAX) //didn't find a queue that supports both graphics and present
-			{
-				for (u32 i = 0; i < queueFamilyCount; ++i)
-					if (supportsPresent[i] == VK_TRUE)
-					{
-						vulkan.presentQueueFamilyIndex = i;
-						break;
-					}
-			}
-			if (vulkan.graphicsQueueFamilyIndex == UINT32_MAX)
-			{
-				Assert("ERROR: No graphics queue found.\n");
-				return false;
-			}
-			if (vulkan.presentQueueFamilyIndex == UINT32_MAX)
-			{
-				Assert("ERROR: No present queue found.\n");
+				Assert("ERROR: Requested device extension not supported");
 				return false;
 			}
 		}
 
-		// TODO: make this work for seperate queues if needed
-		if (vulkan.graphicsQueueFamilyIndex != vulkan.presentQueueFamilyIndex)
+		// TODO(heyyod): Check if these features are supported;
+		VkPhysicalDeviceFeatures desiredFeatures = {};
+		desiredFeatures.samplerAnisotropy = VK_TRUE;
+		desiredFeatures.fillModeNonSolid = VK_TRUE;
+		desiredFeatures.wideLines = VK_TRUE;
+
+		VkDeviceCreateInfo deviceInfo = {};
+		deviceInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+		deviceInfo.queueCreateInfoCount = 1; // NOTE: Only if graphicsQueueFamilyIndex == presentQueueFamilyIndex
+		deviceInfo.pQueueCreateInfos = &queueInfo;
+		deviceInfo.enabledExtensionCount = ArrayCount(desiredDeviceExtensions);
+		deviceInfo.ppEnabledExtensionNames = desiredDeviceExtensions;
+		deviceInfo.pEnabledFeatures = &desiredFeatures;
+		VK_CHECK_RESULT(vkCreateDevice(vulkan.gpu, &deviceInfo, 0, &vulkan.device));
+
+		if (!VulkanLoadDeviceFunctions())
 		{
-			Assert("vulkan.graphicsQueueFamilyIndex != vulkan.presentQueueFamilyIndex\n");
+			DebugPrintFunctionResult(false);
 			return false;
 		}
-
-		// TODO: Need to do some stuff if they are different like:
-		//VkDeviceQueueCreateInfo queueInfo[2] = {};
-		//float queuePriority = 1.0; // must be array of size queueCount
-		//
-		//queueInfo[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		//queueInfo[0].queueFamilyIndex = graphicsQueueFamilyIndex;
-		//queueInfo[0].queueCount = 1;
-		//queueInfo[0].pQueuePriorities = &queuePriority;
-		//
-		//queueInfo[1].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		//queueInfo[1].queueFamilyIndex = presentQueueFamilyIndex;
-		//queueInfo[1].queueCount = 1;
-		//queueInfo[1].pQueuePriorities = &queuePriority;
-
-		// NOTE: Create a device
-		VkDeviceQueueCreateInfo queueInfo = {};
-		{
-			float queuePriority = 1.0; // must be array of size queueCount
-			queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-			queueInfo.queueFamilyIndex = vulkan.graphicsQueueFamilyIndex;
-			queueInfo.queueCount = 1;
-			queueInfo.pQueuePriorities = &queuePriority;
-
-			char *desiredDeviceExtensions[] = {
-				VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-			};
-
-			u32 deviceExtensionsCount;
-			VkExtensionProperties availableDeviceExtensions[255] = {};
-			VK_CHECK_RESULT(vkEnumerateDeviceExtensionProperties(vulkan.gpu, 0, &deviceExtensionsCount, 0));
-			Assert(deviceExtensionsCount <= ArrayCount(availableDeviceExtensions));
-			VK_CHECK_RESULT(vkEnumerateDeviceExtensionProperties(vulkan.gpu, 0, &deviceExtensionsCount, availableDeviceExtensions));
-			for (char *desiredDeviceExtension : desiredDeviceExtensions)
-			{
-				bool found = false;
-				for (VkExtensionProperties &availableExtension : availableDeviceExtensions)
-				{
-					if (strcmp(desiredDeviceExtension, availableExtension.extensionName) == 0)
-					{
-						found = true;
-						break;
-					}
-				}
-				if (!found)
-				{
-					Assert("ERROR: Requested device extension not supported");
-					return false;
-				}
-			}
-
-			// TODO(heyyod): Check if these features are supported;
-			VkPhysicalDeviceFeatures desiredFeatures = {};
-			desiredFeatures.samplerAnisotropy = VK_TRUE;
-			desiredFeatures.fillModeNonSolid = VK_TRUE;
-			desiredFeatures.wideLines = VK_TRUE;
-
-			VkDeviceCreateInfo deviceInfo = {};
-			deviceInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-			deviceInfo.queueCreateInfoCount = 1; // NOTE: Only if graphicsQueueFamilyIndex == presentQueueFamilyIndex
-			deviceInfo.pQueueCreateInfos = &queueInfo;
-			deviceInfo.enabledExtensionCount = ArrayCount(desiredDeviceExtensions);
-			deviceInfo.ppEnabledExtensionNames = desiredDeviceExtensions;
-			deviceInfo.pEnabledFeatures = &desiredFeatures;
-			VK_CHECK_RESULT(vkCreateDevice(vulkan.gpu, &deviceInfo, 0, &vulkan.device));
-
-			if (!VulkanLoadDeviceFunctions())
-			{
-				return false;
-			}
-		}
-
-		vkGetDeviceQueue(vulkan.device, vulkan.graphicsQueueFamilyIndex, 0, &vulkan.graphicsQueue);
-		vkGetDeviceQueue(vulkan.device, vulkan.presentQueueFamilyIndex, 0, &vulkan.presentQueue);
 	}
 
-	DebugPrintFunctionSuccess();
+	vkGetDeviceQueue(vulkan.device, vulkan.graphicsQueueFamilyIndex, 0, &vulkan.graphicsQueue);
+	vkGetDeviceQueue(vulkan.device, vulkan.presentQueueFamilyIndex, 0, &vulkan.presentQueue);
+
+	DebugPrintFunctionResult(true);
 	return true;
+}
+
+inline static_func bool VulkanCreateSurface(window_context *window)
+{
+#if defined(VK_USE_PLATFORM_WIN32_KHR)
+	VkWin32SurfaceCreateInfoKHR surfaceInfo = {};
+	surfaceInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+	surfaceInfo.hinstance = window->instance;
+	surfaceInfo.hwnd = window->handle;
+	VK_CHECK_RESULT(vkCreateWin32SurfaceKHR(vulkan.instance, &surfaceInfo, 0, &vulkan.surface));
+
+#elif defined(VK_USE_PLATFORM_XCB_KHR)
+	VkXcbSurfaceCreateInfoKHR surfaceInfo = {};
+	surfaceInfo.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
+	surfaceInfo.connection = 0; //we'll have these if we implement a linux window
+	surfaceInfo.window = 0;     //we'll have these if we implement a linux window
+	VK_CHECK_RESULT(vkCreateXcbSurfaceKHR(vulkan.instance, &surfaceInfo, 0, &vulkan.surface));
+
+#elif defined(VK_USE_PLATFORM_XLIB_KHR)
+	VkXcbSurfaceCreateInfoKHR surfaceInfo = {};
+	surfaceInfo.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
+	surfaceInfo.dpy = 0;    //we'll have these if we implement a mac(?) window
+	surfaceInfo.window = 0; //we'll have these if we implement a mac(?) window
+	VK_CHECK_RESULT(vkCreateXlibSurfaceKHR(vulkan.instance, &surfaceInfo, 0, &vulkan.surface));
+#endif
+
+	vulkan.surfaceFormat.colorSpace = SURFACE_FORMAT_COLOR_SPACE;
+	vulkan.surfaceFormat.format = SURFACE_FORMAT_FORMAT;
+
+	u32 formatCount = 0;
+	VkSurfaceFormatKHR availableFormats[16] = {};
+	bool desiredSurfaceFormatSupported = false;
+	VK_CHECK_RESULT(vkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.gpu, vulkan.surface, &formatCount, 0));
+	Assert(formatCount <= ArrayCount(availableFormats));
+
+	for (u32 i = 0; i < formatCount; ++i)
+		VK_CHECK_RESULT(vkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.gpu, vulkan.surface, &formatCount, &availableFormats[i]));
+	for (u32 i = 0; i < formatCount; ++i)
+	{
+		if (vulkan.surfaceFormat.format == availableFormats[i].format &&
+			vulkan.surfaceFormat.colorSpace == availableFormats[i].colorSpace)
+			desiredSurfaceFormatSupported = true;
+	}
+	Assert(desiredSurfaceFormatSupported);
+
+	if (!desiredSurfaceFormatSupported)
+	{
+		DebugPrintFunctionResult(false);
+		return false;
+	}
+
+	DebugPrintFunctionResult(true);
+	return true;
+}
+
+inline static_func bool VulkanPickCommandQueues()
+{
+	// TODO: Pick transfer queue from seperate family from that of graphics queue.
+	bool result = true;
+
+	vulkan.graphicsQueueFamilyIndex = UINT32_MAX;
+	vulkan.presentQueueFamilyIndex = UINT32_MAX;
+	vulkan.transferQueueFamilyIndex = UINT32_MAX;
+	{
+		u32 queueFamilyCount;
+		VkQueueFamilyProperties availableQueueFamilies[16] = {};
+		VkBool32 supportsPresent[16] = {};
+		vkGetPhysicalDeviceQueueFamilyProperties(vulkan.gpu, &queueFamilyCount, 0);
+		Assert(queueFamilyCount <= ArrayCount(availableQueueFamilies));
+		vkGetPhysicalDeviceQueueFamilyProperties(vulkan.gpu, &queueFamilyCount, availableQueueFamilies);
+
+		for (u32 i = 0; i < queueFamilyCount; i++)
+			VK_CHECK_RESULT(vkGetPhysicalDeviceSurfaceSupportKHR(vulkan.gpu, i, vulkan.surface, &supportsPresent[i]));
+
+		for (u32 i = 0; i < queueFamilyCount; ++i)
+		{
+			// NOTE(heyyod): Find a graphics queue
+			if ((availableQueueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0)
+			{
+				if (vulkan.graphicsQueueFamilyIndex == UINT32_MAX)
+					vulkan.graphicsQueueFamilyIndex = i;
+				if (supportsPresent[i] == VK_TRUE)
+				{
+					vulkan.graphicsQueueFamilyIndex = i;
+					vulkan.presentQueueFamilyIndex = i;
+					break;
+				}
+			}
+		}
+		for (u32 i = 0; i < queueFamilyCount; ++i)
+		{
+			// NOTE(heyyod): Find a transfer queue
+			if ((availableQueueFamilies[i].queueFlags & VK_QUEUE_TRANSFER_BIT) != 0)
+			{
+				if (vulkan.transferQueueFamilyIndex == UINT32_MAX)
+					vulkan.transferQueueFamilyIndex = i;
+			}
+		}
+		if (vulkan.presentQueueFamilyIndex == UINT32_MAX) //didn't find a queue that supports both graphics and present
+		{
+			for (u32 i = 0; i < queueFamilyCount; ++i)
+				if (supportsPresent[i] == VK_TRUE)
+				{
+					vulkan.presentQueueFamilyIndex = i;
+					break;
+				}
+		}
+		if (vulkan.graphicsQueueFamilyIndex == UINT32_MAX)
+		{
+			Assert("ERROR: No graphics queue found.\n");
+			result = false;
+		}
+		if (result && vulkan.presentQueueFamilyIndex == UINT32_MAX)
+		{
+			Assert("ERROR: No present queue found.\n");
+			result = false;
+		}
+	}
+
+	// TODO: make this work for seperate queues if needed
+	if (result && vulkan.graphicsQueueFamilyIndex != vulkan.presentQueueFamilyIndex)
+	{
+		Assert("vulkan.graphicsQueueFamilyIndex != vulkan.presentQueueFamilyIndex\n");
+		result = false;
+	}
+
+	// TODO: Need to do some stuff if they are different like:
+	//VkDeviceQueueCreateInfo queueInfo[2] = {};
+	//float queuePriority = 1.0; // must be array of size queueCount
+	//
+	//queueInfo[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	//queueInfo[0].queueFamilyIndex = graphicsQueueFamilyIndex;
+	//queueInfo[0].queueCount = 1;
+	//queueInfo[0].pQueuePriorities = &queuePriority;
+	//
+	//queueInfo[1].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	//queueInfo[1].queueFamilyIndex = presentQueueFamilyIndex;
+	//queueInfo[1].queueCount = 1;
+	//queueInfo[1].pQueuePriorities = &queuePriority;
+
+	
+	DebugPrintFunctionResult(result);
+	return result;
 }
 
 static_func bool VulkanInitialize(window_context *window)
@@ -607,7 +679,7 @@ static_func bool VulkanInitialize(window_context *window)
 
 			// NOTE(heyyod): Camera buffer and descriptor
 			VkDescriptorBufferInfo cameraBufferInfo = {};
-			VkWriteDescriptorSet writeCameraDesc = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+			VkWriteDescriptorSet writeCameraDesc = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
 			if (VulkanCreateBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(camera_data),
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 				vulkan.frameData[i].cameraBuffer, MAP_BUFFER_TRUE))
@@ -632,7 +704,7 @@ static_func bool VulkanInitialize(window_context *window)
 			// NOTE: I know the create buffer call will be called multiple time but it will only create the buffer
 			// once. It will fail the other times. I just want everything to be together for now.
 			VkDescriptorBufferInfo objectsBufferInfo = {};
-			VkWriteDescriptorSet writeObjectsDesc = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+			VkWriteDescriptorSet writeObjectsDesc = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
 			VulkanCreateBuffer(
 				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, MAX_RENDER_OBJECTS * sizeof(object_transform),
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -648,7 +720,7 @@ static_func bool VulkanInitialize(window_context *window)
 			writeObjectsDesc.dstSet = vulkan.frameData[i].globalDescriptor;
 
 			VkDescriptorBufferInfo sceneBufferInfo = {};
-			VkWriteDescriptorSet writeSceneDesc = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+			VkWriteDescriptorSet writeSceneDesc = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
 			if (VulkanCreateBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(scene_data),
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 				vulkan.frameData[i].sceneBuffer, MAP_BUFFER_TRUE))
@@ -677,7 +749,8 @@ static_func bool VulkanInitialize(window_context *window)
 			vkUpdateDescriptorSets(vulkan.device, ArrayCount(writes), writes, 0, 0);
 		}
 	}
-
+	
+	VulkanPickMSAA(START_UP_MSAA);
 	if (!VulkanCreateRenderPass() || !VulkanCreatePipeline())
 	{
 		Assert("Could not create renderpass or pipeline");
@@ -856,6 +929,7 @@ static_func bool VulkanCreateFrameBuffers()
 			VK_CHECK_RESULT(vkCreateFramebuffer(vulkan.device, &framebufferInfo, 0, &vulkan.framebuffers[i]));
 		}
 	}
+	DebugPrintFunctionResult(true);
 	return true;
 }
 
@@ -968,10 +1042,12 @@ static_func bool VulkanCreateImage(VkImageType type, VkFormat format, VkExtent3D
 
 static_func bool VulkanCreateDepthBuffer()
 {
-	return VulkanCreateImage(VK_IMAGE_TYPE_2D, DEPTH_BUFFER_FORMAT,
-		{ vulkan.windowExtent.width, vulkan.windowExtent.height, 1 }, 1, vulkan.msaaSamples,
-			VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, vulkan.depthBuffer);
+	bool result = VulkanCreateImage(VK_IMAGE_TYPE_2D, DEPTH_BUFFER_FORMAT, { vulkan.windowExtent.width, vulkan.windowExtent.height, 1 },
+		1, vulkan.msaaSamples, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, vulkan.depthBuffer);
+
+	DebugPrintFunctionResult(result);
+	return result;
 }
 
 static_func bool VulkanCreateMSAABuffer()
@@ -979,17 +1055,30 @@ static_func bool VulkanCreateMSAABuffer()
 	if (vulkan.msaaSamples == VK_SAMPLE_COUNT_1_BIT)
 	{
 		VulkanClearImage(vulkan.msaa);
+		DebugPrintFunctionResult(true);
 		return true;
 	}
-	return VulkanCreateImage(VK_IMAGE_TYPE_2D, vulkan.surfaceFormat.format, { vulkan.windowExtent.width, vulkan.windowExtent.height, 1 }, 1, vulkan.msaaSamples, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, vulkan.msaa);
+
+	bool result = VulkanCreateImage(VK_IMAGE_TYPE_2D, vulkan.surfaceFormat.format, { vulkan.windowExtent.width, vulkan.windowExtent.height, 1 },
+		1, vulkan.msaaSamples, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT, vulkan.msaa);
+
+	DebugPrintFunctionResult(result);
+	return result;
 }
 
 static_func bool VulkanCreateSwapchain()
 {
+	bool result = true;
+
 	if (VK_CHECK_HANDLE(vulkan.device))
 		vkDeviceWaitIdle(vulkan.device);
 	else
+	{
+		result = false;
+		DebugPrintFunctionResult(result);
 		return false;
+	}
 
 	vulkan.canRender = false;
 
@@ -1145,21 +1234,19 @@ static_func bool VulkanCreateSwapchain()
 			VK_CHECK_RESULT(vkCreateImageView(vulkan.device, &imageViewInfo, 0, &vulkan.swapchainImageViews[i]));
 		}
 	}
-	DebugPrint("Created SwapChain\n");
 
-	if (!VulkanCreateDepthBuffer())
-	{
-		return false;
-	}
-	if (!VulkanCreateMSAABuffer())
-	{
-		return false;
-	}
-	if (!VulkanCreateFrameBuffers())
-	{
-		return false;
-	}
-	vulkan.canRender = true;
+	DebugPrintFunctionResult(result);
+	
+	if (result)
+		result = VulkanCreateDepthBuffer();
+
+	if (result)
+		result = VulkanCreateMSAABuffer();
+
+	if (result)
+		result = VulkanCreateFrameBuffers();
+
+	vulkan.canRender = result;
 	return true;
 }
 
@@ -1422,42 +1509,40 @@ static_func void VulkanClearPipeline()
 static_func bool VulkanCreateBuffer(VkBufferUsageFlags usage, u64 size, VkMemoryPropertyFlags properties, vulkan_buffer &bufferOut, bool mapBuffer)
 {
 	// TODO(heyyod): make this able to create multiple buffers of the same type and usage if I pass an array
-	if (!(VK_CHECK_HANDLE(bufferOut.handle)))
+	if (VK_CHECK_HANDLE(bufferOut.handle))
+		return false;
+
+	bufferOut.size = size;
+
+	VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+	bufferInfo.usage = usage;
+	bufferInfo.size = size;
+	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	VK_CHECK_RESULT(vkCreateBuffer(vulkan.device, &bufferInfo, 0, &bufferOut.handle));
+
+	VkMemoryRequirements memoryReq = {};
+	vkGetBufferMemoryRequirements(vulkan.device, bufferOut.handle, &memoryReq);
+
+	u32 memIndex = 0;
+	if (VulkanFindMemoryProperties(memoryReq.memoryTypeBits, properties, memIndex))
 	{
-		bufferOut.size = size;
+		VkMemoryAllocateInfo allocInfo = {};
+		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		allocInfo.allocationSize = memoryReq.size;
+		allocInfo.memoryTypeIndex = memIndex;
 
-		VkBufferCreateInfo bufferInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
-		bufferInfo.usage = usage;
-		bufferInfo.size = size;
-		bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		VK_CHECK_RESULT(vkCreateBuffer(vulkan.device, &bufferInfo, 0, &bufferOut.handle));
+		VK_CHECK_RESULT(vkAllocateMemory(vulkan.device, &allocInfo, 0, &bufferOut.memoryHandle));
+		VK_CHECK_RESULT(vkBindBufferMemory(vulkan.device, bufferOut.handle, bufferOut.memoryHandle, 0));
 
-		VkMemoryRequirements memoryReq = {};
-		vkGetBufferMemoryRequirements(vulkan.device, bufferOut.handle, &memoryReq);
-
-		u32 memIndex = 0;
-		if (VulkanFindMemoryProperties(memoryReq.memoryTypeBits, properties, memIndex))
-		{
-			VkMemoryAllocateInfo allocInfo = {};
-			allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-			allocInfo.allocationSize = memoryReq.size;
-			allocInfo.memoryTypeIndex = memIndex;
-
-			VK_CHECK_RESULT(vkAllocateMemory(vulkan.device, &allocInfo, 0, &bufferOut.memoryHandle));
-			VK_CHECK_RESULT(vkBindBufferMemory(vulkan.device, bufferOut.handle, bufferOut.memoryHandle, 0));
-
-			if (mapBuffer)
-				VK_CHECK_RESULT(vkMapMemory(vulkan.device, bufferOut.memoryHandle, 0, bufferOut.size, 0, &bufferOut.data));
-		}
-		else
-		{
-			Assert("Could not allocate vertex buffer memory");
-			return false;
-		}
-		DebugPrintFunctionSuccess();
-		return true;
+		if (mapBuffer)
+			VK_CHECK_RESULT(vkMapMemory(vulkan.device, bufferOut.memoryHandle, 0, bufferOut.size, 0, &bufferOut.data));
 	}
-	return false;
+	else
+	{
+		Assert("Could not allocate vertex buffer memory");
+		return false;
+	}
+	return true;
 }
 
 static_func void VulkanClearBuffer(vulkan_buffer buffer)

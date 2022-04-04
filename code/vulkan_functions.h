@@ -25,7 +25,7 @@ VulkanDeclareFunction(vkEnumerateInstanceExtensionProperties);
 	func = (VulkanFuncPtr(func))vkGetInstanceProcAddr(nullptr, #func); \
 	if (!(func))														\
 	{ \
-		DebugPrintFunctionFail(); \
+		DebugPrintFunctionResult(false); \
 		return false; \
 	}
 
@@ -35,7 +35,7 @@ static_func bool VulkanLoadGlobalFunctions()
 	VulkanLoadGlobalFunc(vkEnumerateInstanceLayerProperties);
 	VulkanLoadGlobalFunc(vkEnumerateInstanceExtensionProperties);
 
-	DebugPrintFunctionSuccess();
+	DebugPrintFunctionResult(true);
 	return true;
 }
 
@@ -68,7 +68,7 @@ VulkanDeclareFunction(vkGetDeviceProcAddr);
 	func = (VulkanFuncPtr(func))vkGetInstanceProcAddr(vulkan.instance, #func); \
 	if (!(func))                                                               \
 	{ \
-		DebugPrintFunctionFail(); \
+		DebugPrintFunctionResult(false); \
 		return false; \
 	}
 
@@ -96,7 +96,7 @@ static_func bool VulkanLoadInstanceFunctions()
 	VulkanLoadInstanceFunc(vkCreateDevice);
 	VulkanLoadInstanceFunc(vkGetDeviceProcAddr);
 
-	DebugPrintFunctionSuccess();
+	DebugPrintFunctionResult(true);
 	return true;
 }
 
@@ -181,7 +181,7 @@ VulkanDeclareFunction(vkCmdBlitImage);
 func = (VulkanFuncPtr(func))vkGetDeviceProcAddr(vulkan.device, #func); \
 	if (!(func)) \
 	{ \
-		DebugPrintFunctionFail(); \
+	DebugPrintFunctionResult(false); \
 		return false; \
 	}
 
@@ -261,7 +261,7 @@ static_func bool VulkanLoadDeviceFunctions()
 	VulkanLoadDeviceFunc(vkCmdPushConstants);
 	VulkanLoadDeviceFunc(vkCmdBlitImage);
 
-	DebugPrintFunctionSuccess();
+	DebugPrintFunctionResult(true);
 	return true;
 }
 

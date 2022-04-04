@@ -28,12 +28,6 @@ typedef double f64;
 #define GIGABYTES(val) (MEGABYTES(val) * 1024ULL)
 #define TERABYTES(val) (GIGABYTES(val) * 1024ULL)
 
-#define Min(a, b) ((a) > (b) ? (b) : (a))
-#define Max(a, b) ((a) < (b) ? (b) : (a))
-#define Abs(a) ((a) > 0 ? (a) : -(a))
-#define Mod(a, m) (((a) % (m)) >= 0 ? ((a) % (m)) : (((a) % (m)) + (m)))
-#define Square(x) ((x) * (x))
-
 // TODO: Make this an actual assetion
 #define AssertBreak() *(int *)0 = 0
 
@@ -50,29 +44,11 @@ typedef double f64;
 #else
 #define DebugPrint(val)
 #endif
-
-#if HY3D_DEBUG
-#define DebugPrintFunctionSuccess() std::cout << "SUCCESS: " << __FUNCTION__ << "\n"
-#else
-#define DebugPrintFunctionSuccess()
-#endif
 	
 #if HY3D_DEBUG
-#define DebugPrintFunctionSuccessMsg(msg) std::cout << "SUCCESS: " << __FUNCTION__ << " | " << msg <<  "\n"
+#define DebugPrintFunctionResult(res) std::cout << (res ? "SUCCESS: " : "FAILED :") << __FUNCTION__ << "\n"
 #else
-#define DebugPrintFunctionSuccessMsg(msg)
-#endif
-	
-#if HY3D_DEBUG
-#define DebugPrintFunctionFail() std::cout << "FAILED : " << __FUNCTION__ << "\n"
-#else
-#define DebugPrintFunctionFail()
-#endif
-	
-#if HY3D_DEBUG
-#define DebugPrintFunctionFailMsg(msg) std::cout << "FAILED : " << __FUNCTION__ << " | " << msg <<  "\n"
-#else
-#define DebugPrintFunctionFailMsg(msg)
+#define DebugPrintFunctionResult(res)
 #endif
 	
 #define ArrayCount(array) (sizeof(array) / sizeof((array)[0]))
