@@ -1,5 +1,3 @@
-/* date = October 23rd 2021 5:04 pm */
-
 #ifndef HY3D_GRAPHICS_SETTINGS_H
 #define HY3D_GRAPHICS_SETTINGS_H
 

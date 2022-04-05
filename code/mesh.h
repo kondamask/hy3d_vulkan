@@ -39,9 +39,8 @@ typedef index_ index;
 struct vertex
 {
     vec3 pos;
-    vec3 color;
+	vec3 normal;
     vec2 texCoord;
-    //vec3 normal;
 };
 
 struct mesh

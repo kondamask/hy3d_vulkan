@@ -19,6 +19,10 @@ Just a dude learning Vulkan.
 
 * 28/10/21: Multiple model matrices and other info in the shaders
 
+  <img src="README.assets/12 GIF 06-Apr-22 00-54-38.gif" >
+
+* 28/10/21: Multiple model matrices and other info in the shaders
+
 <img src="README.assets/11 GIF 10-28-2021 10-04-10 PM.gif">
 
 * 23/10/21: Free roam camera

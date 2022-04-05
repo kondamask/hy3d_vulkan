@@ -59,7 +59,7 @@ struct vulkan_buffer
 	u64 writeOffset;
 };
 
-struct frame_prep_resource
+struct vulkan_cmd_resources
 {
 	VkCommandBuffer cmdBuffer;
 	VkSemaphore imgAvailableSem;
@@ -75,9 +75,11 @@ struct frame_data
 	VkDescriptorSet globalDescriptor;
 };
 
-enum VulkanPipelineTypes
+enum VULKAN_PIPELINE_ID
 {
 	PIPELINE_MESH,
+	PIPELINE_WIREFRAME,
+	PIPELINE_GRID,
 
 	PIPELINES_COUNT
 };
@@ -127,7 +129,7 @@ struct vulkan_context
 	VkImage swapchainImages[NUM_SWAPCHAIN_IMAGES];
 	VkImageView swapchainImageViews[NUM_SWAPCHAIN_IMAGES];
 	VkFramebuffer framebuffers[NUM_SWAPCHAIN_IMAGES];
-	frame_prep_resource resources[NUM_RESOURCES];
+	vulkan_cmd_resources resources[NUM_RESOURCES];
 	u32 swapchainImageCount;
 	u32 currentResource;
 
@@ -142,6 +144,8 @@ struct vulkan_context
 	vulkan_image depthBuffer;
 	vulkan_buffer vertexBuffer;
 	vulkan_buffer indexBuffer;
+	vulkan_buffer gridBuffer;
+	u32 gridVertexCount;
 
 	vulkan_mesh loadedMesh[MAX_MESHES];
 	vulkan_pipeline pipeline[PIPELINES_COUNT];

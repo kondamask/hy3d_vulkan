@@ -649,7 +649,7 @@ int CALLBACK WinMain(
 		if (Win32FileUpdated(shaderFiles[0], shadersWriteTime))
 		{
 			shadersWriteTime = Win32GetWriteTime(shaderFiles[0]);
-			if (!VulkanCreatePipeline())
+			if (!VulkanCreateAllPipelines())
 			{
 				return 5;
 			}

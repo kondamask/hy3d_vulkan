@@ -11,13 +11,11 @@ layout(set = 0, binding = 3) uniform  sceneData
 	vec4 sunlightColor;
 } scene;
 
-layout(location = 0) in vec3 fragColor;
-layout(location = 1) in vec2 fragTexCoord;
+layout(location = 0) in vec2 fragTexCoord;
 
 layout(location = 0) out vec4 outColor;
 
 void main()
 {
     outColor = texture(textureSampler, fragTexCoord);// * vec4(scene.ambientColor.xyz, 1.0f);
-	outColor = vec4(vec3(0.8), 1.0f);
 }
