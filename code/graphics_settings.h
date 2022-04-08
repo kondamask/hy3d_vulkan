@@ -34,4 +34,4 @@ struct graphics_settings
     MSAA_OPTIONS msaa;
 };
 
-#endif //HY3D_GRAPHICS_SETTINGS_H
+#endif // HY3D_GRAPHICS_SETTINGS_H

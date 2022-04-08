@@ -108,14 +108,14 @@ inline static_func bool VulkanLoadCode()
 	return true;
 }
 
-inline static_func bool VulkanCreateInstance(window_context *window)
+inline static_func bool VulkanCreateInstance(renderer_platform *renderer, const char *appName)
 {
 	//------------------------------------------------------------------------
 	VkApplicationInfo appInfo = {};
 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-	appInfo.pApplicationName = window->name;
+	appInfo.pApplicationName = appName;
 	appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-	appInfo.pEngineName = window->name;
+	appInfo.pEngineName = appName;
 	appInfo.engineVersion = VK_API_VERSION_1_0;
 	appInfo.apiVersion = VK_API_VERSION_1_2;
 
@@ -244,13 +244,11 @@ inline static_func bool VulkanCreateInstance(window_context *window)
 }
 
 
-inline static_func bool VulkanCreateSurface(window_context *window)
+inline static_func bool VulkanCreateSurface(renderer_platform *renderer)
 {
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
-	VkWin32SurfaceCreateInfoKHR surfaceInfo = {};
-	surfaceInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-	surfaceInfo.hinstance = window->instance;
-	surfaceInfo.hwnd = window->handle;
+	VkWin32SurfaceCreateInfoKHR surfaceInfo = { VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR };
+	renderer->FillSurfaceWindowContext((void *)&surfaceInfo);
 	VK_CHECK_RESULT(vkCreateWin32SurfaceKHR(vulkan.instance, &surfaceInfo, 0, &vulkan.surface));
 
 #elif defined(VK_USE_PLATFORM_XCB_KHR)
@@ -388,7 +386,7 @@ inline static_func bool VulkanPickCommandQueues()
 }
 
 
-inline static_func bool VulkanCreateDevice(window_context *window)
+inline static_func bool VulkanCreateDevice(renderer_platform *renderer)
 {
 	bool result;
 
@@ -406,12 +404,14 @@ inline static_func bool VulkanCreateDevice(window_context *window)
 
 		vkGetPhysicalDeviceProperties(vulkan.gpu, &vulkan.gpuProperties);
 		vkGetPhysicalDeviceMemoryProperties(vulkan.gpu, &vulkan.memoryProperties);
+
+		DebugPrint("GPU: " << vulkan.gpuProperties.deviceName << "\n");
 	}
 
-	result = VulkanCreateSurface(window);
+	result = VulkanCreateSurface(renderer);
 
 	if (result)
-		VulkanPickCommandQueues();
+		result = VulkanPickCommandQueues();
 
 	// NOTE: Create a device
 	VkDeviceQueueCreateInfo queueInfo = {};
@@ -671,7 +671,7 @@ static_func bool VulkanCreatePipeline(VULKAN_PIPELINE_ID pipelineID)
 			VkShaderModule fs = {};
 
 			if (!VulkanLoadShader(".\\assets\\shaders\\grid.vert.spv", &vs) ||
-				!VulkanLoadShader(".\\assets\\shaders\\wireframe.frag.spv", &fs))
+				!VulkanLoadShader(".\\assets\\shaders\\grid.frag.spv", &fs))
 			{
 				DebugPrint("Couldn't load shaders\n");
 				Assert("Couldn't load shaders");
@@ -713,6 +713,14 @@ static_func bool VulkanCreatePipeline(VULKAN_PIPELINE_ID pipelineID)
 				vsStage,
 				fsStage
 			};
+			//------------------------------------------------------------------------
+			
+			// NOTE(heyyod): 128bytes limit (at least on my device)
+			VkPushConstantRange pushConstants[1] = {}; ;
+			pushConstants[0].offset = 0;
+			pushConstants[0].size = sizeof(vec3); // index of transform in transforms buffer
+			pushConstants[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+			
 			//------------------------------------------------------------------------
 			VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo = { VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO };
 			inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
@@ -762,13 +770,13 @@ static_func bool VulkanCreatePipeline(VULKAN_PIPELINE_ID pipelineID)
 			//------------------------------------------------------------------------
 			VkPipelineColorBlendAttachmentState blendAttachment = {};
 			blendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-			blendAttachment.blendEnable = VK_FALSE;
-			//blendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
-			//blendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
-			//blendAttachment.colorBlendOp = VK_BLEND_OP_ADD; // Optional
-			//blendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
-			//blendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
-			//blendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; // Optional
+			blendAttachment.blendEnable = VK_TRUE;
+			blendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+			blendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+			blendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+			blendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+			blendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+			blendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
 
 			VkPipelineColorBlendStateCreateInfo blendingInfo = { VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO };
 			blendingInfo.logicOpEnable = VK_FALSE;
@@ -796,6 +804,8 @@ static_func bool VulkanCreatePipeline(VULKAN_PIPELINE_ID pipelineID)
 			pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 			pipelineLayoutInfo.setLayoutCount = 1;
 			pipelineLayoutInfo.pSetLayouts = &vulkan.globalDescSetLayout;
+			pipelineLayoutInfo.pushConstantRangeCount = ArrayCount(pushConstants);
+			pipelineLayoutInfo.pPushConstantRanges = pushConstants;
 			VK_CHECK_RESULT(vkCreatePipelineLayout(vulkan.device, &pipelineLayoutInfo, 0, &vulkan.pipeline[pipelineID].layout));
 
 			VkGraphicsPipelineCreateInfo pipelineInfo{};
@@ -823,18 +833,17 @@ static_func bool VulkanCreatePipeline(VULKAN_PIPELINE_ID pipelineID)
 
 			DebugPrintFunctionResult(true);
 			return true;
-		}
+		} break;
 		case PIPELINE_WIREFRAME:
 		case PIPELINE_MESH:
 		{
-			// NOTE(heyyod): LOAD THE SHADERS
-			VkShaderModule triangleVertShader = {};
-			VkShaderModule triangleFragShader = {};
+			VkShaderModule vs = {};
+			VkShaderModule fs = {};
 
 			if (pipelineID == PIPELINE_MESH)
 			{
-				if (!VulkanLoadShader(".\\assets\\shaders\\default.vert.spv", &triangleVertShader) ||
-					!VulkanLoadShader(".\\assets\\shaders\\default.frag.spv", &triangleFragShader))
+				if (!VulkanLoadShader(".\\assets\\shaders\\default.vert.spv", &vs) ||
+					!VulkanLoadShader(".\\assets\\shaders\\default.frag.spv", &fs))
 				{
 					DebugPrint("Couldn't load shaders\n");
 					Assert("Couldn't load shaders");
@@ -843,8 +852,8 @@ static_func bool VulkanCreatePipeline(VULKAN_PIPELINE_ID pipelineID)
 			}
 			else // WIREFRAME
 			{
-				if (!VulkanLoadShader(".\\assets\\shaders\\default.vert.spv", &triangleVertShader) ||
-					!VulkanLoadShader(".\\assets\\shaders\\wireframe.frag.spv", &triangleFragShader))
+				if (!VulkanLoadShader(".\\assets\\shaders\\wireframe.vert.spv", &vs) ||
+					!VulkanLoadShader(".\\assets\\shaders\\wireframe.frag.spv", &fs))
 				{
 					DebugPrint("Couldn't load shaders\n");
 					Assert("Couldn't load shaders");
@@ -865,7 +874,7 @@ static_func bool VulkanCreatePipeline(VULKAN_PIPELINE_ID pipelineID)
 			vertexAttributeDescs[0].location = 0;// NOTE(heyyod): this maches the value in the shader
 			vertexAttributeDescs[0].format = VK_FORMAT_R32G32B32_SFLOAT;
 			vertexAttributeDescs[0].offset = offsetof(vertex, pos);
-			// NOTE(heyyod): inColor format in vertex shader
+			// NOTE(heyyod): normal format in vertex shader
 			vertexAttributeDescs[1].binding = 0;
 			vertexAttributeDescs[1].location = 1;
 			vertexAttributeDescs[1].format = VK_FORMAT_R32G32B32_SFLOAT;
@@ -880,29 +889,34 @@ static_func bool VulkanCreatePipeline(VULKAN_PIPELINE_ID pipelineID)
 			vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 			vertexInputInfo.vertexBindingDescriptionCount = 1;
 			vertexInputInfo.pVertexBindingDescriptions = &vertexBindingDesc;
-			vertexInputInfo.vertexAttributeDescriptionCount = ArrayCount(vertexAttributeDescs);
+
+			if (pipelineID == PIPELINE_MESH)
+				vertexInputInfo.vertexAttributeDescriptionCount = ArrayCount(vertexAttributeDescs);
+			else
+				vertexInputInfo.vertexAttributeDescriptionCount = 1; // ONLY PASS POS FOR WIREFRAME
+
 			vertexInputInfo.pVertexAttributeDescriptions = vertexAttributeDescs;
 
-			VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
-			vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-			vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-			vertShaderStageInfo.module = triangleVertShader;
-			vertShaderStageInfo.pName = "main";
+			VkPipelineShaderStageCreateInfo vsStage = {};
+			vsStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+			vsStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+			vsStage.module = vs;
+			vsStage.pName = "main";
 
-			VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
-			fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-			fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-			fragShaderStageInfo.module = triangleFragShader;
-			fragShaderStageInfo.pName = "main";
+			VkPipelineShaderStageCreateInfo fsStage{};
+			fsStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+			fsStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+			fsStage.module = fs;
+			fsStage.pName = "main";
 
 			VkPipelineShaderStageCreateInfo shaderStages[] = {
-				vertShaderStageInfo,
-				fragShaderStageInfo
+				vsStage,
+				fsStage
 			};
 			//------------------------------------------------------------------------
 
 			// NOTE(heyyod): 128bytes limit (at least on my device)
-			VkPushConstantRange pushConstants[1] = {};;
+			VkPushConstantRange pushConstants[1] = {}; ;
 			pushConstants[0].offset = 0;
 			pushConstants[0].size = sizeof(u32); // index of transform in transforms buffer
 			pushConstants[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
@@ -926,7 +940,7 @@ static_func bool VulkanCreatePipeline(VULKAN_PIPELINE_ID pipelineID)
 			if (pipelineID == PIPELINE_MESH)
 			{
 				rasterizerInfo.polygonMode = VK_POLYGON_MODE_FILL;
-				rasterizerInfo.lineWidth = 1.8f;
+				rasterizerInfo.lineWidth = 1.0f;
 			}
 			else
 			{
@@ -1028,12 +1042,12 @@ static_func bool VulkanCreatePipeline(VULKAN_PIPELINE_ID pipelineID)
 
 			VK_CHECK_RESULT(vkCreateGraphicsPipelines(vulkan.device, VK_NULL_HANDLE, 1, &pipelineInfo, 0, &vulkan.pipeline[pipelineID].handle));
 
-			vkDestroyShaderModule(vulkan.device, triangleVertShader, 0);
-			vkDestroyShaderModule(vulkan.device, triangleFragShader, 0);
+			vkDestroyShaderModule(vulkan.device, vs, 0);
+			vkDestroyShaderModule(vulkan.device, fs, 0);
 
 			DebugPrintFunctionResult(true);
 			return true;
-		}
+		} break;
 	}
 	return false;
 }
@@ -1050,6 +1064,12 @@ static_func bool VulkanCreateAllPipelines()
 	DebugPrint(result);
 	Assert(result);
 	return (result);
+}
+
+FUNC_RENDERER_ON_SHADER_RELOAD(VulkanOnShaderReload)
+{
+	// TODO: ONLY CREATE NECESARY PIPELINES
+	return VulkanCreateAllPipelines();
 }
 
 static_func void VulkanClearFrameBuffers()
@@ -1309,7 +1329,7 @@ static_func bool VulkanCreateSwapchain()
 
 		uint32_t presentModeCount;
 		VK_CHECK_RESULT(vkGetPhysicalDeviceSurfacePresentModesKHR(vulkan.gpu, vulkan.surface, &presentModeCount, NULL));
-		VkPresentModeKHR presentModes[16] = {};;
+		VkPresentModeKHR presentModes[16] = {}; ;
 		Assert(presentModeCount <= ArrayCount(presentModes));
 		VK_CHECK_RESULT(vkGetPhysicalDeviceSurfacePresentModesKHR(vulkan.gpu, vulkan.surface, &presentModeCount, presentModes));
 		bool desiredPresentModeSupported = false;
@@ -1442,6 +1462,18 @@ static_func void VulkanClearSwapchain()
 		vkDestroySwapchainKHR(vulkan.device, vulkan.swapchain, 0);
 }
 
+FUNC_RENDERER_ON_RESIZE(VulkanOnResize)
+{
+	bool result = VulkanCreateSwapchain();
+	if (result)
+	{
+		renderer->windowWidth = vulkan.windowExtent.width;
+		renderer->windowHeight = vulkan.windowExtent.height;
+	}
+	DebugPrintFunctionResult(result);
+	return result;
+}
+
 static_func bool VulkanCreateBuffer(VkBufferUsageFlags usage, u64 size, VkMemoryPropertyFlags properties, vulkan_buffer &bufferOut, bool mapBuffer = false)
 {
 	// TODO(heyyod): make this able to create multiple buffers of the same type and usage if I pass an array
@@ -1505,7 +1537,7 @@ static_func vulkan_cmd_resources * VulkanGetNextAvailableResource()
 	return result;
 }
 
-static_func bool VulkanInitialize(window_context *window)
+FUNC_RENDERER_INITIALIZE(VulkanInitialize)
 {
 	// TODO: Make it cross-platform
 	DebugPrint("INITIALIZING VULKAN...\n");
@@ -1518,10 +1550,10 @@ static_func bool VulkanInitialize(window_context *window)
 		result = VulkanLoadGlobalFunctions();
 
 	if (result)
-		result = VulkanCreateInstance(window);
+		result = VulkanCreateInstance(renderer, appName);
 
 	if (result)
-		result = VulkanCreateDevice(window);
+		result = VulkanCreateDevice(renderer);
 
 	if (result)
 		result = VulkanCreateCommandResources();
@@ -1701,6 +1733,8 @@ static_func bool VulkanInitialize(window_context *window)
 		u32 iVert = 0;
 		i32 gridSize = 500;
 		i32 halfGridSize = gridSize / 2;
+		v[iVert++] = { 0.0f, (f32)halfGridSize, 0.0f };
+		v[iVert++] = { 0.0f, -(f32)halfGridSize, 0.0f };
 		{
 			i32 z = halfGridSize;
 			for (i32 x = -halfGridSize; x < halfGridSize; x++)
@@ -1727,15 +1761,14 @@ static_func bool VulkanInitialize(window_context *window)
 		}
 
 		vulkan_cmd_resources *res = VulkanGetNextAvailableResource();
-
+		/*
 		VkMappedMemoryRange flushRange = {};
 		flushRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
 		flushRange.memory = vulkan.stagingBuffer.memoryHandle;
 		flushRange.size = vulkan.stagingBuffer.size;
 		vkFlushMappedMemoryRanges(vulkan.device, 1, &flushRange);
-
-		VkCommandBufferBeginInfo cmdBufferBeginInfo = {};
-		cmdBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		*/
+		VkCommandBufferBeginInfo cmdBufferBeginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
 		cmdBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 		VK_CHECK_RESULT(vkBeginCommandBuffer(res->cmdBuffer, &cmdBufferBeginInfo));
 
@@ -1871,12 +1904,12 @@ inline static_func void VulkanDestroy()
 	}
 
 	if (vulkan.dll)
-		FreeLibrary(vulkan.dll);
+	FreeLibrary(vulkan.dll);
 
 	DebugPrintFunctionResult(true);
 }
 
-static_func bool VulkanChangeGraphicsSettings(graphics_settings settings, CHANGE_GRAPHICS_SETTINGS newSettings)
+FUNC_RENDERER_CHANGE_GRAPHICS_SETTINGS(VulkanChangeGraphicsSettings)
 {
 	if (newSettings & CHANGE_MSAA)
 	{
@@ -1884,13 +1917,13 @@ static_func bool VulkanChangeGraphicsSettings(graphics_settings settings, CHANGE
 		bool result = VulkanCreateRenderPass();
 
 		if (result)
-			result = VulkanCreateDepthBuffer();
+		result = VulkanCreateDepthBuffer();
 
 		if (result)
-			result = VulkanCreateMSAABuffer();
+		result = VulkanCreateMSAABuffer();
 
 		if (result)
-			result = VulkanCreateFrameBuffers();
+		result = VulkanCreateFrameBuffers();
 
 		if (result)
 		{
@@ -1898,7 +1931,7 @@ static_func bool VulkanChangeGraphicsSettings(graphics_settings settings, CHANGE
 			{
 				result = VulkanCreatePipeline((VULKAN_PIPELINE_ID)id);
 				if (!result)
-					break;
+				break;
 			}
 		}
 
@@ -2042,12 +2075,12 @@ static_func bool VulkanPushStaged(staged_resources &staged)
 				pushedImage = true;
 				image *img = (image *)staged.resources[resourceId];
 				if (!VulkanCreateImage(VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, { img->width, img->height, 1 }, img->mipLevels, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_TILING_OPTIMAL,
-					VK_IMAGE_USAGE_TRANSFER_SRC_BIT | // to create the mipmaps
-					VK_IMAGE_USAGE_TRANSFER_DST_BIT | // to copy buffer into image
-					VK_IMAGE_USAGE_SAMPLED_BIT,
-					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-					VK_IMAGE_ASPECT_COLOR_BIT,
-					vulkan.texture))
+				VK_IMAGE_USAGE_TRANSFER_SRC_BIT | // to create the mipmaps
+				VK_IMAGE_USAGE_TRANSFER_DST_BIT | // to copy buffer into image
+				VK_IMAGE_USAGE_SAMPLED_BIT,
+				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+				VK_IMAGE_ASPECT_COLOR_BIT,
+				vulkan.texture))
 				{
 					return false;
 				}
@@ -2124,9 +2157,9 @@ static_func bool VulkanPushStaged(staged_resources &staged)
 						vkCmdPipelineBarrier(res->cmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, 0, 0, 0, 1, &sourceMipBarrier);
 
 						if (mipWidth > 1)
-							mipWidth /= 2;
+						mipWidth /= 2;
 						if (mipHeight > 1)
-							mipHeight /= 2;
+						mipHeight /= 2;
 					}
 
 					// NOTE(heyyod): change layout of last mip we created
@@ -2215,8 +2248,11 @@ static_func bool VulkanPushStaged(staged_resources &staged)
 	return true;
 }
 
-static_func bool VulkanDraw(update_data *data)
+FUNC_RENDERER_DRAW_FRAME(VulkanDraw)
 {
+	//------------------------------------------------------------------------
+	// BEGIN FRAME
+	//------------------------------------------------------------------------
 	vulkan_cmd_resources *res = VulkanGetNextAvailableResource();
 
 	// NOTE: Get the next image that we'll use to create the frame and draw it
@@ -2229,7 +2265,7 @@ static_func bool VulkanDraw(update_data *data)
 		if (result == VK_ERROR_OUT_OF_DATE_KHR)
 		{
 			if (!VulkanCreateSwapchain())
-				return false;
+			return false;
 		}
 		else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
 		{
@@ -2247,7 +2283,7 @@ static_func bool VulkanDraw(update_data *data)
 		// NOTE(heyyod): THE ORDER OF THESE VALUES MUST BE IDENTICAL
 		// TO THE ORDER WE SPECIFIED THE RENDERPASS ATTACHMENTS
 		local_var VkClearValue clearValues[2] = {}; // NOTE(heyyod): this is a union
-		clearValues[0].color = { data->clearColor[0], data->clearColor[1], data->clearColor[2], 0.0f };
+		clearValues[0].color = { packet->clearColor[0], packet->clearColor[1], packet->clearColor[2], 0.0f };
 		clearValues[1].depthStencil = { 1.0f, 0 };
 
 		local_var VkRenderPassBeginInfo renderpassInfo = {};
@@ -2273,7 +2309,12 @@ static_func bool VulkanDraw(update_data *data)
 		vkCmdBeginRenderPass(res->cmdBuffer, &renderpassInfo, VK_SUBPASS_CONTENTS_INLINE);
 		vkCmdSetViewport(res->cmdBuffer, 0, 1, &viewport);
 		vkCmdSetScissor(res->cmdBuffer, 0, 1, &scissor);
+	}
 
+	//------------------------------------------------------------------------
+	// ISSUE DRAW COMMANDS
+	//------------------------------------------------------------------------
+	{
 		local_var VkDeviceSize bufferOffset = 0;
 		vkCmdBindVertexBuffers(res->cmdBuffer, 0, 1, &vulkan.vertexBuffer.handle, &bufferOffset);
 		vkCmdBindIndexBuffer(res->cmdBuffer, vulkan.indexBuffer.handle, 0, VULKAN_INDEX_TYPE);
@@ -2291,14 +2332,26 @@ static_func bool VulkanDraw(update_data *data)
 			}
 			for (u32 meshInstance = 0; meshInstance < vulkan.loadedMesh[meshId].nInstances; meshInstance++)
 			{
-				vkCmdPushConstants(res->cmdBuffer, vulkan.pipeline[currentPipelineId].layout, VK_SHADER_STAGE_VERTEX_BIT,
-					0, sizeof(u32), &transformId);
-				vkCmdDrawIndexed(res->cmdBuffer, vulkan.loadedMesh[meshId].nIndices, 1,
-					firstIndex, indexOffset, 0);
+				vkCmdPushConstants(res->cmdBuffer, vulkan.pipeline[currentPipelineId].layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(u32), &transformId);
+				vkCmdDrawIndexed(res->cmdBuffer, vulkan.loadedMesh[meshId].nIndices, 1, firstIndex, indexOffset, 0);
 
 				// NOTE(heyyod): THIS ASSUMES THE TRANFORMS ARE ALWAYS LINEARLY SAVED :(
 				transformId++;
 			}
+
+			// WIREFRAME ------------------------------------------------------------
+			transformId = 0;
+			currentPipelineId = PIPELINE_WIREFRAME;
+			vkCmdBindPipeline(res->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan.pipeline[currentPipelineId].handle);
+			vkCmdBindDescriptorSets(res->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan.pipeline[currentPipelineId].layout, 0, 1, &vulkan.frameData[nextImage].globalDescriptor, 0, 0);
+			for (u32 meshInstance = 0; meshInstance < vulkan.loadedMesh[meshId].nInstances; meshInstance++)
+			{
+				vkCmdPushConstants(res->cmdBuffer, vulkan.pipeline[currentPipelineId].layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(u32), &transformId);
+				vkCmdDrawIndexed(res->cmdBuffer, vulkan.loadedMesh[meshId].nIndices, 1, firstIndex, indexOffset, 0);
+				transformId++;
+			}
+			//------------------------------------------------------------------------
+
 			firstIndex += vulkan.loadedMesh[meshId].nIndices;
 			indexOffset += vulkan.loadedMesh[meshId].nVertices;
 		}
@@ -2307,12 +2360,16 @@ static_func bool VulkanDraw(update_data *data)
 		vkCmdBindVertexBuffers(res->cmdBuffer, 0, 1, &vulkan.gridBuffer.handle, &bufferOffset);
 		vkCmdBindPipeline(res->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan.pipeline[currentPipelineId].handle);
 		vkCmdBindDescriptorSets(res->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkan.pipeline[currentPipelineId].layout, 0, 1, &vulkan.frameData[nextImage].globalDescriptor, 0, 0);
+		vkCmdPushConstants(res->cmdBuffer, vulkan.pipeline[currentPipelineId].layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(vec3), &packet->playerPos);
 		vkCmdDraw(res->cmdBuffer, vulkan.gridVertexCount, 1, 0, 0);
 
 		vkCmdEndRenderPass(res->cmdBuffer);
 		VK_CHECK_RESULT(vkEndCommandBuffer(res->cmdBuffer));
 	}
 
+	//------------------------------------------------------------------------
+	// END FRAME
+	//------------------------------------------------------------------------
 	// NOTE: Wait on imageAvailableSem and submit the command buffer and signal renderFinishedSem
 	{
 		local_var VkPipelineStageFlags waitDestStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -2373,8 +2430,8 @@ static_func bool VulkanDraw(update_data *data)
 	// NOTE(heyyod): Update data for the engine
 	{
 		u32 nextUniformBuffer = (nextImage + 1) % NUM_DESCRIPTORS;
-		data->newCameraBuffer = vulkan.frameData[nextUniformBuffer].cameraBuffer.data;
-		data->newSceneBuffer = vulkan.frameData[nextUniformBuffer].sceneBuffer.data;
+		packet->newCameraBuffer = vulkan.frameData[nextUniformBuffer].cameraBuffer.data;
+		packet->newSceneBuffer = vulkan.frameData[nextUniformBuffer].sceneBuffer.data;
 	}
 
 	return true;

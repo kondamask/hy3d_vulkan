@@ -1,8 +1,9 @@
 #include "win32_platform.h"
-#include "vulkan_platform.cpp"
+
+#include "win32_vulkan.cpp"
 
 // NOTE: These file I/O functions should only be used for DEBUG purposes.
-DEBUG_FREE_FILE(DEBUGFreeFileMemory)
+FUNC_FREE_FILE(DEBUGFreeFileMemory)
 {
 	if (memory)
 	{
@@ -10,7 +11,7 @@ DEBUG_FREE_FILE(DEBUGFreeFileMemory)
 	}
 }
 
-DEBUG_READ_FILE(DEBUGReadFile)
+FUNC_READ_FILE(DEBUGReadFile)
 {
 	debug_read_file_result result = {};
 
@@ -49,7 +50,7 @@ DEBUG_READ_FILE(DEBUGReadFile)
 	return result;
 }
 
-DEBUG_WRITE_FILE(DEBUGWriteFile)
+FUNC_WRITE_FILE(DEBUGWriteFile)
 {
 	bool result = false;
 
@@ -70,6 +71,37 @@ DEBUG_WRITE_FILE(DEBUGWriteFile)
 	}
 	// NOTE:  We can add logging in case these steps fail.
 	return result;
+}
+
+FUNC_GET_FILE_WRITE_TIME(Win32GetWriteTime)
+{
+	char fullFilePath[MAX_PATH] = {};
+	if (GetFullPathNameA(filepath, ArrayCount(fullFilePath), fullFilePath, 0) == 0)
+		return false; // Couldn't find file
+
+	FILETIME *result = (FILETIME *)writeTime;
+	WIN32_FIND_DATA data = {};
+	HANDLE handle = FindFirstFileA(fullFilePath, &data);
+	if (handle != INVALID_HANDLE_VALUE)
+	{
+		*result = data.ftLastWriteTime;
+		FindClose(handle);
+	}
+	return true;
+}
+
+FUNC_WAS_FILE_UPDATED(Win32FileUpdated)
+{
+	FILETIME newWriteTime;
+	Win32GetWriteTime(filepath, (file_write_time *)&newWriteTime);
+	
+	if (CompareFileTime(&newWriteTime, (FILETIME *)writeTime) == 1)
+	{
+		writeTime->dwLowDateTime = newWriteTime.dwLowDateTime;
+		writeTime->dwHighDateTime = newWriteTime.dwHighDateTime;
+		return true;
+	}
+	return false;
 }
 
 static_func LRESULT CALLBACK Win32MainWindowProc(HWND handle, UINT message, WPARAM wParam, LPARAM lParam)
@@ -146,11 +178,6 @@ static_func LRESULT CALLBACK Win32MainWindowProc(HWND handle, UINT message, WPAR
 			result = DefWindowProc(handle, message, wParam, lParam);
 	}
 	return result;
-}
-
-static_func void Win32Update(win32_window &window)
-{
-	return;
 }
 
 static_func KEYBOARD_BUTTON Win32TranslateKeyInput(VK_CODE code)
@@ -238,18 +265,17 @@ static_func KEYBOARD_BUTTON Win32TranslateKeyInput(VK_CODE code)
 	}
 }
 
-static_func wnd_dim Win32GetWindowDim(HWND handle)
+static_func void Win32GetWindowDim(HWND handle, u32 &width, u32 &height)
 {
-	wnd_dim result = {};
 	RECT rect = {};
 	GetWindowRect(handle, &rect);
-	result.width = (i16)(rect.right - rect.left);
-	result.height = (i16)(rect.bottom - rect.top);
-	return result;
+	width = (u32)(rect.right - rect.left);
+	height = (u32)(rect.bottom - rect.top);
 }
 
-static_func bool Win32ProcessMessages(win32_window &window, engine_input &input, i32 &quitMessage)
+static_func bool Win32ProcessMessages(win32_window &window, engine_context &engine, i32 &quitMessage)
 {
+	engine_input &input = engine.input;
 	MSG message;
 	while (PeekMessage(&message, 0, 0, 0, PM_REMOVE))
 	{
@@ -265,8 +291,10 @@ static_func bool Win32ProcessMessages(win32_window &window, engine_input &input,
 
 			case WM_USER + 1: //WM_SIZE
 			{
-				window.onResize = true;
-				window.dimensions = Win32GetWindowDim(window.handle);
+				engine.onResize = true;
+				Win32GetWindowDim(window.handle, engine.windowWidth, engine.windowHeight);
+				window.width = engine.windowWidth;
+				window.height = engine.windowHeight;		
 				break;
 			}
 
@@ -320,10 +348,10 @@ static_func bool Win32ProcessMessages(win32_window &window, engine_input &input,
 			case WM_MOUSEMOVE:
 			{
 				POINTS p = MAKEPOINTS(message.lParam);
-				p.y = window.dimensions.height - p.y;
+				p.y = (u16)window.height - p.y;
 				bool isInWindow =
-					p.x >= 0 && p.x < window.dimensions.width &&
-					p.y >= 0 && p.y < window.dimensions.height;
+					p.x >= 0 && p.x < (u16)window.width &&
+					p.y >= 0 && p.y < (u16)window.height;
 				if (input.mouse.cursorEnabled)
 				{
 					while (ShowCursor(TRUE) < 0);
@@ -382,29 +410,6 @@ static_func bool Win32ProcessMessages(win32_window &window, engine_input &input,
 	return true;
 }
 
-static_func FILETIME Win32GetWriteTime(char *filename)
-{
-	FILETIME result = {};
-	char fullFilePath[MAX_PATH] = {};
-	if (GetFullPathNameA(filename, ArrayCount(fullFilePath), fullFilePath, 0) == 0)
-		return result;
-
-	WIN32_FIND_DATA data = {};
-	HANDLE handle = FindFirstFileA(fullFilePath, &data);
-	if (handle != INVALID_HANDLE_VALUE)
-	{
-		result = data.ftLastWriteTime;
-		FindClose(handle);
-	}
-	return result;
-}
-
-static_func inline bool Win32FileUpdated(char *filename, FILETIME &oldWriteTime)
-{
-	FILETIME newWriteTime = Win32GetWriteTime(filename);
-	return (CompareFileTime(&newWriteTime, &oldWriteTime) == 1);
-}
-
 static_func void Win32LoadEngineCode(win32_engine_code *engineCode, char *sourceFilename, char *sourceFilenameCopy)
 {
 	// NOTE:  We need to add a sleep in order to wait for the dll compilation.
@@ -416,18 +421,23 @@ static_func void Win32LoadEngineCode(win32_engine_code *engineCode, char *source
 	if (GetFullPathNameA(sourceFilenameCopy, ArrayCount(sourceFullPathCopy), sourceFullPathCopy, 0) == 0)
 		return;
 
-	engineCode->writeTime = Win32GetWriteTime(sourceFullPath);
+	Win32GetWriteTime(sourceFullPath, (file_write_time *)&engineCode->writeTime);
 	CopyFileA(sourceFullPath, sourceFullPathCopy, FALSE);
 	engineCode->dll = LoadLibraryA(sourceFullPathCopy);
 	if (engineCode->dll)
 	{
-		engineCode->UpdateAndRender = (update_and_render *)GetProcAddress(engineCode->dll, "UpdateAndRender");
+		engineCode->Initialize = (func_engine_initialize *)GetProcAddress(engineCode->dll, "EngineInitialize");
+		engineCode->UpdateAndRender = (func_engine_update_and_render *)GetProcAddress(engineCode->dll, "EngineUpdateAndRender");
+		engineCode->Destroy = (func_engine_destroy *)GetProcAddress(engineCode->dll, "EngineDestroy");
 		engineCode->isValid = engineCode->UpdateAndRender;
 	}
 	if (!engineCode->isValid)
 	{
-		engineCode->UpdateAndRender = UpdateAndRenderStub;
+		engineCode->Initialize = EngineInitializeStub;
+		engineCode->UpdateAndRender = EngineUpdateAndRenderStub;
+		engineCode->Destroy = EngineDestroyStub;
 	}
+	DebugPrintFunctionResult(engineCode->isValid);
 }
 
 static_func void Win32UnloadEngineCode(win32_engine_code *engineCode)
@@ -438,7 +448,7 @@ static_func void Win32UnloadEngineCode(win32_engine_code *engineCode)
 		engineCode->dll = 0;
 	}
 	engineCode->isValid = false;
-	engineCode->UpdateAndRender = UpdateAndRenderStub;
+	engineCode->UpdateAndRender = EngineUpdateAndRenderStub;
 }
 
 static_func bool Win32InitializeWindow(win32_window &window, u16 width, u16 height, LPCSTR windowTitle)
@@ -469,21 +479,21 @@ static_func bool Win32InitializeWindow(win32_window &window, u16 width, u16 heig
 		return false;
 	}
 
-	window.dimensions.width = width;
-	window.dimensions.height = height;
+	window.width = width;
+	window.height = height;
 	// Declare the window client size
 	RECT rect = {};
 	rect.left = 100;
 	rect.top = 100;
-	rect.right = rect.left + window.dimensions.width;
-	rect.bottom = rect.top + window.dimensions.height;
+	rect.right = rect.left + window.width;
+	rect.bottom = rect.top + window.height;
 
 	// Adjuct the window size according to the style we
 	// have for out window, while keeping the client size
 	// the same.
 	AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW | WS_VISIBLE, FALSE);
-	window.dimensions.width = (i16)(rect.right - rect.left);
-	window.dimensions.height = (i16)(rect.bottom - rect.top);
+	window.width = (i16)(rect.right - rect.left);
+	window.height = (i16)(rect.bottom - rect.top);
 
 	// Create the window
 	window.handle = CreateWindowA(
@@ -491,8 +501,8 @@ static_func bool Win32InitializeWindow(win32_window &window, u16 width, u16 heig
 		windowTitle,
 		WS_OVERLAPPEDWINDOW | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
 		CW_USEDEFAULT, CW_USEDEFAULT, // X, Y
-		window.dimensions.width,
-		window.dimensions.height,
+		window.width,
+		window.height,
 		nullptr, nullptr,
 		window.instance,
 		&window // * See note bellow
@@ -560,19 +570,14 @@ static_func bool Win32InitializeMemory(engine_memory &memory)
 	memory.permanentMemory = VirtualAlloc(baseAddress, (SIZE_T)totalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
 	memory.transientMemory = (u8 *)memory.permanentMemory + memory.permanentMemorySize;
-
-	memory.stagingMemory = vulkan.stagingBuffer.data;
-
 	memory.isInitialized = false;
-
-	memory.platformAPI_.Draw = VulkanDraw;
-	memory.platformAPI_.PushStaged = VulkanPushStaged;
-	memory.platformAPI_.ChangeGraphicsSettings = VulkanChangeGraphicsSettings;
 
 	//#if HY3D_DEBUG
 	memory.platformAPI_.DEBUGFreeFileMemory = DEBUGFreeFileMemory;
 	memory.platformAPI_.DEBUGReadFile = DEBUGReadFile;
 	memory.platformAPI_.DEBUGWriteFile = DEBUGWriteFile;
+	memory.platformAPI_.GetFileWriteTime = Win32GetWriteTime;
+	memory.platformAPI_.WasFileUpdated = Win32FileUpdated;
 	//#endif
 
 	platformAPI = memory.platformAPI_;
@@ -585,7 +590,7 @@ int CALLBACK WinMain(
 	LPSTR lpCmdLine,
 	int nShowCmd)
 {
-	win32_window window = {};
+	win32_window &window = osWindowContext;
 
 	if (!Win32InitializeWindow(window, WINDOW_WIDTH, WINDOW_HEIGHT, window.name))
 	{
@@ -617,58 +622,27 @@ int CALLBACK WinMain(
 	Win32LoadEngineCode(&engineCode, sourceDLLPath, sourceDLLCopyPath);
 
 	engine_context engine = {};
-	if (!Win32InitializeMemory(engine.memory))
+	
+	if (engineCode.isValid)
 	{
-		return 3;
+		if (!Win32InitializeMemory(engine.memory))
+			return 3;
+
+		engine.renderer.FillSurfaceWindowContext = Win32VulkanFillSurfaceWindowContext;
+		engineCode.Initialize(&engine, window.width, window.height);
 	}
-
-	if (!VulkanInitialize(&window))
-	{
-		return 4;
-	}
-	engine.memory.stagingMemory = vulkan.stagingBuffer.data;
-
-	// TODO(heyyod): This assumes that the first image we aquire in vulkan will always have index 0
-	// Mayby bad
-	engine.memory.cameraData = (camera_data *)vulkan.frameData[0].cameraBuffer.data;
-	engine.memory.sceneData = (scene_data *)vulkan.frameData[0].sceneBuffer.data;
-	engine.memory.objectsTransforms = (object_transform *)vulkan.staticTransformsBuffer.data;
-
-	FILETIME shadersWriteTime = Win32GetWriteTime(shaderFiles[0]);
+	
 	i32 quitMessage = -1;
-	while (Win32ProcessMessages(window, engine.input, quitMessage))
+	while (Win32ProcessMessages(window, engine, quitMessage))
 	{
-		// Check if engine code has been updated
-		if (Win32FileUpdated(sourceDLLPath, engineCode.writeTime))
+		if (Win32FileUpdated(sourceDLLPath, (file_write_time *)&engineCode.writeTime))
 		{
 			Win32UnloadEngineCode(&engineCode);
 			Win32LoadEngineCode(&engineCode, sourceDLLPath, sourceDLLCopyPath);
 		}
 		
-		// Check if shader have been updated
-		if (Win32FileUpdated(shaderFiles[0], shadersWriteTime))
-		{
-			shadersWriteTime = Win32GetWriteTime(shaderFiles[0]);
-			if (!VulkanCreateAllPipelines())
-			{
-				return 5;
-			}
-		}
-		
-		if (window.onResize)
-		{
-			if (!VulkanCreateSwapchain())
-			{
-				return 6;
-			}
-			window.onResize = false;
-			engine.windowWidth = vulkan.windowExtent.width;
-			engine.windowHeight = vulkan.windowExtent.height;
-		}
-		if (vulkan.canRender)
-			engineCode.UpdateAndRender(&engine);
-		Win32Update(window);
+		engineCode.UpdateAndRender(&engine);
 	}
-	VulkanDestroy();
+	engineCode.Destroy(&engine);
 	return quitMessage;
 }

@@ -102,7 +102,7 @@ This WILL cause unused gaps in the buffer so I need to keep this in mind!!
 #define IsResourceValid(id) (id >= 0)
 static_func staged_resources CreateScene(staged_resources &resources, void *transforms)
 {
-    // TODO(heyyod): Staging buffer shoulb be created here
+    // TODO(heyyod): Staging buffer should be created here
     i32 resourceID = -1;
     resourceID = StageResource(MODEL_PATH(viking_room.obj), RESOURCE_MESH, resources);
     if(IsResourceValid(resourceID))

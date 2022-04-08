@@ -28,6 +28,7 @@
 
 //------------------------------------------------------------------------
 #include "core.h"
+#include "renderer_platform.h"
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #define VK_NO_PROTOTYPES
@@ -166,6 +167,11 @@ struct vulkan_context
 };
 
 //------------------------------------------------------------------------
+// FUNCTIONS
+//------------------------------------------------------------------------
+FUNC_RENDERER_INITIALIZE(VulkanInitialize);
+
+//------------------------------------------------------------------------
 // GLOBALS
 //------------------------------------------------------------------------
 global_var vulkan_context vulkan;
@@ -173,8 +179,9 @@ global_var vulkan_context vulkan;
 #include "vulkan_functions.h" // NOTE: I INCLUDE THIS HERE BECAUSE IT USES THE GLOBAL VULKAN CONTEXT.
 #include "vulkan_utils.h"
 
-global_var char* shaderFiles[2] = {
+/*global_var char* shaderFiles[2] = {
 	".\\assets\\shaders\\default.frag.spv",
 	".\\assets\\shaders\\default.frag.spv"
 };
+*/
 #endif

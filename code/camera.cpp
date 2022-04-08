@@ -1,34 +1,38 @@
 #include "camera.h"
 
-void camera::Initialize(vec3 posIn, vec3 dirIn, vec3 upIn, f32 speedIn, f32 sensIn, f32 fovIn)
+void CameraInitialize(camera &cam, vec3 posIn, vec3 dirIn, vec3 upIn, f32 speedIn, f32 sensIn, f32 fovIn)
 {
-	pos = posIn;
-	dir = dirIn;
-	up = upIn;
+	cam.pos = posIn;
+	cam.dir = dirIn;
+	cam.up = upIn;
 		
-	pitch = 0.0f;
-	yaw = 90.0f;
+	cam.pitch = 0.0f;
+	cam.yaw = -90.0f;
 		
-	speed = speedIn;
-	sens = sensIn;
-	fov = fovIn;
+	cam.speed = speedIn;
+	cam.sens = sensIn;
+	cam.fov = fovIn;
 }
 
-void camera::Update(vec3 dPos, vec2 dLook)
+void CameraUpdate(camera &cam, vec3 dPos, vec2 dLook)
 {
 	// Position	
-	pos += speed * dPos;
+	cam.pos += cam.speed * dPos;
 	
 	// Look Dir
-	yaw += dLook.X * sens;
-	pitch += dLook.Y * sens;
-	pitch = Clamp(-89.0f, pitch, 89.0f);
+	cam.yaw += dLook.X * cam.sens;
+	if (cam.yaw > 360.0f)
+		cam.yaw -= 360.0f;
+	else if (cam.yaw < 0.0f)
+		cam.yaw += 360.0f - cam.yaw;
+	
+	cam.pitch += dLook.Y * cam.sens;
+	cam.pitch = Clamp(-89.0f, cam.pitch, 89.0f);
+	
+	f32 pitchRad = ToRadians(cam.pitch);
+	f32 yawRad = ToRadians(cam.yaw);
 		
-	f32 pitchRad = ToRadians(pitch);
-	f32 yawRad = ToRadians(yaw);
-		
-	dir.X = CosF(yawRad) * CosF(pitchRad);
-	dir.Y = SinF(pitchRad);
-	dir.Z = SinF(yawRad) * CosF(pitchRad);
-	//dir = Normalize(dir);
+	cam.dir.X = CosF(yawRad) * CosF(pitchRad);
+	cam.dir.Y = SinF(pitchRad);
+	cam.dir.Z = SinF(yawRad) * CosF(pitchRad);
 }

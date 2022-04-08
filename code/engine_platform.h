@@ -14,33 +14,39 @@
 //------------------------------------------------------------------------
 
 #include <chrono>
+
 #include "core.h"
 #include "scene.h"
 #include "camera.h"
-#include "graphics_settings.h"
-#include "vulkan_platform.h"
+#include "renderer_platform.h"
 
 //------------------------------------------------------------------------
 
 struct debug_read_file_result;
-#define DEBUG_READ_FILE(name) debug_read_file_result name(char *filename)
-typedef DEBUG_READ_FILE(debug_read_file);
+#define FUNC_READ_FILE(name) debug_read_file_result name(char *filename)
+typedef FUNC_READ_FILE(func_read_file);
 
-#define DEBUG_WRITE_FILE(name) bool name(char *filename, u32 memorySize, void *memory)
-typedef DEBUG_WRITE_FILE(debug_write_file);
+#define FUNC_WRITE_FILE(name) bool name(char *filename, u32 memorySize, void *memory)
+typedef FUNC_WRITE_FILE(func_write_file);
 
-#define DEBUG_FREE_FILE(name) void name(void *memory)
-typedef DEBUG_FREE_FILE(debug_free_file);
+#define FUNC_FREE_FILE(name) void name(void *memory)
+typedef FUNC_FREE_FILE(func_free_file);
 
-#define PLATFORM_CHANGE_GRAPHICS(name) bool name(graphics_settings setting, CHANGE_GRAPHICS_SETTINGS newSettings)
-typedef PLATFORM_CHANGE_GRAPHICS(platform_change_graphics);
+// NOTE: This just replicates the FILETIME struct from windows
+// Should do the same if other platforms are intergrated.
+struct file_write_time
+{
+#ifdef _WIN32
+	u32 dwLowDateTime;
+	u32 dwHighDateTime;
+#endif
+};
 
-#define VULKAN_PUSH_STAGED_FUNC(name) bool name(staged_resources &)
-typedef VULKAN_PUSH_STAGED_FUNC(vulkan_push_staged_func);
+#define FUNC_GET_FILE_WRITE_TIME(name) bool name(char *filepath, file_write_time *writeTime)
+typedef FUNC_GET_FILE_WRITE_TIME(platform_get_file_write_time_func);
 
-struct update_data;
-#define VULKAN_DRAW_FUNC(name) bool name(update_data *data)
-typedef VULKAN_DRAW_FUNC(vulkan_draw_func);
+#define FUNC_WAS_FILE_UPDATED(name) bool name(char *filepath, file_write_time *writeTime)
+typedef FUNC_WAS_FILE_UPDATED(platform_was_file_updated_func);
 
 //------------------------------------------------------------------------
 
@@ -50,31 +56,14 @@ struct debug_read_file_result
     u32 size;
 };
 
-struct update_data
-{
-    // NOTE(heyyod): ENGINE -> VULKAN
-    vec3 clearColor;
-    
-    // NOTE(heyyod): VULKAN -> ENGINE
-    // We have multiple a uniform buffers for every frame in the swapchain.
-    // We cycle them as we change the current swapchain image.
-    // So vulkan will update the pointer and the engine will redirect it's camera write address
-    void *newCameraBuffer;
-    void *newSceneBuffer;
-};
-
 struct platform_api
-{
-    vulkan_draw_func *Draw;
-    vulkan_push_staged_func *PushStaged;
-    
-    platform_change_graphics *ChangeGraphicsSettings;
-    
-    //#if HY3D_DEBUG
-    debug_read_file *DEBUGReadFile;
-    debug_write_file *DEBUGWriteFile;
-    debug_free_file *DEBUGFreeFileMemory;
-    //#endif
+{        
+	func_read_file *DEBUGReadFile;
+    func_write_file *DEBUGWriteFile;
+    func_free_file *DEBUGFreeFileMemory;
+
+	platform_get_file_write_time_func *GetFileWriteTime;
+	platform_was_file_updated_func *WasFileUpdated;
 };
 
 struct engine_memory
@@ -175,12 +164,11 @@ struct engine_input
 struct engine_state
 {
     memory_arena memoryArena;
-    update_data updateData;
+    render_packet renderPacket;
     graphics_settings settings;
     
     camera player;
     
-	f32 dt;
     f32 time;
 };
 
@@ -189,6 +177,9 @@ struct engine_context
 	engine_memory memory;
 	engine_state *state;
 	engine_input input;
+	renderer_platform renderer;
+	
+	file_write_time shadersWriteTime;
 	
     std::chrono::steady_clock::time_point frameStart;
     bool onResize;
@@ -202,8 +193,16 @@ global_var platform_api platformAPI;
 
 //------------------------------------------------------------------------
 
-#define UPDATE_AND_RENDER(name) void name(engine_context *engine)
-typedef UPDATE_AND_RENDER(update_and_render);
-UPDATE_AND_RENDER(UpdateAndRenderStub) {}
+#define FUNC_ENGINE_INITIALIZE(name) void name(engine_context *engine, u32 width, u32 height)
+typedef FUNC_ENGINE_INITIALIZE(func_engine_initialize);
+FUNC_ENGINE_INITIALIZE(EngineInitializeStub) {}
+
+#define FUNC_ENGINE_UPDATE_AND_RENDER(name) void name(engine_context *engine)
+typedef FUNC_ENGINE_UPDATE_AND_RENDER(func_engine_update_and_render);
+FUNC_ENGINE_UPDATE_AND_RENDER(EngineUpdateAndRenderStub) {}
+
+#define FUNC_ENGINE_DESTROY(name) void name(engine_context *engine)
+typedef FUNC_ENGINE_DESTROY(func_engine_destroy);
+FUNC_ENGINE_DESTROY(EngineDestroyStub) {}
 
 #endif

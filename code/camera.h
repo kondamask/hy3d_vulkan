@@ -14,12 +14,6 @@ struct camera
 	f32 pitch;
 	f32 yaw;
 	f32 sens;
-	
-	//------------------------------------------------------------------------
-	
-	void Initialize(vec3 posIn, vec3 dirIn, vec3 upIn, f32 speedIn, f32 sensIn, f32 fovIn = 45.0f);
-	
-	void Update(vec3 dPos, vec2 dLook);
 };
 
 struct camera_data

@@ -1,19 +1,6 @@
 Just a dude learning Vulkan.
 
-## Resources:
-
-* https://hero.handmade.network/episode/code 
-* https://www.khronos.org/registry/vulkan/specs/1.1/html/index.html
-* https://vkguide.dev
-* https://software.intel.com/content/www/us/en/develop/articles/api-without-secrets-introduction-to-vulkan-part-1.html
-* https://vulkan-tutorial.com
-* https://vulkan.lunarg.com/doc/sdk/1.2.154.1/windows/tutorial/html/index.html
-* https://www.youtube.com/playlist?list=PL8327DO66nu9qYVKLDmdLW_84-yE4auCR
-* https://www.youtube.com/playlist?list=PLUXvZMiAqNbK8jd7s52BIDtCbZnKNGp0P
-* https://www.youtube.com/playlist?list=PLRtjMdoYXLf4A8013lsFWHOgM9qdh0kjH
-* https://www.youtube.com/playlist?list=PL0JVLUVCkk-l7CWCn3-cdftR0oajugYvd
-* https://www.youtube.com/playlist?list=PLv8Ddw9K0JPg1BEO-RS-0MYs423cvLVtj
-* the internet
+[Resources](resources.md)
 
 ## Progress (most recent first):
 

@@ -5,6 +5,8 @@ pushd assets
 if not exist shaders mkdir shaders
 pushd shaders 
 
+del *.spv
+
 for /r %%i in (..\..\code\shaders\*.vert) do (
 	echo %%i
 	%VULKAN_SDK%/bin/glslc %%i -o %%~ni.vert.spv
