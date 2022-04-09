@@ -4,7 +4,7 @@ Just a dude learning vulkanContext->
 
 ## Progress (most recent first):
 
-* 28/10/21: Multiple model matrices and other info in the shaders
+* 6/4/22: Drawing a grid
 
   <img src="README.assets/12 GIF 06-Apr-22 00-54-38.gif" >
 
