@@ -35,7 +35,7 @@ extern "C" FUNC_ENGINE_INITIALIZE(EngineInitialize)
 	MemoryArenaInitialize(&state->memoryArena, (u8 *)memory->permanentMemory + sizeof(engine_state), memory->permanentMemorySize - sizeof(engine_state));
 
 	// NOTE: Everything is initialized here
-	state->renderPacket.clearColor = {0.7f, 0.4f, 0.3f};
+	state->renderPacket.clearColor = {0.0f, 0.4f, 0.3f};
 
 	if (!RendererInitialize(RENDERER_GRAPHICS_API_VULKAN, engine))
 	{
@@ -54,18 +54,18 @@ extern "C" FUNC_ENGINE_INITIALIZE(EngineInitialize)
 	engine->memory.nextStagingAddr = engine->memory.stagingMemory;
 	engine->memory.sceneData->ambientColor = {0.5f, 0.5f, 0.65f, 0.0f};
 
-/*
+
 	staged_resources sceneResources = {};
 	sceneResources.nextWriteAddr = engine->memory.nextStagingAddr;
 
 	// Make initial scene
 	CreateScene(sceneResources, engine->memory.objectsTransforms);
-	// engine->renderer.PushStaged(sceneResources);
- */
+	engine->renderer.Upload(&sceneResources);
+ 
 
 	engine->memory.isInitialized = true;
 
-	CameraInitialize(engine->state->player, {0.0f, 2.0f, 5.0f}, {0.0f, 0.0f, -1.0f}, VEC3_UP, 4.0f, 2.0f, 60.0f);
+	CameraInitialize(engine->state->player, {0.0f, 2.0f, -5.0f}, {0.0f, 0.0f, -1.0f}, VEC3_UP, 4.0f, 2.0f, 60.0f);
 
 	engine->input.mouse.cursorEnabled = true;
 	engine->input.mouse.firstMove = true;
@@ -187,7 +187,7 @@ extern "C" FUNC_ENGINE_UPDATE_AND_RENDER(EngineUpdateAndRender)
 		engine->windowHeight = engine->renderer.windowHeight;
 	}
 
-	// NOTE(heyyod): Frame time
+	// NOTE: Frame time
 	// TODO: Use cpu timing instead
 	std::chrono::steady_clock::time_point frameEnd = std::chrono::steady_clock::now();
 	std::chrono::duration<f32> frameTime = frameEnd - engine->frameStart;

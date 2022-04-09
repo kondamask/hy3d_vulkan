@@ -23,8 +23,6 @@ layout( push_constant ) uniform constants
 
 layout(location = 0) in vec3 inPosition;
 
-layout(location = 0) out vec2 fragTexCoord;
-
 void main()
 {
     mat4 modelMatrix = transform[pushConstants.transformId].model;

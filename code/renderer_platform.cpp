@@ -21,6 +21,7 @@ static_func bool RendererInitialize(RENDERER_GRAPHICS_API gfxAPI, engine_context
 		renderer->Initialize = VulkanInitialize;
 		renderer->DrawFrame = VulkanDraw;
 		renderer->ChangeGraphicsSettings = VulkanChangeGraphicsSettings;
+		renderer->Upload = VulkanUpload;
 		renderer->OnShaderReload = VulkanOnShaderReload;
 		renderer->OnResize = VulkanOnResize;
 
