@@ -5,7 +5,7 @@
 
 static_func u64 VulkanGetUniformBufferPaddedSize(u64 originalSize)
 {
-	u64 minUboAlignment = vulkan.gpuProperties.limits.minUniformBufferOffsetAlignment;
+	u64 minUboAlignment = vulkanContext->gpuProperties.limits.minUniformBufferOffsetAlignment;
 	u64 alignedSize = originalSize;
 	if (minUboAlignment > 0) {
 		alignedSize = (alignedSize + minUboAlignment - 1) & ~(minUboAlignment - 1);
@@ -16,14 +16,14 @@ static_func u64 VulkanGetUniformBufferPaddedSize(u64 originalSize)
 static_func bool VulkanFindMemoryProperties(u32 reqMemType, VkMemoryPropertyFlags reqMemProperties, u32 &memoryIndexOut)
 {
 	// NOTE(heyyod): We assume we have already set the memory properties during creation.
-	u32 memoryCount = vulkan.memoryProperties.memoryTypeCount;
+	u32 memoryCount = vulkanContext->memoryProperties.memoryTypeCount;
 	for (memoryIndexOut = 0; memoryIndexOut < memoryCount; ++memoryIndexOut)
 	{
 		uint32_t memoryType = (1 << memoryIndexOut);
 		bool isRequiredMemoryType = reqMemType & memoryType;
 		if (isRequiredMemoryType)
 		{
-			VkMemoryPropertyFlags properties = vulkan.memoryProperties.memoryTypes[memoryIndexOut].propertyFlags;
+			VkMemoryPropertyFlags properties = vulkanContext->memoryProperties.memoryTypes[memoryIndexOut].propertyFlags;
 			bool hasRequiredProperties = ((properties & reqMemProperties) == reqMemProperties);
 			if (hasRequiredProperties)
 				return true;

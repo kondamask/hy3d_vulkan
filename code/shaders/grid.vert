@@ -13,6 +13,5 @@ layout(location = 0) out vec3 outFragPos;
 void main()
 {
     gl_Position = cam.proj * cam.view * vec4(inPosition, 1.0);
-
 	outFragPos = inPosition;
 }

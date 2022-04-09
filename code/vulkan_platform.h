@@ -174,14 +174,10 @@ FUNC_RENDERER_INITIALIZE(VulkanInitialize);
 //------------------------------------------------------------------------
 // GLOBALS
 //------------------------------------------------------------------------
-global_var vulkan_context vulkan;
+global_var vulkan_context *vulkanContext;
 
-#include "vulkan_functions.h" // NOTE: I INCLUDE THIS HERE BECAUSE IT USES THE GLOBAL VULKAN CONTEXT.
+//------------------------------------------------------------------------
+// NOTE: I INCLUDE THIS HERE BECAUSE IT USES THE GLOBAL VULKAN CONTEXT.
+#include "vulkan_functions.h"
 #include "vulkan_utils.h"
-
-/*global_var char* shaderFiles[2] = {
-	".\\assets\\shaders\\default.frag.spv",
-	".\\assets\\shaders\\default.frag.spv"
-};
-*/
 #endif

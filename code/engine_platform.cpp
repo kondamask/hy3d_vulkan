@@ -27,46 +27,45 @@ extern "C" FUNC_ENGINE_INITIALIZE(EngineInitialize)
 {
 	engine->input = {};
 	engine->onResize = false;
-	
+
 	engine_memory *memory = &engine->memory;
 	engine_state *state = engine->state = (engine_state *)memory->permanentMemory;
 	platformAPI = memory->platformAPI_;
-	
+
 	MemoryArenaInitialize(&state->memoryArena, (u8 *)memory->permanentMemory + sizeof(engine_state), memory->permanentMemorySize - sizeof(engine_state));
 
 	// NOTE: Everything is initialized here
-	state->renderPacket.clearColor = { 0.7f, 0.4f, 0.3f };
-	
-	if (!RendererInitialize(RENDERER_GRAPHICS_API_VULKAN, engine->windowWidth, engine->windowHeight, &engine->renderer))
+	state->renderPacket.clearColor = {0.7f, 0.4f, 0.3f};
+
+	if (!RendererInitialize(RENDERER_GRAPHICS_API_VULKAN, engine))
 	{
 		DebugPrintFunctionResult(false);
 		Assert(0);
 	}
 
 	platformAPI.GetFileWriteTime(DEFAULT_SHADER_FILEPATH, &engine->shadersWriteTime);
+	engine->memory.stagingMemory = vulkanContext->stagingBuffer.data;
 
-
-	engine->memory.stagingMemory = vulkan.stagingBuffer.data;
-	
 	// TODO(heyyod): This assumes that the first image we aquire in vulkan will always have index 0
 	// Mayby bad
-	engine->memory.cameraData = (camera_data *)vulkan.frameData[0].cameraBuffer.data;
-	engine->memory.sceneData = (scene_data *)vulkan.frameData[0].sceneBuffer.data;
-	engine->memory.objectsTransforms = (object_transform *)vulkan.staticTransformsBuffer.data;
-	
+	engine->memory.cameraData = (camera_data *)vulkanContext->frameData[0].cameraBuffer.data;
+	engine->memory.sceneData = (scene_data *)vulkanContext->frameData[0].sceneBuffer.data;
+	engine->memory.objectsTransforms = (object_transform *)vulkanContext->staticTransformsBuffer.data;
 	engine->memory.nextStagingAddr = engine->memory.stagingMemory;
-	engine->memory.sceneData->ambientColor = { 0.5f, 0.5f, 0.65f, 0.0f };
+	engine->memory.sceneData->ambientColor = {0.5f, 0.5f, 0.65f, 0.0f};
 
+/*
 	staged_resources sceneResources = {};
 	sceneResources.nextWriteAddr = engine->memory.nextStagingAddr;
-	
+
 	// Make initial scene
 	CreateScene(sceneResources, engine->memory.objectsTransforms);
-	//engine->renderer.PushStaged(sceneResources);
-	
+	// engine->renderer.PushStaged(sceneResources);
+ */
+
 	engine->memory.isInitialized = true;
 
-	CameraInitialize(engine->state->player, { 0.0f, 2.0f, 5.0f }, { 0.0f, 0.0f, -1.0f }, VEC3_UP, 3.0f, 0.1f, 60.0f);
+	CameraInitialize(engine->state->player, {0.0f, 2.0f, 5.0f}, {0.0f, 0.0f, -1.0f}, VEC3_UP, 4.0f, 2.0f, 60.0f);
 
 	engine->input.mouse.cursorEnabled = true;
 	engine->input.mouse.firstMove = true;
@@ -112,25 +111,29 @@ inline static_func void EngineProcessInput(engine_context *engine)
 	}
 
 	// NOTE(heyyod): CAMERA CONTROL
-	camera &player = engine->state->player;
-	vec3 dPos = {};
-	if (engine->input.keyboard.isPressed[KEY_W])
-		dPos += player.dir;
-	if (engine->input.keyboard.isPressed[KEY_S])
-		dPos -= player.dir;
-	if (engine->input.keyboard.isPressed[KEY_A])
-		dPos += Cross(VEC3_UP, player.dir);
-	if (engine->input.keyboard.isPressed[KEY_D])
-		dPos += Cross(player.dir, VEC3_UP);
-	if (engine->input.keyboard.isPressed[KEY_Q])
-		dPos.Y -= 1.0f;
-	if (engine->input.keyboard.isPressed[KEY_E])
-		dPos.Y += 1.0f;
-	dPos *= engine->state->renderPacket.dt;
-
-	vec2 dLook = {};
 	if (engine->input.mouse.rightIsPressed)
 	{
+		camera &player = engine->state->player;
+		vec3 dPos = {};
+		vec2 dLook = {};
+
+		if (engine->input.keyboard.isPressed[KEY_W])
+			dPos += player.dir;
+		if (engine->input.keyboard.isPressed[KEY_S])
+			dPos -= player.dir;
+		if (engine->input.keyboard.isPressed[KEY_A])
+			dPos += Cross(VEC3_UP, player.dir);
+		if (engine->input.keyboard.isPressed[KEY_D])
+			dPos += Cross(player.dir, VEC3_UP);
+		if (engine->input.keyboard.isPressed[KEY_Q])
+			dPos.Y -= 1.0f;
+		if (engine->input.keyboard.isPressed[KEY_E])
+			dPos.Y += 1.0f;
+		dPos *= engine->state->renderPacket.dt;
+
+		if (engine->input.keyboard.isPressed[KEY_SHIFT])
+			dPos *= 6.0f; // SPEED BOOST
+
 		engine->input.mouse.cursorEnabled = false;
 		if (engine->input.mouse.firstMove)
 		{
@@ -138,30 +141,36 @@ inline static_func void EngineProcessInput(engine_context *engine)
 			engine->input.mouse.firstMove = false;
 		}
 
-		dLook = {
-			engine->input.mouse.newPos.X - engine->input.mouse.lastPos.X,
-			engine->input.mouse.lastPos.Y - engine->input.mouse.newPos.Y
-		} * engine->state->renderPacket.dt;
+		dLook = {engine->input.mouse.newPos.X - engine->input.mouse.lastPos.X,
+				 engine->input.mouse.lastPos.Y - engine->input.mouse.newPos.Y};
+		dLook *= engine->state->renderPacket.dt;
+
+		CameraUpdate(player, dPos, dLook);
 	}
 	else
 	{
 		engine->input.mouse.cursorEnabled = true;
 	}
-	CameraUpdate(player, dPos, dLook);
 
 	engine->input.mouse.lastPos = engine->input.mouse.newPos;
 }
 
 extern "C" FUNC_ENGINE_UPDATE_AND_RENDER(EngineUpdateAndRender)
 {
-	if (!engine->renderer.canRender)
-		return;
-	
 	Assert(engine->memory.isInitialized);
-	
+
 	engine_memory *memory = &engine->memory;
 	engine_state *state = engine->state = (engine_state *)memory->permanentMemory;
 	platformAPI = memory->platformAPI_;
+
+	if (!engine->renderer.canRender)
+		return;
+
+	if (engine->reloaded)
+	{
+		RendererOnEngineReload(engine);
+		engine->reloaded = false;
+	}
 
 	// Check if shader have been updated
 	if (platformAPI.WasFileUpdated(DEFAULT_SHADER_FILEPATH, &engine->shadersWriteTime))
@@ -172,7 +181,7 @@ extern "C" FUNC_ENGINE_UPDATE_AND_RENDER(EngineUpdateAndRender)
 	if (engine->onResize)
 	{
 		engine->renderer.OnResize(&engine->renderer);
-		
+
 		engine->onResize = false;
 		engine->windowWidth = engine->renderer.windowWidth;
 		engine->windowHeight = engine->renderer.windowHeight;
@@ -189,13 +198,13 @@ extern "C" FUNC_ENGINE_UPDATE_AND_RENDER(EngineUpdateAndRender)
 	EngineProcessInput(engine);
 
 	memory->cameraData->view = LookAt(state->player.pos, state->player.pos + state->player.dir, VEC3_UP);
-	memory->cameraData->proj = Perspective(state->player.fov, engine->windowWidth / (f32) engine->windowHeight, 0.01f, 100.0f);
-	
+	memory->cameraData->proj = Perspective(state->player.fov, engine->windowWidth / (f32)engine->windowHeight, 0.01f, 100.0f);
+
 	state->renderPacket.playerPos = state->player.pos;
-	
+
 	engine->renderer.DrawFrame(&state->renderPacket);
 
-	// NOTE(heyyod): Update stuff from vulkan
+	// NOTE: Update stuff from vulkan
 	memory->cameraData = (camera_data *)state->renderPacket.newCameraBuffer;
 	memory->sceneData = (scene_data *)state->renderPacket.newSceneBuffer;
 }

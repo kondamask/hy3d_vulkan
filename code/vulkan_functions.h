@@ -65,7 +65,7 @@ VulkanDeclareFunction(vkCreateDevice);
 VulkanDeclareFunction(vkGetDeviceProcAddr);
 
 #define VulkanLoadInstanceFunc(func)                                           \
-	func = (VulkanFuncPtr(func))vkGetInstanceProcAddr(vulkan.instance, #func); \
+	func = (VulkanFuncPtr(func))vkGetInstanceProcAddr(vulkanContext->instance, #func); \
 	if (!(func))                                                               \
 	{ \
 		DebugPrintFunctionResult(false); \
@@ -178,7 +178,7 @@ VulkanDeclareFunction(vkCmdPushConstants);
 VulkanDeclareFunction(vkCmdBlitImage);
 
 #define VulkanLoadDeviceFunc(func) \
-func = (VulkanFuncPtr(func))vkGetDeviceProcAddr(vulkan.device, #func); \
+func = (VulkanFuncPtr(func))vkGetDeviceProcAddr(vulkanContext->device, #func); \
 	if (!(func)) \
 	{ \
 	DebugPrintFunctionResult(false); \

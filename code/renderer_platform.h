@@ -5,6 +5,17 @@
 #include "math.h"
 #include "graphics_settings.h"
 
+//------------------------------------------------------------------------
+
+#define GRAPHICS_CONTEXT_SIZE KILOBYTES(5)
+
+struct graphics_context
+{
+	u8 data[GRAPHICS_CONTEXT_SIZE];
+};
+
+
+//------------------------------------------------------------------------
 struct engine_state;
 
 enum RENDERER_GRAPHICS_API
@@ -66,12 +77,5 @@ struct renderer_platform
 	
 	func_renderer_create_surface *FillSurfaceWindowContext;
 };
-
-//------------------------------------------------------------------------
-// FUNCTIONS
-//------------------------------------------------------------------------
-static_func bool RendererInitialize(RENDERER_GRAPHICS_API gfxAPI, u32 windowWidth, u32 windowHeight, renderer_platform *outRenderer);
-
-static_func void RendererDestroy(renderer_platform *renderer);
 
 #endif // INCLUDE_RENDERER_PLATFORM_H

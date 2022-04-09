@@ -19,7 +19,6 @@ set LIBS=user32.lib gdi32.lib
 rem FOR THE DIALOG STUFF Comdlg32.lib
 set LINKER_FLAGS=-subsystem:windows -incremental:no -opt:ref %LIBS%
 set EXE_NAME=hy3d_vulkan
-set INCLUDES=/I %VULKAN_SDK%\Include
 
 if not exist .\build mkdir .\build
 pushd .\build
@@ -27,7 +26,6 @@ pushd .\build
 rc /fo win32_hy3d.res /nologo ..\code\win32_resource.rc
 
 del *.pdb > NUL 2> NUL
-del *.exe > NUL 2> NUL
 
 set EXPOTED_FUNCS=-EXPORT:EngineInitialize -EXPORT:EngineUpdateAndRender -EXPORT:EngineDestroy
 cl /I %VULKAN_SDK%\Include %COMPILER_FLAGS% ..\code\engine_platform.cpp -Fmengine_platform.map -LD -link -incremental:no -opt:ref -PDB:engine_platform_%RANDOM%.pdb %EXPOTED_FUNCS%

@@ -11,10 +11,10 @@
 		<RebuildCommand>$(WorkspaceDirectory)/scripts/build_shaders</RebuildCommand>
 		<BuildFileCommand></BuildFileCommand>
 		<CleanCommand></CleanCommand>
-		<RunCommand>build/hy3d_vulkan.exe</RunCommand>
-		<DebugCommand>devenv $(WorkspaceDirectory)/build/hy3d_vulkan.exe</DebugCommand>
-		<ExePathCommand>$(WorkspaceDirectory)/build/hy3d_vulkan.exe</ExePathCommand>
-		<DebugSln>$(WorkspaceDirectory)/build/hy3d_vulkan.sln</DebugSln>
+		<RunCommand>build/hy3d_vulkanContext->exe</RunCommand>
+		<DebugCommand>devenv $(WorkspaceDirectory)/build/hy3d_vulkanContext->exe</DebugCommand>
+		<ExePathCommand>$(WorkspaceDirectory)/build/hy3d_vulkanContext->exe</ExePathCommand>
+		<DebugSln>$(WorkspaceDirectory)/build/hy3d_vulkanContext->sln</DebugSln>
 		<Configurations>
 			<Configuration>Debug</Configuration>
 			<Configuration>Release</Configuration>

@@ -639,6 +639,7 @@ int CALLBACK WinMain(
 		{
 			Win32UnloadEngineCode(&engineCode);
 			Win32LoadEngineCode(&engineCode, sourceDLLPath, sourceDLLCopyPath);
+			engine.reloaded = true;
 		}
 		
 		engineCode.UpdateAndRender(&engine);

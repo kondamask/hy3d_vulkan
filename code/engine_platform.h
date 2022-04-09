@@ -1,5 +1,5 @@
-#ifndef HY3D_ENGINE_H
-#define HY3D_ENGINE_H 1
+#ifndef INLCUDE_ENGINE_PLATFORM_H
+#define INLCUDE_ENGINE_PLATFORM_H
 
 //------------------------------------------------------------------------
 
@@ -76,7 +76,7 @@ struct engine_memory
     void *stagingMemory;
     void *nextStagingAddr;
     
-    // NOTE(heyyod): uniform buffer allocated from vulkan.
+    // NOTE(heyyod): uniform buffer allocated from vulkanContext->
     // Linked in os layer for now.
     camera_data *cameraData;
     scene_data *sceneData;
@@ -161,6 +161,7 @@ struct engine_input
 	} mouse;
 };
 
+// NOTE: This will be a pointer that points to the start of a memory block that we have allocated from the OS.
 struct engine_state
 {
     memory_arena memoryArena;
@@ -170,6 +171,8 @@ struct engine_state
     camera player;
     
     f32 time;
+
+	graphics_context graphicsContext; // NOTE: This must be the last member. We don't know the size. It will be read by the graphics api.
 };
 
 struct engine_context
@@ -185,6 +188,7 @@ struct engine_context
     bool onResize;
     u32 windowWidth;
     u32 windowHeight;
+	bool reloaded;
 };
 
 //------------------------------------------------------------------------

@@ -2,47 +2,71 @@
 
 #include "vulkan_platform.cpp"
 
-static_func bool RendererInitialize(RENDERER_GRAPHICS_API gfxAPI, u32 windowWidth, u32 windowHeight, renderer_platform *outRenderer)
+static_func bool RendererInitialize(RENDERER_GRAPHICS_API gfxAPI, engine_context *engine)
 {
-	outRenderer->windowWidth = windowWidth;
-	outRenderer->windowHeight = windowHeight;
-		
-	bool result = true;
+	renderer_platform *renderer = &engine->renderer;
+	renderer->windowWidth = engine->windowWidth;
+	renderer->windowHeight = engine->windowHeight;
+
+	bool initialized = false;
 	switch (gfxAPI)
 	{
-		case RENDERER_GRAPHICS_API_VULKAN:
-		{
-			outRenderer->Initialize = VulkanInitialize;
-			outRenderer->DrawFrame = VulkanDraw;
-			outRenderer->ChangeGraphicsSettings = VulkanChangeGraphicsSettings;
-			outRenderer->OnShaderReload = VulkanOnShaderReload; // CreatePipeline
-			outRenderer->OnResize = VulkanOnResize; // CreateSwapchain
-			result = true;
-		} break;
-		
-		default:
-		{
-			Assert(0);
-		}
-	}
-	
-	if (result)
+	case RENDERER_GRAPHICS_API_VULKAN:
 	{
-		outRenderer->gfxAPI = gfxAPI;
-		outRenderer->canRender = true;
-		outRenderer->Initialize(outRenderer, "HY3D ENGINE");
+#if HY3D_DEBUG
+		bool enoughGraphicsContextMem = sizeof(graphics_context) >= sizeof(vulkan_context);
+		Assert(enoughGraphicsContextMem);
+#endif
+		vulkanContext = (vulkan_context *)&engine->state->graphicsContext;
+		renderer->Initialize = VulkanInitialize;
+		renderer->DrawFrame = VulkanDraw;
+		renderer->ChangeGraphicsSettings = VulkanChangeGraphicsSettings;
+		renderer->OnShaderReload = VulkanOnShaderReload;
+		renderer->OnResize = VulkanOnResize;
+
+		initialized = true;
 	}
-	
-	return result;
+	break;
+
+	default:
+	{
+		Assert(0);
+	}
+	}
+
+	if (initialized)
+	{
+		renderer->gfxAPI = gfxAPI;
+		renderer->canRender = true;
+		renderer->Initialize(renderer, "HY3D ENGINE");
+	}
+	return initialized;
 }
 
 static_func void RendererDestroy(renderer_platform *renderer)
 {
 	switch (renderer->gfxAPI)
 	{
-		case RENDERER_GRAPHICS_API_VULKAN:
-		{
-			VulkanDestroy();
-		} break;
+	case RENDERER_GRAPHICS_API_VULKAN:
+	{
+		VulkanDestroy();
+	}
+	break;
+	}
+}
+
+static_func void RendererOnEngineReload(engine_context *engine)
+{
+	switch (engine->renderer.gfxAPI)
+	{
+	case RENDERER_GRAPHICS_API_VULKAN:
+	{
+		vulkanContext = (vulkan_context *)&engine->state->graphicsContext;
+		VulkanLoadCode();
+		VulkanLoadGlobalFunctions();
+		VulkanLoadInstanceFunctions();
+		VulkanLoadDeviceFunctions();
+		break;
+	}
 	}
 }
