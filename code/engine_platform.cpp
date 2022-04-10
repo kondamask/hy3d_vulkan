@@ -1,5 +1,12 @@
 #include "engine_platform.h"
 
+//------------------------------------------------------------------------
+// GLOBALS
+
+global_var platform_api *platformAPI;
+
+//------------------------------------------------------------------------
+
 #include "camera.cpp"
 #include "renderer_platform.cpp"
 
@@ -30,7 +37,7 @@ extern "C" FUNC_ENGINE_INITIALIZE(EngineInitialize)
 
 	engine_memory *memory = &engine->memory;
 	engine_state *state = engine->state = (engine_state *)memory->permanentMemory;
-	platformAPI = memory->platformAPI_;
+	platformAPI = &engine->platformAPI;
 
 	MemoryArenaInitialize(&state->memoryArena, (u8 *)memory->permanentMemory + sizeof(engine_state), memory->permanentMemorySize - sizeof(engine_state));
 
@@ -43,13 +50,13 @@ extern "C" FUNC_ENGINE_INITIALIZE(EngineInitialize)
 		Assert(0);
 	}
 
-	platformAPI.GetFileWriteTime(DEFAULT_SHADER_FILEPATH, &engine->shadersWriteTime);
+	platformAPI->GetFileWriteTime(DEFAULT_SHADER_FILEPATH, &engine->shadersWriteTime);
 	engine->memory.stagingMemory = vulkanContext->stagingBuffer.data;
 
 	// TODO(heyyod): This assumes that the first image we aquire in vulkan will always have index 0
 	// Mayby bad
-	engine->memory.cameraData = (camera_data *)vulkanContext->frameData[0].cameraBuffer.data;
-	engine->memory.sceneData = (scene_data *)vulkanContext->frameData[0].sceneBuffer.data;
+	engine->memory.cameraData = (camera_data *)vulkanContext->cameraUBO.data;
+	engine->memory.sceneData = (scene_data *)vulkanContext->sceneUBO.data;
 	engine->memory.objectsTransforms = (object_transform *)vulkanContext->staticTransformsBuffer.data;
 	engine->memory.nextStagingAddr = engine->memory.stagingMemory;
 	engine->memory.sceneData->ambientColor = {0.5f, 0.5f, 0.65f, 0.0f};
@@ -74,7 +81,7 @@ extern "C" FUNC_ENGINE_INITIALIZE(EngineInitialize)
 	engine->frameStart = std::chrono::steady_clock::now();
 }
 
-inline static_func void EngineProcessInput(engine_context *engine)
+inline static_func void EngineProcessInput(engine_platform *engine)
 {
 	// NOTE(heyyod): SETTINGS CONTROL
 	if (!engine->input.keyboard.isPressed[KEY_ALT] && !engine->input.keyboard.altWasUp)
@@ -111,6 +118,7 @@ inline static_func void EngineProcessInput(engine_context *engine)
 	}
 
 	// NOTE(heyyod): CAMERA CONTROL
+	engine->input.mouse.cursorEnabled = !engine->input.mouse.rightIsPressed;
 	if (engine->input.mouse.rightIsPressed)
 	{
 		camera &player = engine->state->player;
@@ -147,11 +155,6 @@ inline static_func void EngineProcessInput(engine_context *engine)
 
 		CameraUpdate(player, dPos, dLook);
 	}
-	else
-	{
-		engine->input.mouse.cursorEnabled = true;
-	}
-
 	engine->input.mouse.lastPos = engine->input.mouse.newPos;
 }
 
@@ -161,7 +164,6 @@ extern "C" FUNC_ENGINE_UPDATE_AND_RENDER(EngineUpdateAndRender)
 
 	engine_memory *memory = &engine->memory;
 	engine_state *state = engine->state = (engine_state *)memory->permanentMemory;
-	platformAPI = memory->platformAPI_;
 
 	if (!engine->renderer.canRender)
 		return;
@@ -169,11 +171,12 @@ extern "C" FUNC_ENGINE_UPDATE_AND_RENDER(EngineUpdateAndRender)
 	if (engine->reloaded)
 	{
 		RendererOnEngineReload(engine);
+		platformAPI = &engine->platformAPI;
 		engine->reloaded = false;
 	}
 
 	// Check if shader have been updated
-	if (platformAPI.WasFileUpdated(DEFAULT_SHADER_FILEPATH, &engine->shadersWriteTime))
+	if (platformAPI->WasFileUpdated(DEFAULT_SHADER_FILEPATH, &engine->shadersWriteTime))
 	{
 		engine->renderer.OnShaderReload();
 	}
@@ -203,10 +206,6 @@ extern "C" FUNC_ENGINE_UPDATE_AND_RENDER(EngineUpdateAndRender)
 	state->renderPacket.playerPos = state->player.pos;
 
 	engine->renderer.DrawFrame(&state->renderPacket);
-
-	// NOTE: Update stuff from vulkan
-	memory->cameraData = (camera_data *)state->renderPacket.newCameraBuffer;
-	memory->sceneData = (scene_data *)state->renderPacket.newSceneBuffer;
 }
 
 extern "C" FUNC_ENGINE_DESTROY(EngineDestroy)

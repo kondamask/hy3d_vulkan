@@ -14,7 +14,7 @@
 		<RunCommand>build/hy3d_vulkan.exe</RunCommand>
 		<DebugCommand>devenv $(WorkspaceDirectory)/build/hy3d_vulkan.exe</DebugCommand>
 		<ExePathCommand>$(WorkspaceDirectory)/build/hy3d_vulkan.exe</ExePathCommand>
-		<DebugSln>$(WorkspaceDirectory)/build/hy3d_vulkan.&amp;gt;sln</DebugSln>
+		<DebugSln>$(WorkspaceDirectory)/build/hy3d_vulkan.sln</DebugSln>
 		<Configurations>
 			<Configuration>Debug</Configuration>
 			<Configuration>Release</Configuration>

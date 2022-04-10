@@ -3,7 +3,7 @@
 #include "win32_vulkan.cpp"
 
 // NOTE: These file I/O functions should only be used for DEBUG purposes.
-FUNC_FREE_FILE(DEBUGFreeFileMemory)
+FUNC_FREE_FILE(Win32FreeFileMemory)
 {
 	if (memory)
 	{
@@ -11,7 +11,7 @@ FUNC_FREE_FILE(DEBUGFreeFileMemory)
 	}
 }
 
-FUNC_READ_FILE(DEBUGReadFile)
+FUNC_READ_FILE(Win32ReadFile)
 {
 	debug_read_file_result result = {};
 
@@ -39,7 +39,7 @@ FUNC_READ_FILE(DEBUGReadFile)
 				}
 				else
 				{
-					DEBUGFreeFileMemory(result.content);
+					Win32FreeFileMemory(result.content);
 					result = {};
 				}
 			}
@@ -50,7 +50,7 @@ FUNC_READ_FILE(DEBUGReadFile)
 	return result;
 }
 
-FUNC_WRITE_FILE(DEBUGWriteFile)
+FUNC_WRITE_FILE(Win32WriteFile)
 {
 	bool result = false;
 
@@ -94,7 +94,7 @@ FUNC_WAS_FILE_UPDATED(Win32FileUpdated)
 {
 	FILETIME newWriteTime;
 	Win32GetWriteTime(filepath, (file_write_time *)&newWriteTime);
-	
+
 	if (CompareFileTime(&newWriteTime, (FILETIME *)writeTime) == 1)
 	{
 		writeTime->dwLowDateTime = newWriteTime.dwLowDateTime;
@@ -273,7 +273,7 @@ static_func void Win32GetWindowDim(HWND handle, u32 &width, u32 &height)
 	height = (u32)(rect.bottom - rect.top);
 }
 
-static_func bool Win32ProcessMessages(win32_window &window, engine_context &engine, i32 &quitMessage)
+static_func bool Win32ProcessMessages(win32_window &window, engine_platform &engine, i32 &quitMessage)
 {
 	engine_input &input = engine.input;
 	MSG message;
@@ -294,7 +294,7 @@ static_func bool Win32ProcessMessages(win32_window &window, engine_context &engi
 				engine.onResize = true;
 				Win32GetWindowDim(window.handle, engine.windowWidth, engine.windowHeight);
 				window.width = engine.windowWidth;
-				window.height = engine.windowHeight;		
+				window.height = engine.windowHeight;
 				break;
 			}
 
@@ -410,15 +410,19 @@ static_func bool Win32ProcessMessages(win32_window &window, engine_context &engi
 	return true;
 }
 
-static_func void Win32LoadEngineCode(win32_engine_code *engineCode, char *sourceFilename, char *sourceFilenameCopy)
+static_func void Win32LoadEngineCode(win32_engine_code *engineCode, engine_platform *engine)
 {
+	// TODO: make this less explicit
+	char *sourceDLLPath = "build\\engine_platform.dll";
+	char *sourceDLLCopyPath = "build\\engine_platform_copy.dll";
+
 	// NOTE:  We need to add a sleep in order to wait for the dll compilation.
 	Sleep(800);
 	char sourceFullPath[MAX_PATH] = {};
-	if (GetFullPathNameA(sourceFilename, ArrayCount(sourceFullPath), sourceFullPath, 0) == 0)
+	if (GetFullPathNameA(sourceDLLPath, ArrayCount(sourceFullPath), sourceFullPath, 0) == 0)
 		return;
 	char sourceFullPathCopy[MAX_PATH] = {};
-	if (GetFullPathNameA(sourceFilenameCopy, ArrayCount(sourceFullPathCopy), sourceFullPathCopy, 0) == 0)
+	if (GetFullPathNameA(sourceDLLCopyPath, ArrayCount(sourceFullPathCopy), sourceFullPathCopy, 0) == 0)
 		return;
 
 	Win32GetWriteTime(sourceFullPath, (file_write_time *)&engineCode->writeTime);
@@ -426,21 +430,21 @@ static_func void Win32LoadEngineCode(win32_engine_code *engineCode, char *source
 	engineCode->dll = LoadLibraryA(sourceFullPathCopy);
 	if (engineCode->dll)
 	{
-		engineCode->Initialize = (func_engine_initialize *)GetProcAddress(engineCode->dll, "EngineInitialize");
-		engineCode->UpdateAndRender = (func_engine_update_and_render *)GetProcAddress(engineCode->dll, "EngineUpdateAndRender");
-		engineCode->Destroy = (func_engine_destroy *)GetProcAddress(engineCode->dll, "EngineDestroy");
-		engineCode->isValid = engineCode->UpdateAndRender;
+		engine->Initialize = (func_engine_initialize *)GetProcAddress(engineCode->dll, "EngineInitialize");
+		engine->UpdateAndRender = (func_engine_update_and_render *)GetProcAddress(engineCode->dll, "EngineUpdateAndRender");
+		engine->Destroy = (func_engine_destroy *)GetProcAddress(engineCode->dll, "EngineDestroy");
+		engineCode->isValid = engine->Initialize;
 	}
 	if (!engineCode->isValid)
 	{
-		engineCode->Initialize = EngineInitializeStub;
-		engineCode->UpdateAndRender = EngineUpdateAndRenderStub;
-		engineCode->Destroy = EngineDestroyStub;
+		engine->Initialize = EngineInitializeStub;
+		engine->UpdateAndRender = EngineUpdateAndRenderStub;
+		engine->Destroy = EngineDestroyStub;
 	}
 	DebugPrintFunctionResult(engineCode->isValid);
 }
 
-static_func void Win32UnloadEngineCode(win32_engine_code *engineCode)
+static_func void Win32UnloadEngineCode(win32_engine_code *engineCode, engine_platform *engine)
 {
 	if (engineCode->dll)
 	{
@@ -448,7 +452,8 @@ static_func void Win32UnloadEngineCode(win32_engine_code *engineCode)
 		engineCode->dll = 0;
 	}
 	engineCode->isValid = false;
-	engineCode->UpdateAndRender = EngineUpdateAndRenderStub;
+	engine->UpdateAndRender = EngineUpdateAndRenderStub;
+	engine->reloaded = true;
 }
 
 static_func bool Win32InitializeWindow(win32_window &window, u16 width, u16 height, LPCSTR windowTitle)
@@ -561,8 +566,10 @@ void ErrorExit(LPTSTR lpszFunction)
 	ExitProcess(dw);
 }
 
-static_func bool Win32InitializeMemory(engine_memory &memory)
+static_func bool Win32InitializeMemory(engine_platform *engine)
 {
+	engine_memory &memory = engine->memory;
+
 	LPVOID baseAddress = (LPVOID)TERABYTES(2);
 	memory.permanentMemorySize = MEGABYTES(64);
 	memory.transientMemorySize = GIGABYTES(2);
@@ -572,16 +579,23 @@ static_func bool Win32InitializeMemory(engine_memory &memory)
 	memory.transientMemory = (u8 *)memory.permanentMemory + memory.permanentMemorySize;
 	memory.isInitialized = false;
 
-	//#if HY3D_DEBUG
-	memory.platformAPI_.DEBUGFreeFileMemory = DEBUGFreeFileMemory;
-	memory.platformAPI_.DEBUGReadFile = DEBUGReadFile;
-	memory.platformAPI_.DEBUGWriteFile = DEBUGWriteFile;
+	/*memory.platformAPI_.FreeFileMemory = Win32FreeFileMemory;
+	memory.platformAPI_.ReadFile = Win32ReadFile;
+	memory.platformAPI_.WriteFile = Win32WriteFile;
 	memory.platformAPI_.GetFileWriteTime = Win32GetWriteTime;
-	memory.platformAPI_.WasFileUpdated = Win32FileUpdated;
-	//#endif
+	memory.platformAPI_.WasFileUpdated = Win32FileUpdated;*/
 
-	platformAPI = memory.platformAPI_;
-	return (memory.permanentMemory && memory.transientMemory);
+	engine->platformAPI.FreeFileMemory = Win32FreeFileMemory;
+	engine->platformAPI.ReadFile = Win32ReadFile;
+	engine->platformAPI.WriteFile = Win32WriteFile;
+	engine->platformAPI.GetFileWriteTime = Win32GetWriteTime;
+	engine->platformAPI.WasFileUpdated = Win32FileUpdated;
+
+	//platformAPI = memory.platformAPI_;
+
+	bool result = memory.permanentMemory && memory.transientMemory;
+	DebugPrintFunctionResult(result);
+	return result;
 }
 
 int CALLBACK WinMain(
@@ -616,34 +630,29 @@ int CALLBACK WinMain(
 	GetOpenFileNameA(&openFilename);*/
 
 	win32_engine_code engineCode = {};
-	// TODO: make this less explicit
-	char *sourceDLLPath = "build\\engine_platform.dll";
-	char *sourceDLLCopyPath = "build\\engine_platform_copy.dll";
-	Win32LoadEngineCode(&engineCode, sourceDLLPath, sourceDLLCopyPath);
+	engine_platform engine = {};
+	Win32LoadEngineCode(&engineCode, &engine);
 
-	engine_context engine = {};
-	
 	if (engineCode.isValid)
 	{
-		if (!Win32InitializeMemory(engine.memory))
-			return 3;
+		if (!Win32InitializeMemory(&engine))
+			return -1;
 
 		engine.renderer.FillSurfaceWindowContext = Win32VulkanFillSurfaceWindowContext;
-		engineCode.Initialize(&engine, window.width, window.height);
+		engine.Initialize(&engine, window.width, window.height);
 	}
-	
+
 	i32 quitMessage = -1;
 	while (Win32ProcessMessages(window, engine, quitMessage))
 	{
-		if (Win32FileUpdated(sourceDLLPath, (file_write_time *)&engineCode.writeTime))
+		if (Win32FileUpdated("build\\engine_platform.dll", (file_write_time *)&engineCode.writeTime))
 		{
-			Win32UnloadEngineCode(&engineCode);
-			Win32LoadEngineCode(&engineCode, sourceDLLPath, sourceDLLCopyPath);
-			engine.reloaded = true;
+			Win32UnloadEngineCode(&engineCode, &engine);
+			Win32LoadEngineCode(&engineCode, &engine);
 		}
-		
-		engineCode.UpdateAndRender(&engine);
+
+		engine.UpdateAndRender(&engine);
 	}
-	engineCode.Destroy(&engine);
+	engine.Destroy(&engine);
 	return quitMessage;
 }

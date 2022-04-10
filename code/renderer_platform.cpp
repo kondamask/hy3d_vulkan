@@ -2,72 +2,77 @@
 
 #include "vulkan_platform.cpp"
 
-static_func bool RendererInitialize(RENDERER_GRAPHICS_API gfxAPI, engine_context *engine)
+static_func bool RendererSetGraphicsApiFunctions(RENDERER_GRAPHICS_API gfxAPI, engine_platform *engine)
 {
-	renderer_platform *renderer = &engine->renderer;
-	renderer->windowWidth = engine->windowWidth;
-	renderer->windowHeight = engine->windowHeight;
-
-	bool initialized = false;
+	bool result = false;
 	switch (gfxAPI)
 	{
-	case RENDERER_GRAPHICS_API_VULKAN:
-	{
+		case RENDERER_GRAPHICS_API_VULKAN:
+		{
 #if HY3D_DEBUG
-		bool enoughGraphicsContextMem = sizeof(graphics_context) >= sizeof(vulkan_context);
-		Assert(enoughGraphicsContextMem);
+			bool enoughGraphicsContextMem = sizeof(graphics_context) >= sizeof(vulkan_context);
+			Assert(enoughGraphicsContextMem);
 #endif
-		vulkanContext = (vulkan_context *)&engine->state->graphicsContext;
-		renderer->Initialize = VulkanInitialize;
-		renderer->DrawFrame = VulkanDraw;
-		renderer->ChangeGraphicsSettings = VulkanChangeGraphicsSettings;
-		renderer->Upload = VulkanUpload;
-		renderer->OnShaderReload = VulkanOnShaderReload;
-		renderer->OnResize = VulkanOnResize;
+			vulkanContext = (vulkan_context *)&engine->state->graphicsContext;
+			engine->renderer.Initialize = VulkanInitialize;
+			engine->renderer.DrawFrame = VulkanDraw;
+			engine->renderer.ChangeGraphicsSettings = VulkanChangeGraphicsSettings;
+			engine->renderer.Upload = VulkanUpload;
+			engine->renderer.OnShaderReload = VulkanOnShaderReload;
+			engine->renderer.OnResize = VulkanOnResize;
 
-		initialized = true;
+			result = true;
+		} break;
+
+		default:
+		{
+			Assert(0);
+		}
 	}
-	break;
+	return result;
+}
 
-	default:
+static_func bool RendererInitialize(RENDERER_GRAPHICS_API gfxAPI, engine_platform *engine)
+{
+	engine->renderer.windowWidth = engine->windowWidth;
+	engine->renderer.windowHeight = engine->windowHeight;
+	
+	bool result = RendererSetGraphicsApiFunctions(gfxAPI, engine);
+	if (result)
 	{
-		Assert(0);
+		engine->renderer.gfxAPI = gfxAPI;
+		engine->renderer.canRender = true;
+		engine->renderer.Initialize(&engine->renderer, "HY3D ENGINE");
 	}
-	}
-
-	if (initialized)
-	{
-		renderer->gfxAPI = gfxAPI;
-		renderer->canRender = true;
-		renderer->Initialize(renderer, "HY3D ENGINE");
-	}
-	return initialized;
+	DebugPrintFunctionResult(result);
+	return result;
 }
 
 static_func void RendererDestroy(renderer_platform *renderer)
 {
 	switch (renderer->gfxAPI)
 	{
-	case RENDERER_GRAPHICS_API_VULKAN:
-	{
-		VulkanDestroy();
-	}
-	break;
+		case RENDERER_GRAPHICS_API_VULKAN:
+		{
+			VulkanDestroy();
+		}
+		break;
 	}
 }
 
-static_func void RendererOnEngineReload(engine_context *engine)
+static_func void RendererOnEngineReload(engine_platform *engine)
 {
 	switch (engine->renderer.gfxAPI)
 	{
-	case RENDERER_GRAPHICS_API_VULKAN:
-	{
-		vulkanContext = (vulkan_context *)&engine->state->graphicsContext;
-		VulkanLoadCode();
-		VulkanLoadGlobalFunctions();
-		VulkanLoadInstanceFunctions();
-		VulkanLoadDeviceFunctions();
-		break;
+		case RENDERER_GRAPHICS_API_VULKAN:
+		{
+			vulkanContext = (vulkan_context *)&engine->state->graphicsContext;
+			VulkanLoadCode();
+			VulkanLoadGlobalFunctions();
+			VulkanLoadInstanceFunctions();
+			VulkanLoadDeviceFunctions();
+			break;
+		}
 	}
-	}
+	RendererSetGraphicsApiFunctions(engine->renderer.gfxAPI, engine);
 }

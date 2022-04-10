@@ -43,10 +43,10 @@ struct file_write_time
 };
 
 #define FUNC_GET_FILE_WRITE_TIME(name) bool name(char *filepath, file_write_time *writeTime)
-typedef FUNC_GET_FILE_WRITE_TIME(platform_get_file_write_time_func);
+typedef FUNC_GET_FILE_WRITE_TIME(func_get_file_write_time_func);
 
 #define FUNC_WAS_FILE_UPDATED(name) bool name(char *filepath, file_write_time *writeTime)
-typedef FUNC_WAS_FILE_UPDATED(platform_was_file_updated_func);
+typedef FUNC_WAS_FILE_UPDATED(func_was_file_updated_func);
 
 //------------------------------------------------------------------------
 
@@ -58,12 +58,11 @@ struct debug_read_file_result
 
 struct platform_api
 {        
-	func_read_file *DEBUGReadFile;
-    func_write_file *DEBUGWriteFile;
-    func_free_file *DEBUGFreeFileMemory;
-
-	platform_get_file_write_time_func *GetFileWriteTime;
-	platform_was_file_updated_func *WasFileUpdated;
+	func_read_file *ReadFile;
+    func_write_file *WriteFile;
+    func_free_file *FreeFileMemory;
+	func_get_file_write_time_func *GetFileWriteTime;
+	func_was_file_updated_func *WasFileUpdated;
 };
 
 struct engine_memory
@@ -81,8 +80,6 @@ struct engine_memory
     camera_data *cameraData;
     scene_data *sceneData;
     object_transform *objectsTransforms;
-    
-    platform_api platformAPI_;
     
     bool isInitialized;
 };
@@ -175,7 +172,21 @@ struct engine_state
 	graphics_context graphicsContext; // NOTE: This must be the last member. We don't know the size. It will be read by the graphics api.
 };
 
-struct engine_context
+struct engine_platform;
+
+#define FUNC_ENGINE_INITIALIZE(name) void name(engine_platform *engine, u32 width, u32 height)
+typedef FUNC_ENGINE_INITIALIZE(func_engine_initialize);
+FUNC_ENGINE_INITIALIZE(EngineInitializeStub) {}
+
+#define FUNC_ENGINE_UPDATE_AND_RENDER(name) void name(engine_platform *engine)
+typedef FUNC_ENGINE_UPDATE_AND_RENDER(func_engine_update_and_render);
+FUNC_ENGINE_UPDATE_AND_RENDER(EngineUpdateAndRenderStub) {}
+
+#define FUNC_ENGINE_DESTROY(name) void name(engine_platform *engine)
+typedef FUNC_ENGINE_DESTROY(func_engine_destroy);
+FUNC_ENGINE_DESTROY(EngineDestroyStub) {}
+
+struct engine_platform
 {
 	engine_memory memory;
 	engine_state *state;
@@ -189,24 +200,15 @@ struct engine_context
     u32 windowWidth;
     u32 windowHeight;
 	bool reloaded;
+	
+	//------------------------------------------------------------------------
+	// FUNCTIONS
+	
+	platform_api platformAPI;
+	
+	func_engine_initialize *Initialize;
+	func_engine_update_and_render *UpdateAndRender;
+	func_engine_destroy *Destroy;
 };
-
-//------------------------------------------------------------------------
-
-global_var platform_api platformAPI;
-
-//------------------------------------------------------------------------
-
-#define FUNC_ENGINE_INITIALIZE(name) void name(engine_context *engine, u32 width, u32 height)
-typedef FUNC_ENGINE_INITIALIZE(func_engine_initialize);
-FUNC_ENGINE_INITIALIZE(EngineInitializeStub) {}
-
-#define FUNC_ENGINE_UPDATE_AND_RENDER(name) void name(engine_context *engine)
-typedef FUNC_ENGINE_UPDATE_AND_RENDER(func_engine_update_and_render);
-FUNC_ENGINE_UPDATE_AND_RENDER(EngineUpdateAndRenderStub) {}
-
-#define FUNC_ENGINE_DESTROY(name) void name(engine_context *engine)
-typedef FUNC_ENGINE_DESTROY(func_engine_destroy);
-FUNC_ENGINE_DESTROY(EngineDestroyStub) {}
 
 #endif

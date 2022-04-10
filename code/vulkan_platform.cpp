@@ -95,7 +95,8 @@ static_func void VulkanPickMSAA(MSAA_OPTIONS msaa)
 inline static_func bool VulkanLoadCode()
 {
 	// TODO: make this cross-platform
-	vulkanContext->dll = LoadLibraryA("vulkan-1.dll");
+	if (!vulkanContext->dll)
+		vulkanContext->dll = LoadLibraryA("vulkan-1.dll");
 	if (!vulkanContext->dll)
 	{
 		DebugPrintFunctionResult(false);
@@ -614,7 +615,7 @@ static_func bool VulkanCreateRenderPass()
 
 static_func bool VulkanLoadShader(char *filepath, VkShaderModule *shaderOut)
 {
-	debug_read_file_result shaderCode = platformAPI.DEBUGReadFile(filepath);
+	debug_read_file_result shaderCode = platformAPI->ReadFile(filepath);
 	Assert(shaderCode.size < SHADER_CODE_BUFFER_SIZE);
 	if (shaderCode.content)
 	{
@@ -623,7 +624,7 @@ static_func bool VulkanLoadShader(char *filepath, VkShaderModule *shaderOut)
 		shaderInfo.codeSize = shaderCode.size;
 		shaderInfo.pCode = (u32 *)shaderCode.content;
 		VkResult res = vkCreateShaderModule(vulkanContext->device, &shaderInfo, 0, shaderOut);
-		platformAPI.DEBUGFreeFileMemory(shaderCode.content);
+		platformAPI->FreeFileMemory(shaderCode.content);
 		if (res == VK_SUCCESS)
 		{
 			DebugPrint("LOADED SHADER: " << filepath << "\n");
@@ -1605,6 +1606,10 @@ FUNC_RENDERER_INITIALIZE(VulkanInitialize)
 	//------------------------------------------------------------------------
 	// CREATE DESCRIPTORS
 	//------------------------------------------------------------------------
+	// TODO: Currently I create a descriptor for each frame in rotation and I update them here.
+	// Then I bind the correct descriptor set before the draw calls.
+	// Maybe if I have 1 descriptor for all sets, I will have to update the before each draw call.
+	// This is where the templates would be useful. We'll see.
 	{
 		VkDescriptorSetLayoutBinding bindings[] = {
 			{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, 0 },								 // camera
@@ -1619,19 +1624,17 @@ FUNC_RENDERER_INITIALIZE(VulkanInitialize)
 		layoutInfo.pBindings = bindings;
 		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(vulkanContext->device, &layoutInfo, 0, &vulkanContext->globalDescSetLayout));
 
-		u32 nDescriptors = ArrayCount(vulkanContext->frameData);
 		VkDescriptorPoolSize poolSizes[] = {
-			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nDescriptors },
-			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, nDescriptors },
-			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, nDescriptors },
-			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nDescriptors },
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2 },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 },
+			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }
 		};
 
 		VkDescriptorPoolCreateInfo poolInfo = {};
 		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 		poolInfo.poolSizeCount = ArrayCount(poolSizes);
 		poolInfo.pPoolSizes = poolSizes;
-		poolInfo.maxSets = nDescriptors;
+		poolInfo.maxSets = 1;
 		VK_CHECK_RESULT(vkCreateDescriptorPool(vulkanContext->device, &poolInfo, 0, &vulkanContext->globalDescPool));
 
 		VkDescriptorSetAllocateInfo globalDescAlloc = {};
@@ -1640,80 +1643,57 @@ FUNC_RENDERER_INITIALIZE(VulkanInitialize)
 		globalDescAlloc.descriptorSetCount = 1;
 		globalDescAlloc.pSetLayouts = &vulkanContext->globalDescSetLayout;
 
-		for (u8 i = 0; i < nDescriptors; i++)
-		{
-			VK_CHECK_RESULT(vkAllocateDescriptorSets(vulkanContext->device, &globalDescAlloc, &vulkanContext->frameData[i].globalDescriptor));
+		VK_CHECK_RESULT(vkAllocateDescriptorSets(vulkanContext->device, &globalDescAlloc, &vulkanContext->globalDescriptor));
 
-			// NOTE(heyyod): Camera buffer and descriptor
-			VkDescriptorBufferInfo cameraBufferInfo = {};
-			VkWriteDescriptorSet writeCameraDesc = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
-			if (VulkanCreateBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(camera_data),
-				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				vulkanContext->frameData[i].cameraBuffer, MAP_BUFFER_TRUE))
-			{
-				cameraBufferInfo.range = sizeof(camera_data);
-				cameraBufferInfo.buffer = vulkanContext->frameData[i].cameraBuffer.handle;
+		VulkanCreateBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, MAX_RENDER_OBJECTS * sizeof(object_transform),
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			vulkanContext->staticTransformsBuffer, MAP_BUFFER_TRUE);
+		VulkanCreateBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(camera_data),
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			vulkanContext->cameraUBO, MAP_BUFFER_TRUE);
+		VulkanCreateBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(scene_data),
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			vulkanContext->sceneUBO, MAP_BUFFER_TRUE);
 
-				writeCameraDesc.dstBinding = 0;
-				writeCameraDesc.dstArrayElement = 0;
-				writeCameraDesc.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-				writeCameraDesc.descriptorCount = 1;
-				writeCameraDesc.pBufferInfo = &cameraBufferInfo;
-				writeCameraDesc.dstSet = vulkanContext->frameData[i].globalDescriptor;
-			}
-			else
-			{
-				Assert("Could not create camera uniform buffers");
-				return false;
-			}
+		VkDescriptorBufferInfo cameraUBOInfo = {};
+		cameraUBOInfo.range = sizeof(camera_data);
+		cameraUBOInfo.buffer = vulkanContext->cameraUBO.handle;
+		VkWriteDescriptorSet writeCameraDesc = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+		writeCameraDesc.dstBinding = 0;
+		writeCameraDesc.dstArrayElement = 0;
+		writeCameraDesc.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		writeCameraDesc.descriptorCount = 1;
+		writeCameraDesc.pBufferInfo = &cameraUBOInfo;
+		writeCameraDesc.dstSet = vulkanContext->globalDescriptor;
 
-			// NOTE(heyyod): Storage buffer and descriptor
-			// NOTE: I know the create buffer call will be called multiple time but it will only create the buffer
-			// once. It will fail the other times. I just want everything to be together for now.
-			VkDescriptorBufferInfo objectsBufferInfo = {};
-			VkWriteDescriptorSet writeObjectsDesc = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
-			VulkanCreateBuffer(
-				VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, MAX_RENDER_OBJECTS * sizeof(object_transform),
-				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				vulkanContext->staticTransformsBuffer, MAP_BUFFER_TRUE);
-			objectsBufferInfo.range = sizeof(object_transform) * MAX_RENDER_OBJECTS;
-			objectsBufferInfo.buffer = vulkanContext->staticTransformsBuffer.handle;
+		VkDescriptorBufferInfo transformsBufferInfo = {};
+		transformsBufferInfo.range = sizeof(object_transform) * MAX_RENDER_OBJECTS;
+		transformsBufferInfo.buffer = vulkanContext->staticTransformsBuffer.handle;
+		VkWriteDescriptorSet writeTransformsDesc = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+		writeTransformsDesc.dstBinding = 1;
+		writeTransformsDesc.dstArrayElement = 0;
+		writeTransformsDesc.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		writeTransformsDesc.descriptorCount = 1;
+		writeTransformsDesc.pBufferInfo = &transformsBufferInfo;
+		writeTransformsDesc.dstSet = vulkanContext->globalDescriptor;
 
-			writeObjectsDesc.dstBinding = 1;
-			writeObjectsDesc.dstArrayElement = 0;
-			writeObjectsDesc.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-			writeObjectsDesc.descriptorCount = 1;
-			writeObjectsDesc.pBufferInfo = &objectsBufferInfo;
-			writeObjectsDesc.dstSet = vulkanContext->frameData[i].globalDescriptor;
+		VkDescriptorBufferInfo sceneUBOInfo = {};
+		sceneUBOInfo.range = sizeof(scene_data);
+		sceneUBOInfo.buffer = vulkanContext->sceneUBO.handle;
+		VkWriteDescriptorSet writeSceneDesc = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+		writeSceneDesc.dstBinding = 3;
+		writeSceneDesc.dstArrayElement = 0;
+		writeSceneDesc.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		writeSceneDesc.descriptorCount = 1;
+		writeSceneDesc.pBufferInfo = &sceneUBOInfo;
+		writeSceneDesc.dstSet = vulkanContext->globalDescriptor;
 
-			VkDescriptorBufferInfo sceneBufferInfo = {};
-			VkWriteDescriptorSet writeSceneDesc = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
-			if (VulkanCreateBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(scene_data),
-				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-				vulkanContext->frameData[i].sceneBuffer, MAP_BUFFER_TRUE))
-			{
-				sceneBufferInfo.range = sizeof(scene_data);
-				sceneBufferInfo.buffer = vulkanContext->frameData[i].sceneBuffer.handle;
-
-				writeSceneDesc.dstBinding = 3;
-				writeSceneDesc.dstArrayElement = 0;
-				writeSceneDesc.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-				writeSceneDesc.descriptorCount = 1;
-				writeSceneDesc.pBufferInfo = &sceneBufferInfo;
-				writeSceneDesc.dstSet = vulkanContext->frameData[i].globalDescriptor;
-			}
-			else
-			{
-				Assert("Could not create scene uniform buffer");
-				return false;
-			}
-
-			VkWriteDescriptorSet writes[] = {
-				writeCameraDesc,
-				writeObjectsDesc,
-				writeSceneDesc };
-			vkUpdateDescriptorSets(vulkanContext->device, ArrayCount(writes), writes, 0, 0);
-		}
+		VkWriteDescriptorSet writes[] = {
+			writeCameraDesc,
+			writeTransformsDesc,
+			writeSceneDesc
+		};
+		vkUpdateDescriptorSets(vulkanContext->device, ArrayCount(writes), writes, 0, 0);
 	}
 
 	//------------------------------------------------------------------------
@@ -1844,11 +1824,8 @@ inline static_func void VulkanDestroy()
 		if (VK_CHECK_HANDLE(vulkanContext->globalDescSetLayout))
 			vkDestroyDescriptorSetLayout(vulkanContext->device, vulkanContext->globalDescSetLayout, 0);
 
-		for (u32 i = 0; i < ArrayCount(vulkanContext->frameData); i++)
-		{
-			VulkanClearBuffer(vulkanContext->frameData[i].cameraBuffer);
-			VulkanClearBuffer(vulkanContext->frameData[i].sceneBuffer);
-		}
+		VulkanClearBuffer(vulkanContext->cameraUBO);
+		VulkanClearBuffer(vulkanContext->sceneUBO);
 		VulkanClearBuffer(vulkanContext->staticTransformsBuffer);
 
 		if (VK_CHECK_HANDLE(vulkanContext->globalDescPool))
@@ -2186,12 +2163,8 @@ FUNC_RENDERER_UPLOAD_RESOURCES(VulkanUpload)
 					writeDesc.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 					writeDesc.descriptorCount = 1;
 					writeDesc.pImageInfo = &descImageInfo;
-
-					for (u8 i = 0; i < ArrayCount(vulkanContext->frameData); i++)
-					{
-						writeDesc.dstSet = vulkanContext->frameData[i].globalDescriptor;
-						vkUpdateDescriptorSets(vulkanContext->device, 1, &writeDesc, 0, 0);
-					}
+					writeDesc.dstSet = vulkanContext->globalDescriptor;
+					vkUpdateDescriptorSets(vulkanContext->device, 1, &writeDesc, 0, 0);
 				}
 			}
 			break;
@@ -2318,7 +2291,7 @@ FUNC_RENDERER_DRAW_FRAME(VulkanDraw)
 			{
 				currentPipelineId = vulkanContext->loadedMesh[meshId].pipelineID;
 				vkCmdBindPipeline(res->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkanContext->pipeline[currentPipelineId].handle);
-				vkCmdBindDescriptorSets(res->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkanContext->pipeline[currentPipelineId].layout, 0, 1, &vulkanContext->frameData[nextImage].globalDescriptor, 0, 0);
+				vkCmdBindDescriptorSets(res->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkanContext->pipeline[currentPipelineId].layout, 0, 1, &vulkanContext->globalDescriptor, 0, 0);
 			}
 			for (u32 meshInstance = 0; meshInstance < vulkanContext->loadedMesh[meshId].nInstances; meshInstance++)
 			{
@@ -2333,7 +2306,7 @@ FUNC_RENDERER_DRAW_FRAME(VulkanDraw)
 			transformId = 0;
 			currentPipelineId = PIPELINE_WIREFRAME;
 			vkCmdBindPipeline(res->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkanContext->pipeline[currentPipelineId].handle);
-			vkCmdBindDescriptorSets(res->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkanContext->pipeline[currentPipelineId].layout, 0, 1, &vulkanContext->frameData[nextImage].globalDescriptor, 0, 0);
+			vkCmdBindDescriptorSets(res->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkanContext->pipeline[currentPipelineId].layout, 0, 1, &vulkanContext->globalDescriptor, 0, 0);
 			for (u32 meshInstance = 0; meshInstance < vulkanContext->loadedMesh[meshId].nInstances; meshInstance++)
 			{
 				vkCmdPushConstants(res->cmdBuffer, vulkanContext->pipeline[currentPipelineId].layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(u32), &transformId);
@@ -2349,7 +2322,7 @@ FUNC_RENDERER_DRAW_FRAME(VulkanDraw)
 		currentPipelineId = PIPELINE_GRID;
 		vkCmdBindVertexBuffers(res->cmdBuffer, 0, 1, &vulkanContext->gridBuffer.handle, &bufferOffset);
 		vkCmdBindPipeline(res->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkanContext->pipeline[currentPipelineId].handle);
-		vkCmdBindDescriptorSets(res->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkanContext->pipeline[currentPipelineId].layout, 0, 1, &vulkanContext->frameData[nextImage].globalDescriptor, 0, 0);
+		vkCmdBindDescriptorSets(res->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkanContext->pipeline[currentPipelineId].layout, 0, 1, &vulkanContext->globalDescriptor, 0, 0);
 		vkCmdPushConstants(res->cmdBuffer, vulkanContext->pipeline[currentPipelineId].layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(vec3), &packet->playerPos);
 		vkCmdDraw(res->cmdBuffer, vulkanContext->gridVertexCount, 1, 0, 0);
 
@@ -2414,14 +2387,6 @@ FUNC_RENDERER_DRAW_FRAME(VulkanDraw)
 			return false;
 		}
 	}
-
-	// NOTE(heyyod): Update data for the engine
-	{
-		u32 nextUniformBuffer = (nextImage + 1) % NUM_DESCRIPTORS;
-		packet->newCameraBuffer = vulkanContext->frameData[nextUniformBuffer].cameraBuffer.data;
-		packet->newSceneBuffer = vulkanContext->frameData[nextUniformBuffer].sceneBuffer.data;
-	}
-
 	return true;
 }
 

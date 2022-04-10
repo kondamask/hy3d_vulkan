@@ -69,13 +69,6 @@ struct vulkan_cmd_resources
 	//VkFramebuffer framebuffer;
 };
 
-struct frame_data
-{
-	vulkan_buffer cameraBuffer;  // uniform
-	vulkan_buffer sceneBuffer;   // dynamic uniform
-	VkDescriptorSet globalDescriptor;
-};
-
 enum VULKAN_PIPELINE_ID
 {
 	PIPELINE_MESH,
@@ -134,19 +127,23 @@ struct vulkan_context
 	u32 swapchainImageCount;
 	u32 currentResource;
 
-	frame_data frameData[NUM_SWAPCHAIN_IMAGES];
 	VkSampler textureSampler;
-
+	
 	VkDescriptorSetLayout globalDescSetLayout;
 	VkDescriptorPool globalDescPool;
+	VkDescriptorSet globalDescriptor;
+	
+	vulkan_buffer cameraUBO;  // uniform
+	vulkan_buffer sceneUBO;   // uniform
 
-	// NOTE(heyyod): in gpu
 	vulkan_buffer stagingBuffer;
 	vulkan_image depthBuffer;
 	vulkan_buffer vertexBuffer;
 	vulkan_buffer indexBuffer;
 	vulkan_buffer gridBuffer;
 	u32 gridVertexCount;
+	
+	
 
 	vulkan_mesh loadedMesh[MAX_MESHES];
 	vulkan_pipeline pipeline[PIPELINES_COUNT];

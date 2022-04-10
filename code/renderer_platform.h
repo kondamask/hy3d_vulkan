@@ -27,19 +27,9 @@ enum RENDERER_GRAPHICS_API
 
 struct render_packet
 {
-	// ENGINE -> RENDERER
 	f32 dt;
 	vec3 clearColor;
 	vec3 playerPos;
-    
-	//------------------------------------------------------------------------
-	
-	// RENDERER -> ENGINE
-	// We have multiple a uniform buffers for every frame in the swapchain.
-	// We cycle them as we change the current swapchain image.
-	// So vulkan will update the pointer and the engine will redirect it's camera write address
-	void *newCameraBuffer;
-	void *newSceneBuffer;
 };
 
 struct renderer_platform;
