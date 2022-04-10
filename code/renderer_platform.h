@@ -27,9 +27,17 @@ enum RENDERER_GRAPHICS_API
 
 struct render_packet
 {
+	// ENGINE -> RENDERER
 	f32 dt;
 	vec3 clearColor;
 	vec3 playerPos;
+	
+	//------------------------------------------------------------------------
+	
+	// RENDERER -> ENGINE
+	void *nextCameraPtr;
+	void *nextScenePtr;
+	void *nextTransformsPtr;
 };
 
 struct renderer_platform;

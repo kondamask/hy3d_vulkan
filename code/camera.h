@@ -16,7 +16,7 @@ struct camera
 	f32 sens;
 };
 
-struct camera_data
+struct camera_ubo
 {
 	mat4 view;
 	mat4 proj;

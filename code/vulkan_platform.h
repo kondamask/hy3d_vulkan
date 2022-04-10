@@ -15,7 +15,7 @@
 #define NUM_DESCRIPTORS NUM_SWAPCHAIN_IMAGES
 
 #define MAX_MESHES 10
-#define MAX_RENDER_OBJECTS 1000
+#define MAX_OBJECT_TRANSFORMS 1000
 
 #define MAP_BUFFER_TRUE true
 
@@ -58,6 +58,14 @@ struct vulkan_buffer
 	void *data;
 	u64 size;
 	u64 writeOffset;
+};
+
+struct vulkan_ubo
+{
+	vulkan_buffer buffer;
+	u64 paddedSize;
+	
+	// TODO: Default constructor that automatically fills the paddedSize
 };
 
 struct vulkan_cmd_resources
@@ -131,23 +139,21 @@ struct vulkan_context
 	
 	VkDescriptorSetLayout globalDescSetLayout;
 	VkDescriptorPool globalDescPool;
-	VkDescriptorSet globalDescriptor;
+	VkDescriptorSet globalDescriptor[NUM_SWAPCHAIN_IMAGES];
 	
-	vulkan_buffer cameraUBO;  // uniform
-	vulkan_buffer sceneUBO;   // uniform
+	vulkan_ubo cameraUBO;  // uniform
+	vulkan_ubo sceneUBO;   // uniform
+	vulkan_buffer transformsStorage;
 
 	vulkan_buffer stagingBuffer;
 	vulkan_image depthBuffer;
 	vulkan_buffer vertexBuffer;
 	vulkan_buffer indexBuffer;
 	vulkan_buffer gridBuffer;
-	u32 gridVertexCount;
-	
-	
+	u32 gridVertexCount;	
 
 	vulkan_mesh loadedMesh[MAX_MESHES];
 	vulkan_pipeline pipeline[PIPELINES_COUNT];
-	vulkan_buffer staticTransformsBuffer;
 	u32 loadedMeshCount;
 
 	vulkan_image texture;

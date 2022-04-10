@@ -42,7 +42,7 @@ extern "C" FUNC_ENGINE_INITIALIZE(EngineInitialize)
 	MemoryArenaInitialize(&state->memoryArena, (u8 *)memory->permanentMemory + sizeof(engine_state), memory->permanentMemorySize - sizeof(engine_state));
 
 	// NOTE: Everything is initialized here
-	state->renderPacket.clearColor = {0.0f, 0.4f, 0.3f};
+	state->renderPacket.clearColor = { 0.0f, 0.4f, 0.3f };
 
 	if (!RendererInitialize(RENDERER_GRAPHICS_API_VULKAN, engine))
 	{
@@ -55,24 +55,23 @@ extern "C" FUNC_ENGINE_INITIALIZE(EngineInitialize)
 
 	// TODO(heyyod): This assumes that the first image we aquire in vulkan will always have index 0
 	// Mayby bad
-	engine->memory.cameraData = (camera_data *)vulkanContext->cameraUBO.data;
-	engine->memory.sceneData = (scene_data *)vulkanContext->sceneUBO.data;
-	engine->memory.objectsTransforms = (object_transform *)vulkanContext->staticTransformsBuffer.data;
+	engine->memory.cameraUBO = (camera_ubo *)vulkanContext->cameraUBO.buffer.data;
+	engine->memory.sceneUBO = (scene_ubo *)vulkanContext->sceneUBO.buffer.data;
+	engine->memory.transforms = (object_transform *)vulkanContext->transformsStorage.data;
 	engine->memory.nextStagingAddr = engine->memory.stagingMemory;
-	engine->memory.sceneData->ambientColor = {0.5f, 0.5f, 0.65f, 0.0f};
-
+	engine->memory.sceneUBO->ambientColor = { 0.5f, 0.5f, 0.65f, 0.0f };
 
 	staged_resources sceneResources = {};
 	sceneResources.nextWriteAddr = engine->memory.nextStagingAddr;
 
 	// Make initial scene
-	CreateScene(sceneResources, engine->memory.objectsTransforms);
+	CreateScene(sceneResources);
 	engine->renderer.Upload(&sceneResources);
- 
+
 
 	engine->memory.isInitialized = true;
 
-	CameraInitialize(engine->state->player, {0.0f, 2.0f, -5.0f}, {0.0f, 0.0f, -1.0f}, VEC3_UP, 4.0f, 2.0f, 60.0f);
+	CameraInitialize(engine->state->player, { 0.0f, 2.0f, -5.0f }, { 0.0f, 0.0f, -1.0f }, VEC3_UP, 4.0f, 2.0f, 60.0f);
 
 	engine->input.mouse.cursorEnabled = true;
 	engine->input.mouse.firstMove = true;
@@ -149,8 +148,8 @@ inline static_func void EngineProcessInput(engine_platform *engine)
 			engine->input.mouse.firstMove = false;
 		}
 
-		dLook = {engine->input.mouse.newPos.X - engine->input.mouse.lastPos.X,
-				 engine->input.mouse.lastPos.Y - engine->input.mouse.newPos.Y};
+		dLook = { engine->input.mouse.newPos.X - engine->input.mouse.lastPos.X,
+		engine->input.mouse.lastPos.Y - engine->input.mouse.newPos.Y };
 		dLook *= engine->state->renderPacket.dt;
 
 		CameraUpdate(player, dPos, dLook);
@@ -200,12 +199,29 @@ extern "C" FUNC_ENGINE_UPDATE_AND_RENDER(EngineUpdateAndRender)
 
 	EngineProcessInput(engine);
 
-	memory->cameraData->view = LookAt(state->player.pos, state->player.pos + state->player.dir, VEC3_UP);
-	memory->cameraData->proj = Perspective(state->player.fov, engine->windowWidth / (f32)engine->windowHeight, 0.01f, 100.0f);
+	memory->cameraUBO->view = LookAt(state->player.pos, state->player.pos + state->player.dir, VEC3_UP);
+	memory->cameraUBO->proj = Perspective(state->player.fov, engine->windowWidth / (f32)engine->windowHeight, 0.01f, 100.0f);
 
 	state->renderPacket.playerPos = state->player.pos;
-
+	
+	//------------------------------------------------------------------------
+	// TEMP
+	f32 scaleFactor = Abs(CosF(state->time)) + 0.5f;
+	object_transform *t = (object_transform *)memory->transforms;
+	t[0].model = Translate( { SinF(state->time), 0.0f, 0.0f }) *
+		Rotate(-90.0f, { 0.0f, 1.0f, 0.0f }) *
+		Rotate(-90.0f, { 1.0f, 0.0f, 0.0f }) *
+		Scale( { scaleFactor, scaleFactor, scaleFactor });
+	t[1].model = Translate( { 3.0, SinF(state->time), CosF(state->time) }) *
+		Rotate(-90.0f, { 0.0f, 1.0f, 0.0f }) *
+		Rotate(-90.0f, { 1.0f, 0.0f, 0.0f });
+	//------------------------------------------------------------------------
+	
 	engine->renderer.DrawFrame(&state->renderPacket);
+
+	engine->memory.cameraUBO = (camera_ubo *)state->renderPacket.nextCameraPtr;
+	engine->memory.sceneUBO = (scene_ubo *)state->renderPacket.nextScenePtr;
+	engine->memory.transforms = (object_transform *)state->renderPacket.nextTransformsPtr;
 }
 
 extern "C" FUNC_ENGINE_DESTROY(EngineDestroy)

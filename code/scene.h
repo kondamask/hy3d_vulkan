@@ -7,7 +7,6 @@
 #include "image.h"
 
 #define MODEL_PATH(file) ".\\assets\\models\\"#file
-
 #define TEXTURE_PATH(file) ".\\assets\\textures\\"#file
 
 enum RESOURCE_TYPE
@@ -26,7 +25,7 @@ struct object_transform
     mat4 model;
 };
 
-struct scene_data
+struct scene_ubo
 {
 	vec4 fogColor;        // w for exponent
 	vec4 fogDistances;    // x for min, y for max, zw unused
@@ -43,6 +42,11 @@ struct staged_resources
     RESOURCE_TYPE types[MAX_STAGE_BUFFER_SLOTS];
     u32 nInstances[MAX_STAGE_BUFFER_SLOTS];
     u32 count;
+};
+
+struct scene
+{
+	u32 numObjects;
 };
 
 #define OffsetInStageBuffer(res) (u8*)res - (u8*)sceneResources.resources[0] + sizeof(*res)
@@ -100,24 +104,13 @@ This WILL cause unused gaps in the buffer so I need to keep this in mind!!
 
 
 #define IsResourceValid(id) (id >= 0)
-static_func staged_resources CreateScene(staged_resources &resources, void *transforms)
+static_func staged_resources CreateScene(staged_resources &resources)
 {
     // TODO(heyyod): Staging buffer should be created here
     i32 resourceID = -1;
     resourceID = StageResource(MODEL_PATH(viking_room.obj), RESOURCE_MESH, resources);
     if(IsResourceValid(resourceID))
     {
-        object_transform *t = (object_transform *)transforms;
-        t[0].model = 
-            Translate({0.0f, 0.0f, 0.0f}) *
-            Rotate(90.0f, Vec3(0.0f, 0.0f, 1.0f)) *
-            Rotate(90.0f, Vec3(0.0f, 1.0f, 0.0f));
-        t[1].model = 
-            Translate({0.0f, 2.0f, 0.0f}) *
-            Rotate(90.0f, Vec3(0.0f, 0.0f, 1.0f)) *
-            Rotate(90.0f, Vec3(0.0f, 1.0f, 0.0f));
-        //arrput(resources.transforms, t0);
-        //arrput(resources.transforms, t1);
         resources.nInstances[resourceID] = 2;
     }
     StageResource(TEXTURE_PATH(viking_room.png), RESOURCE_TEXTURE, resources);

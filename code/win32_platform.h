@@ -6,7 +6,6 @@
 #include "win32_resource.h"
 #include "engine_platform.h"
 
-
 #define WIN32_WINDOW_Y_BORDER 39
 #define WIN32_WINDOW_X_BORDER 23
 

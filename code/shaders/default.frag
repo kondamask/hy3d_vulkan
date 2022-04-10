@@ -2,7 +2,7 @@
 
 layout(set = 0, binding = 2) uniform sampler2D textureSampler;
 
-layout(set = 0, binding = 3) uniform  sceneData
+layout(set = 0, binding = 1) uniform  sceneData
 {   
     vec4 fogColor; // w is for exponent
 	vec4 fogDistances; //x for min, y for max, zw unused.

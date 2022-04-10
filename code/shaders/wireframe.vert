@@ -11,7 +11,7 @@ struct object_transform
 	mat4 model;
 };
 
-layout(std140, set = 0, binding = 1) readonly buffer ObjectBuffer
+layout(std140, set = 0, binding = 3) readonly buffer object_transforms
 {
 	object_transform transform[];
 };

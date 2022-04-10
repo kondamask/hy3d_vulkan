@@ -74,12 +74,10 @@ struct engine_memory
     
     void *stagingMemory;
     void *nextStagingAddr;
-    
-    // NOTE(heyyod): uniform buffer allocated from vulkanContext->
-    // Linked in os layer for now.
-    camera_data *cameraData;
-    scene_data *sceneData;
-    object_transform *objectsTransforms;
+	
+    camera_ubo *cameraUBO;
+    scene_ubo *sceneUBO;
+    object_transform *transforms;
     
     bool isInitialized;
 };
