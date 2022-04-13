@@ -289,7 +289,7 @@ static_func bool Win32ProcessMessages(win32_window &window, engine_platform &eng
 				break;
 			}
 
-			case WM_USER + 1: //WM_SIZE
+			case WM_USER + 1: // WM_SIZE
 			{
 				engine.onResize = true;
 				Win32GetWindowDim(window.handle, engine.windowWidth, engine.windowHeight);
@@ -298,7 +298,9 @@ static_func bool Win32ProcessMessages(win32_window &window, engine_platform &eng
 				break;
 			}
 
-			/***************** KEYBOARD EVENTS ****************/
+			//------------------------------------------------------------------------
+			// KEYBOARD EVENTS
+			//------------------------------------------------------------------------
 			case WM_SYSKEYDOWN:
 			case WM_KEYDOWN:
 			{
@@ -324,9 +326,10 @@ static_func bool Win32ProcessMessages(win32_window &window, engine_platform &eng
 					input.keyboard.ToggleKey(key);
 				break;
 			}
-			/**************************************************/
 
-			/****************** MOUSE EVENTS ******************/
+			//------------------------------------------------------------------------
+			// MOUSE EVENTS
+			//------------------------------------------------------------------------
 			case WM_INPUT:
 			{
 				UINT dwSize = sizeof(RAWINPUT);
@@ -522,9 +525,13 @@ static_func bool Win32InitializeWindow(win32_window &window, u16 width, u16 heig
 	RAWINPUTDEVICE rid;
 	rid.usUsagePage = 0x01; //HID_USAGE_PAGE_GENERIC; 
 	rid.usUsage = 0x02; //HID_USAGE_GENERIC_MOUSE; 
-	//rid.dwFlags = RIDEV_INPUTSINK;   
+	rid.dwFlags = 0x100; //RIDEV_INPUTSINK;
 	rid.hwndTarget = window.handle;
-	RegisterRawInputDevices(&rid, 1, sizeof(rid));
+	if (!RegisterRawInputDevices(&rid, 1, sizeof(rid)))
+	{
+		DebugPrint("ERROR: Failed to register raw input device.\n");
+		return false;
+	}
 
 	ShowWindow(window.handle, SW_SHOWDEFAULT);
 	SetFocus(window.handle);
