@@ -4,10 +4,11 @@
 #include "core.h"
 #include "math.h"
 #include "graphics_settings.h"
+#include "engine_shader.h"
 
 //------------------------------------------------------------------------
 
-#define GRAPHICS_CONTEXT_SIZE KILOBYTES(5)
+#define GRAPHICS_CONTEXT_SIZE KILOBYTES(10)
 
 struct graphics_context
 {
@@ -23,6 +24,17 @@ enum RENDERER_GRAPHICS_API
 	RENDERER_GRAPHICS_API_VULKAN,
 	RENDERER_GRAPHICS_API_OPENGL,
 	RENDERER_GRAPHICS_API_DIRECTX,
+};
+
+// NOTE: Some of these only apply on vulkan.
+// I can probably just remap them in the background on other apis.
+enum RENDERER_BUFFER_TYPE
+{
+	RENDERER_BUFFER_TYPE_UNIFORM,
+	RENDERER_BUFFER_TYPE_UNIFORM_DYNAMIC,
+	RENDERER_BUFFER_TYPE_STORAGE,
+	RENDERER_BUFFER_TYPE_STORAGE_DYNAMIC,
+	RENDERER_BUFFER_TYPE_STAGING,
 };
 
 struct render_packet
@@ -63,6 +75,12 @@ typedef FUNC_RENDERER_CREATE_SURFACE(func_renderer_create_surface);
 #define FUNC_RENDERER_UPLOAD_RESOURCES(name) bool name(staged_resources *staged)
 typedef FUNC_RENDERER_UPLOAD_RESOURCES(func_renderer_upload_resources);
 
+#define FUNC_RENDERER_REQUEST_BUFFER(name) void *name(RENDERER_BUFFER_TYPE bufferType, u64 size, bool doubleBuffer)
+typedef FUNC_RENDERER_REQUEST_BUFFER(func_renderer_request_buffer);
+
+#define FUNC_RENDERER_BIND_SHADER_RESOURCES(name) bool name(shader_resource_bind *binds, u32 count)
+typedef FUNC_RENDERER_BIND_SHADER_RESOURCES(func_renderer_bind_shader_resources);
+
 struct renderer_platform
 {	
 	RENDERER_GRAPHICS_API gfxAPI;
@@ -70,13 +88,20 @@ struct renderer_platform
 	u32 windowWidth;
 	u32 windowHeight;
 	
+	//------------------------------------------------------------------------
+	// API for Engine	
 	func_renderer_initialize *Initialize;
 	func_renderer_draw_frame *DrawFrame;
 	func_renderer_change_graphics_settings *ChangeGraphicsSettings;
 	func_renderer_upload_resources *Upload;
+	func_renderer_request_buffer *RequestBuffer;
+	func_renderer_bind_shader_resources *BindShaderResources;
+	
 	func_renderer_on_shader_reload *OnShaderReload;
 	func_renderer_on_resize *OnResize;
 	
+	//------------------------------------------------------------------------
+	// Platform Specific Called From The Graphics API
 	func_renderer_create_surface *FillSurfaceWindowContext;
 };
 

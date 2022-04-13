@@ -18,6 +18,8 @@ static_func bool RendererSetGraphicsApiFunctions(RENDERER_GRAPHICS_API gfxAPI, e
 			engine->renderer.DrawFrame = VulkanDraw;
 			engine->renderer.ChangeGraphicsSettings = VulkanChangeGraphicsSettings;
 			engine->renderer.Upload = VulkanUpload;
+			engine->renderer.BindShaderResources = VulkanBindShaderResources;
+			engine->renderer.RequestBuffer = VulkanRequestBuffer;
 			engine->renderer.OnShaderReload = VulkanOnShaderReload;
 			engine->renderer.OnResize = VulkanOnResize;
 

@@ -14,9 +14,6 @@
 // ARE DEPENDING ON THE CURRENT AQUIRED IMAGE IN THE DRAW LOOP
 #define NUM_DESCRIPTORS NUM_SWAPCHAIN_IMAGES
 
-#define MAX_MESHES 10
-#define MAX_OBJECT_TRANSFORMS 1000
-
 #define MAP_BUFFER_TRUE true
 
 #if INDEX_TYPE_U16
@@ -58,14 +55,6 @@ struct vulkan_buffer
 	void *data;
 	u64 size;
 	u64 writeOffset;
-};
-
-struct vulkan_ubo
-{
-	vulkan_buffer buffer;
-	u64 paddedSize;
-	
-	// TODO: Default constructor that automatically fills the paddedSize
 };
 
 struct vulkan_cmd_resources
@@ -137,14 +126,13 @@ struct vulkan_context
 
 	VkSampler textureSampler;
 	
-	VkDescriptorSetLayout globalDescSetLayout;
-	VkDescriptorPool globalDescPool;
-	VkDescriptorSet globalDescriptor[NUM_SWAPCHAIN_IMAGES];
+	VkDescriptorSetLayout globalDescriptorSetLayout;
+	VkDescriptorPool globalDescriptorPool;
+	VkDescriptorSet globalDescriptorSet[NUM_SWAPCHAIN_IMAGES];
 	
-	vulkan_ubo cameraUBO;  // uniform
-	vulkan_ubo sceneUBO;   // uniform
-	vulkan_buffer transformsStorage;
-
+	vulkan_buffer buffers[10]; // TEMP SIZE
+	u32 nextBuffer;
+	
 	vulkan_buffer stagingBuffer;
 	vulkan_image depthBuffer;
 	vulkan_buffer vertexBuffer;

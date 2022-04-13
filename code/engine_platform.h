@@ -8,8 +8,9 @@
 #define WINDOW_WIDTH_MIN 255
 #define WINDOW_HEIGHT_MIN 255
 
+#define MAX_MESHES 10
+#define MAX_OBJECT_TRANSFORMS 1000
 #define MAX_STAGE_BUFFER_SLOTS 100
-#define MAX_TRANSFORM_SLOTS 1000
 
 //------------------------------------------------------------------------
 
@@ -18,6 +19,7 @@
 #include "core.h"
 #include "scene.h"
 #include "camera.h"
+#include "engine_shader.h"
 #include "renderer_platform.h"
 
 //------------------------------------------------------------------------

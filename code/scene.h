@@ -110,9 +110,8 @@ static_func staged_resources CreateScene(staged_resources &resources)
     i32 resourceID = -1;
     resourceID = StageResource(MODEL_PATH(viking_room.obj), RESOURCE_MESH, resources);
     if(IsResourceValid(resourceID))
-    {
         resources.nInstances[resourceID] = 2;
-    }
+	
     StageResource(TEXTURE_PATH(viking_room.png), RESOURCE_TEXTURE, resources);
     return resources;
 }

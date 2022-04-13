@@ -32,12 +32,14 @@ static_func void *MemoryArenaReserve(memory_arena *arena, size_t size)
 
 extern "C" FUNC_ENGINE_INITIALIZE(EngineInitialize)
 {
+	platformAPI = &engine->platformAPI;
+
 	engine->input = {};
 	engine->onResize = false;
 
 	engine_memory *memory = &engine->memory;
 	engine_state *state = engine->state = (engine_state *)memory->permanentMemory;
-	platformAPI = &engine->platformAPI;
+	renderer_platform *renderer = &engine->renderer;
 
 	MemoryArenaInitialize(&state->memoryArena, (u8 *)memory->permanentMemory + sizeof(engine_state), memory->permanentMemorySize - sizeof(engine_state));
 
@@ -51,25 +53,35 @@ extern "C" FUNC_ENGINE_INITIALIZE(EngineInitialize)
 	}
 
 	platformAPI->GetFileWriteTime(DEFAULT_SHADER_FILEPATH, &engine->shadersWriteTime);
-	engine->memory.stagingMemory = vulkanContext->stagingBuffer.data;
 
-	// TODO(heyyod): This assumes that the first image we aquire in vulkan will always have index 0
-	// Mayby bad
-	engine->memory.cameraUBO = (camera_ubo *)vulkanContext->cameraUBO.buffer.data;
-	engine->memory.sceneUBO = (scene_ubo *)vulkanContext->sceneUBO.buffer.data;
-	engine->memory.transforms = (object_transform *)vulkanContext->transformsStorage.data;
-	engine->memory.nextStagingAddr = engine->memory.stagingMemory;
-	engine->memory.sceneUBO->ambientColor = { 0.5f, 0.5f, 0.65f, 0.0f };
+	shader_resource_bind shaderBinds[] = {
+		{ SHADER_STAGE_FLAG_VERTEX, SHADER_RESOURCE_TYPE_UNIFORM, 0, sizeof(camera_ubo), true },
+		{ SHADER_STAGE_FLAG_FRAGMENT, SHADER_RESOURCE_TYPE_UNIFORM, 1, sizeof(scene_ubo), true },
+		{ SHADER_STAGE_FLAG_VERTEX, SHADER_RESOURCE_TYPE_STORAGE, 3, sizeof(object_transform) * MAX_OBJECT_TRANSFORMS, true },
+	};
+	renderer->BindShaderResources(shaderBinds, ArrayCount(shaderBinds));
+	VulkanCreateAllPipelines();
+
+	memory->cameraUBO = (camera_ubo *)shaderBinds[0].data;
+	memory->sceneUBO = (scene_ubo *)shaderBinds[1].data;
+	memory->transforms = (object_transform *)shaderBinds[2].data;
+
+	memory->stagingMemory = renderer->RequestBuffer(RENDERER_BUFFER_TYPE_STAGING, MEGABYTES(256), false);
+	// TODO: This should be handled in a function.
+	memory->nextStagingAddr = memory->stagingMemory;
+
+	memory->sceneUBO->ambientColor = { 0.5f, 0.5f, 0.65f, 0.0f };
+
+	VulkanCreateGrid();
 
 	staged_resources sceneResources = {};
-	sceneResources.nextWriteAddr = engine->memory.nextStagingAddr;
+	sceneResources.nextWriteAddr = memory->nextStagingAddr;
 
 	// Make initial scene
 	CreateScene(sceneResources);
-	engine->renderer.Upload(&sceneResources);
+	renderer->Upload(&sceneResources);
 
-
-	engine->memory.isInitialized = true;
+	memory->isInitialized = true;
 
 	CameraInitialize(engine->state->player, { 0.0f, 2.0f, -5.0f }, { 0.0f, 0.0f, -1.0f }, VEC3_UP, 4.0f, 2.0f, 60.0f);
 
@@ -82,79 +94,85 @@ extern "C" FUNC_ENGINE_INITIALIZE(EngineInitialize)
 
 inline static_func void EngineProcessInput(engine_platform *engine)
 {
+	engine_input &input = engine->input;
+	engine_state *state = engine->state;
+	renderer_platform &renderer = engine->renderer;
+
 	// NOTE(heyyod): SETTINGS CONTROL
-	if (!engine->input.keyboard.isPressed[KEY_ALT] && !engine->input.keyboard.altWasUp)
-		engine->input.keyboard.altWasUp = true;
-	if (engine->input.keyboard.isPressed[KEY_ALT] && engine->input.keyboard.altWasUp)
+	if (!input.keyboard.isPressed[KEY_ALT] && !input.keyboard.altWasUp)
+		input.keyboard.altWasUp = true;
+	if (input.keyboard.isPressed[KEY_ALT] && input.keyboard.altWasUp)
 	{
 
 		CHANGE_GRAPHICS_SETTINGS newSettings = CHANGE_NONE;
-		MSAA_OPTIONS newMSAA = engine->state->settings.msaa;
+		MSAA_OPTIONS newMSAA = state->settings.msaa;
 
-		if (engine->input.keyboard.isPressed[KEY_ONE])
+		if (input.keyboard.isPressed[KEY_ONE])
 			newMSAA = MSAA_OFF;
-		if (engine->input.keyboard.isPressed[KEY_TWO])
+		if (input.keyboard.isPressed[KEY_TWO])
 			newMSAA = MSAA_2;
-		if (engine->input.keyboard.isPressed[KEY_THREE])
+		if (input.keyboard.isPressed[KEY_THREE])
 			newMSAA = MSAA_4;
-		if (engine->input.keyboard.isPressed[KEY_FOUR])
+		if (input.keyboard.isPressed[KEY_FOUR])
 			newMSAA = MSAA_8;
-		if (newMSAA != engine->state->settings.msaa)
+		if (newMSAA != state->settings.msaa)
 		{
-			engine->state->settings.msaa = newMSAA;
+			state->settings.msaa = newMSAA;
 			newSettings |= CHANGE_MSAA;
-			engine->input.keyboard.altWasUp = false;
+			input.keyboard.altWasUp = false;
 		}
 		if (newSettings)
-			engine->renderer.ChangeGraphicsSettings(engine->state->settings, newSettings);
+			renderer.ChangeGraphicsSettings(state->settings, newSettings);
 
-		if (engine->input.keyboard.isPressed[KEY_TILDE])
+		if (input.keyboard.isPressed[KEY_TILDE])
 		{
-			engine->input.mouse.cursorEnabled = !engine->input.mouse.cursorEnabled;
-			engine->input.mouse.firstMove = true;
-			engine->input.keyboard.altWasUp = false;
+			input.mouse.cursorEnabled = !input.mouse.cursorEnabled;
+			input.mouse.firstMove = true;
+			input.keyboard.altWasUp = false;
 		}
 	}
 
 	// NOTE(heyyod): CAMERA CONTROL
-	engine->input.mouse.cursorEnabled = !engine->input.mouse.rightIsPressed;
-	if (engine->input.mouse.rightIsPressed)
+	input.mouse.cursorEnabled = !input.mouse.rightIsPressed;
+	if (input.mouse.rightIsPressed)
 	{
-		camera &player = engine->state->player;
+		input.mouse.cursorEnabled = false;
+
+		camera &player = state->player;
 		vec3 dPos = {};
 		vec2 dLook = {};
 
-		if (engine->input.keyboard.isPressed[KEY_W])
+		if (input.keyboard.isPressed[KEY_W])
 			dPos += player.dir;
-		if (engine->input.keyboard.isPressed[KEY_S])
+		if (input.keyboard.isPressed[KEY_S])
 			dPos -= player.dir;
-		if (engine->input.keyboard.isPressed[KEY_A])
+		if (input.keyboard.isPressed[KEY_A])
 			dPos += Cross(VEC3_UP, player.dir);
-		if (engine->input.keyboard.isPressed[KEY_D])
+		if (input.keyboard.isPressed[KEY_D])
 			dPos += Cross(player.dir, VEC3_UP);
-		if (engine->input.keyboard.isPressed[KEY_Q])
+		if (input.keyboard.isPressed[KEY_Q])
 			dPos.Y -= 1.0f;
-		if (engine->input.keyboard.isPressed[KEY_E])
+		if (input.keyboard.isPressed[KEY_E])
 			dPos.Y += 1.0f;
-		dPos *= engine->state->renderPacket.dt;
+		dPos *= state->renderPacket.dt;
 
-		if (engine->input.keyboard.isPressed[KEY_SHIFT])
+		if (input.keyboard.isPressed[KEY_SHIFT])
 			dPos *= 6.0f; // SPEED BOOST
 
-		engine->input.mouse.cursorEnabled = false;
-		if (engine->input.mouse.firstMove)
+		if (input.mouse.firstMove)
 		{
-			engine->input.mouse.lastPos = engine->input.mouse.newPos;
-			engine->input.mouse.firstMove = false;
+			input.mouse.lastPos = input.mouse.newPos;
+			input.mouse.firstMove = false;
 		}
 
-		dLook = { engine->input.mouse.newPos.X - engine->input.mouse.lastPos.X,
-		engine->input.mouse.lastPos.Y - engine->input.mouse.newPos.Y };
-		dLook *= engine->state->renderPacket.dt;
-
+		dLook = {
+			input.mouse.newPos.X - input.mouse.lastPos.X,
+			input.mouse.lastPos.Y - input.mouse.newPos.Y
+		};
+		dLook *= state->renderPacket.dt;
 		CameraUpdate(player, dPos, dLook);
 	}
-	engine->input.mouse.lastPos = engine->input.mouse.newPos;
+	input.mouse.lastPos = input.mouse.newPos;
 }
 
 extern "C" FUNC_ENGINE_UPDATE_AND_RENDER(EngineUpdateAndRender)
@@ -203,7 +221,7 @@ extern "C" FUNC_ENGINE_UPDATE_AND_RENDER(EngineUpdateAndRender)
 	memory->cameraUBO->proj = Perspective(state->player.fov, engine->windowWidth / (f32)engine->windowHeight, 0.01f, 100.0f);
 
 	state->renderPacket.playerPos = state->player.pos;
-	
+
 	//------------------------------------------------------------------------
 	// TEMP
 	f32 scaleFactor = Abs(CosF(state->time)) + 0.5f;
@@ -216,12 +234,12 @@ extern "C" FUNC_ENGINE_UPDATE_AND_RENDER(EngineUpdateAndRender)
 		Rotate(-90.0f, { 0.0f, 1.0f, 0.0f }) *
 		Rotate(-90.0f, { 1.0f, 0.0f, 0.0f });
 	//------------------------------------------------------------------------
-	
+
 	engine->renderer.DrawFrame(&state->renderPacket);
 
-	engine->memory.cameraUBO = (camera_ubo *)state->renderPacket.nextCameraPtr;
-	engine->memory.sceneUBO = (scene_ubo *)state->renderPacket.nextScenePtr;
-	engine->memory.transforms = (object_transform *)state->renderPacket.nextTransformsPtr;
+	memory->cameraUBO = (camera_ubo *)state->renderPacket.nextCameraPtr;
+	memory->sceneUBO = (scene_ubo *)state->renderPacket.nextScenePtr;
+	memory->transforms = (object_transform *)state->renderPacket.nextTransformsPtr;
 }
 
 extern "C" FUNC_ENGINE_DESTROY(EngineDestroy)
