@@ -38,73 +38,107 @@ typedef index_ index;
 
 struct vertex
 {
-    vec3 pos;
+	vec3 pos;
 	vec3 normal;
-    vec2 texCoord;
+	vec2 texCoord;
 };
 
 struct mesh
 {
-    // NOTE(heyyod): [mesh info][-------indices------][--------vertices--------]
-    u32 nIndices;
-    u32 nVertices;
-    index *indices;
-    vertex *vertices;
+	// NOTE(heyyod): [mesh info][-------indices------][--------vertices--------]
+	u32 nIndices;
+	u32 nVertices;
+	index *indices;
+	vertex *vertices;
 };
 
 static_func bool LoadOBJ(const char *filename, mesh *meshOut)
 {
-    fastObjMesh* m = fast_obj_read(filename);
-    if(!m)
-    {
-        DebugPrint("ERROR: Could not load obj: ");
-        DebugPrint(filename);
-        return false;
-    }
-    
-    meshOut->nIndices = 3 * m->face_count;
-    meshOut->nVertices = m->position_count - 1;
-    meshOut->indices = (index *)MESH_INDICES_START_ADDR((*meshOut));
-    meshOut->vertices = (vertex *)MESH_VERTICES_START_ADDR((*meshOut));
-    
-    // NOTE(heyyod): Read all the vertex positions
-    for(u32 i = 0; i < meshOut->nVertices; i++)
-    {
-        meshOut->vertices[i].pos = ((vec3 *)m->positions)[i+1];
-        meshOut->vertices[i].texCoord.U = -1.0f;
-    }
-    
-    // NOTE(heyyod): For every vertex in every face set the tex coord if it has
-    // not been set. If it has, append the vertices with a vertex of the same pos,
-    // but a different tex coord, update the number of vertices, and update the new
-    // index of the vertex on that face.
-    u32 vertexIndex = 0;
-    for(u32 i = 0; i < meshOut->nIndices; i++)
-    {
-        vertexIndex = m->indices[i].p - 1;
-        vec2 readTexCoord = ((vec2 *)m->texcoords)[m->indices[i].t];
-        readTexCoord.V = 1.0f - readTexCoord.V;
-        
-        if(meshOut->vertices[vertexIndex].texCoord.U < 0.0f)
-        {
-            meshOut->vertices[vertexIndex].texCoord = readTexCoord;
-        }
-        else if(meshOut->vertices[vertexIndex].texCoord.U != readTexCoord.U ||
-                meshOut->vertices[vertexIndex].texCoord.V != readTexCoord.V)
-        {
-            meshOut->vertices[meshOut->nVertices].pos = meshOut->vertices[vertexIndex].pos;
-            meshOut->vertices[meshOut->nVertices].texCoord = readTexCoord;
-            meshOut->nVertices++;
-            
-            // NOTE(heyyod): This is always 1 greater. We correct it below
-            m->indices[i].p = meshOut->nVertices;
-        }
-        meshOut->indices[i] = m->indices[i].p - 1;
-    }
-    
-    fast_obj_destroy(m);
+	fastObjMesh* m = fast_obj_read(filename);
+	if (!m)
+	{
+		DebugPrint("ERROR: Could not load obj: ");
+		DebugPrint(filename);
+		return false;
+	}
+
+	meshOut->nIndices = 3 * m->face_count;
+	meshOut->nVertices = m->position_count - 1;
+	meshOut->indices = (index *)MESH_INDICES_START_ADDR((*meshOut));
+	meshOut->vertices = (vertex *)MESH_VERTICES_START_ADDR((*meshOut));
+
+	// NOTE(heyyod): Read all the vertex positions
+	for (u32 i = 0; i < meshOut->nVertices; i++)
+	{
+		meshOut->vertices[i].pos = ((vec3 *)m->positions)[i + 1];
+		meshOut->vertices[i].texCoord.U = -1.0f;
+	}
+
+	// NOTE(heyyod): For every vertex in every face set the tex coord if it has
+	// not been set. If it has, append the vertices with a vertex of the same pos,
+	// but a different tex coord, update the number of vertices, and update the new
+	// index of the vertex on that face.
+	u32 vertexIndex = 0;
+	for (u32 i = 0; i < meshOut->nIndices; i++)
+	{
+		vertexIndex = m->indices[i].p - 1;
+		vec2 readTexCoord = ((vec2 *)m->texcoords)[m->indices[i].t];
+		readTexCoord.V = 1.0f - readTexCoord.V;
+
+		if (meshOut->vertices[vertexIndex].texCoord.U < 0.0f)
+		{
+			meshOut->vertices[vertexIndex].texCoord = readTexCoord;
+		}
+		else if (meshOut->vertices[vertexIndex].texCoord.U != readTexCoord.U ||
+			meshOut->vertices[vertexIndex].texCoord.V != readTexCoord.V)
+		{
+			meshOut->vertices[meshOut->nVertices].pos = meshOut->vertices[vertexIndex].pos;
+			meshOut->vertices[meshOut->nVertices].texCoord = readTexCoord;
+			meshOut->nVertices++;
+
+			// NOTE(heyyod): This is always 1 greater. We correct it below
+			m->indices[i].p = meshOut->nVertices;
+		}
+		meshOut->indices[i] = m->indices[i].p - 1;
+	}
+
+	fast_obj_destroy(m);
+
+	// Normalize:
+	f32 maxPos = -F32_MAX;
+	f32 minPos = F32_MAX;
+	for (u32 i = 0; i < meshOut->nVertices; i++)
+	{
+		f32 X = meshOut->vertices[i].pos.X;
+		f32 Y = meshOut->vertices[i].pos.Y;
+		f32 Z = meshOut->vertices[i].pos.Z;
+		
+		if (X > maxPos)
+			maxPos = X;
+		if (Y > maxPos)
+			maxPos = Y;
+		if (Z > maxPos)
+			maxPos = Z;
+		
+		if (X < minPos)
+			minPos = X;
+		if (Y < minPos)
+			minPos = Y;
+		if (Z < minPos)
+			minPos = Z;
+	}
+	f32 diff = maxPos - minPos;
+	if (diff != 1.0f)
+	{			
+		for (u32 i = 0; i < meshOut->nVertices; i++)
+		{
+			meshOut->vertices[i].pos.X /= diff;
+			meshOut->vertices[i].pos.Y /= diff;
+			meshOut->vertices[i].pos.Z /= diff;
+		}
+	}
 	
-    return true;
+	return true;
 }
 
 #endif // HY3D_MESH_H

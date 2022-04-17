@@ -6,6 +6,12 @@
 #include "extern/HandmadeMath.h"
 #include "core.h"
 
+#define U32_MAX 0xFFFFFFFF
+
+#define F32_MAX 3.402823466e+38F // max value
+#define F32_MIN 1.175494351e-38F // min normalized positive value
+#define F32_TRUE_MIN 1.401298464e-45F // min positive value
+
 #define Min(a, b) ((a) > (b) ? (b) : (a))
 #define Max(a, b) ((a) < (b) ? (b) : (a))
 #define Abs(a) ((a) > 0 ? (a) : -(a))
@@ -51,4 +57,4 @@ inline i8 RoundF32toI8(f32 in)
     return (i8)(ceilf(in - 0.5f));
 }
 
-#endif //HY3D_MATH_H
+#endif // HY3D_MATH_H

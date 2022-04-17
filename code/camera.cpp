@@ -23,18 +23,17 @@ static_func void CameraUpdate(camera &cam, vec3 dPos, vec2 dLook)
 	cam.dir.Z = SinF(yawRad) * CosF(pitchRad);
 }
 
-static_func void CameraInitialize(camera &cam, vec3 posIn, vec3 dirIn, vec3 upIn, f32 speedIn, f32 sensIn, f32 fovIn)
+static_func void CameraInitialize(camera &cam, vec3 posIn, f32 pitch, f32 yaw, vec3 up, f32 speed, f32 sens, f32 fov)
 {
 	cam.pos = posIn;
-	cam.dir = dirIn;
-	cam.up = upIn;
+	cam.up = up;
 		
-	cam.pitch = 0.0f;
-	cam.yaw = 90.0f;
+	cam.pitch = pitch;
+	cam.yaw = yaw;
 	CameraUpdate(cam, {}, {});
 		
-	cam.speed = speedIn;
-	cam.sens = sensIn;
-	cam.fov = fovIn;
+	cam.speed = speed;
+	cam.sens = sens;
+	cam.fov = fov;
 }
 

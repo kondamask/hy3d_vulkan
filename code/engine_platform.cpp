@@ -71,7 +71,7 @@ extern "C" FUNC_ENGINE_INITIALIZE(EngineInitialize)
 
 	VulkanUpload(sceneResources);
 
-	CameraInitialize(state->player, { 0.0f, 2.0f, -5.0f }, { 0.0f, 0.0f, -1.0f }, VEC3_UP, 4.0f, 2.0f, 60.0f);
+	CameraInitialize(state->player, { 0.0f, 2.0f, -5.0f }, 0.0f, 90.0f, VEC3_UP, 4.0f, 2.0f, 60.0f);
 
 	engine->input.mouse.cursorEnabled = true;
 	engine->input.mouse.firstMove = true;
@@ -213,7 +213,6 @@ extern "C" FUNC_ENGINE_UPDATE_AND_RENDER(EngineUpdateAndRender)
 
 	//------------------------------------------------------------------------
 	// TEMP
-	state->renderPacket.scene.loadedMeshes[0].count = 4U;
 
 	f32 scaleFactor = Abs(CosF(state->time)) + 0.5f;
 	object_transform *t = (object_transform *)memory->transforms;
@@ -232,9 +231,9 @@ extern "C" FUNC_ENGINE_UPDATE_AND_RENDER(EngineUpdateAndRender)
 		Rotate(-90.0f, { 1.0f, 0.0f, 0.0f }) *
 		Scale( { scaleFactor, scaleFactor, scaleFactor });
 
-	t[3].model = Translate( { -6.0f, SinF(state->time), CosF(state->time) }) *
-		Rotate(-90.0f, { 0.0f, 1.0f, 0.0f }) *
-		Rotate(-90.0f, { 1.0f, 0.0f, 0.0f });
+	t[3].model = Translate({ 0.0f, 0.0f, 2.0f });
+	
+	t[4].model = Translate({ 5.0f, 0.0f, 2.0f });
 	//------------------------------------------------------------------------
 
 	renderer.DrawFrame(&state->renderPacket);

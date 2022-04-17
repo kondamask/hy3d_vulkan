@@ -4,6 +4,13 @@ Just a dude learning vulkanContext->
 
 ## Progress (most recent first):
 
+* 17/4/22: 
+  * Switched to a indexed tescriptor for tectures
+  * A start towards a bindless system
+  * Now rendering multiple objects with different textures
+
+  <img src="README.assets/14 GIF 17-Apr-22 20-34-04.gif" >
+
 * 9/4/22: 
   * Removed vulkan stuff from windows platform and created a renderer api.
   * Vulkan code can also be hotloaded now along with the engine code

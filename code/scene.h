@@ -125,7 +125,6 @@ static_func void SetNextResourceInfo(scene_resources &resources, void *data, u64
 static_func i32 LoadModel(char *modelPath, char *texturePath, u32 count, void *&buffer, scene_resources &resources, scene_data &scene)
 {
 	// TODO: ADD GLTF LOADING
-	scene.loadedMeshes[scene.loadedMeshesCount].count;
 	mesh *m = (mesh *)buffer;
 	if (!LoadOBJ(modelPath, m))
 		return -1;
@@ -148,6 +147,8 @@ static_func i32 LoadModel(char *modelPath, char *texturePath, u32 count, void *&
 	scene.loadedMeshes[scene.loadedMeshesCount].nIndices = m->nIndices;
 	scene.loadedMeshes[scene.loadedMeshesCount].nVertices = m->nVertices;
 	scene.loadedMeshesCount++;
+	
+	Assert(scene.loadedMeshesCount - 1 >= 0);
 	return (scene.loadedMeshesCount - 1);
 }
 
@@ -155,10 +156,10 @@ static_func i32 LoadModel(char *modelPath, char *texturePath, u32 count, void *&
 #define IsResourceValid(id) (id >= 0)
 static_func void CreateScene(void *&buffer, scene_resources &resources, scene_data &scene, scene_ubo &sceneUBO)
 {	
-	i32 resourceID = -1;
-	resourceID = LoadModel(MODEL_PATH("viking_room.obj"), TEXTURE_PATH("viking_room.png"), 3, buffer, resources, scene);
-	Assert(resourceID >= 0);
-
+	LoadModel(MODEL_PATH("viking_room.obj"), TEXTURE_PATH("viking_room.png"), 3, buffer, resources, scene);
+	LoadModel(MODEL_PATH("Lev-edinorog_complete.obj"), TEXTURE_PATH("Lev-edinorog_complete.png"), 1, buffer, resources, scene);
+	LoadModel(MODEL_PATH("cube.obj"), TEXTURE_PATH("default.png"), 1, buffer, resources, scene);
+	
 	sceneUBO.ambientColor = { 0.5f, 0.5f, 0.65f, 0.0f };
 }
 

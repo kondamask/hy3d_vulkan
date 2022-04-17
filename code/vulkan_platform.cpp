@@ -1569,16 +1569,23 @@ FUNC_RENDERER_BIND_SHADER_RESOURCES(VulkanBindShaderResources)
 
 static_func void VulkanBindTexture(VkImageView imageView, VkSampler sampler)
 {
-	VkDescriptorImageInfo imageInfo = {};
-	imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	imageInfo.imageView = imageView;
-	imageInfo.sampler = sampler;
-
+	VkDescriptorImageInfo imageInfo[VULKAN_MAX_TEXTURES] = {};
+	for (u32 i = 0; i < VULKAN_MAX_TEXTURES; i++)
+	{
+		imageInfo[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		imageInfo[i].sampler = sampler;
+		
+		if (i < vulkanContext->texturesCount)
+			imageInfo[i].imageView = vulkanContext->textures[i].view;
+		else
+			imageInfo[i].imageView = vulkanContext->textures[0].view;
+	}
+	
 	VkWriteDescriptorSet bufferWrite = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
 	bufferWrite.dstBinding = 3;
 	bufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	bufferWrite.descriptorCount = 1;
-	bufferWrite.pImageInfo = &imageInfo;
+	bufferWrite.descriptorCount = VULKAN_MAX_TEXTURES;
+	bufferWrite.pImageInfo = imageInfo;
 
 	for (u32 iFrame = 0; iFrame < NUM_SWAPCHAIN_IMAGES; iFrame++)
 	{
@@ -1811,17 +1818,17 @@ inline static_func void VulkanDestroy()
 		if (VK_CHECK_HANDLE(vulkanContext->globalSetLayout))
 			vkDestroyDescriptorSetLayout(vulkanContext->device, vulkanContext->globalSetLayout, 0);
 
+		vkUnmapMemory(vulkanContext->device, vulkanContext->stagingBuffer.memoryHandle);
 		for (u32 i = 0; i < vulkanContext->nextBuffer; i++)
 			VulkanClearBuffer(vulkanContext->buffers[i]);
 
 		if (VK_CHECK_HANDLE(vulkanContext->globalDescriptorPool))
 			vkDestroyDescriptorPool(vulkanContext->device, vulkanContext->globalDescriptorPool, 0);
 
-		vkUnmapMemory(vulkanContext->device, vulkanContext->stagingBuffer.memoryHandle);
 		//VulkanClearBuffer(vulkanContext->stagingBuffer);
-		VulkanClearBuffer(vulkanContext->vertexBuffer);
-		VulkanClearBuffer(vulkanContext->indexBuffer);
-		VulkanClearBuffer(vulkanContext->gridBuffer);
+		//VulkanClearBuffer(vulkanContext->vertexBuffer);
+		//VulkanClearBuffer(vulkanContext->indexBuffer);
+		//VulkanClearBuffer(vulkanContext->gridBuffer);
 
 		VulkanClearRenderPass();
 
