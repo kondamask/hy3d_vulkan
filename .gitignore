@@ -1,5 +1,7 @@
 .vscode
 build
-
 assets
+*.obj
+*.png
+*.bmp
 *.spv
