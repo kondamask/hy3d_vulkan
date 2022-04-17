@@ -7,7 +7,7 @@
 #include "core.h"
 
 #define FAST_OBJ_IMPLEMENTATION
-#include "libs/fast_obj.h"
+#include "extern/fast_obj.h"
 
 // NOTE(heyyod): SWITCH BETWEEN INDEX TYPES:
 // INDEX_TYPE_U16
@@ -107,4 +107,4 @@ static_func bool LoadOBJ(const char *filename, mesh *meshOut)
     return true;
 }
 
-#endif //HY3D_MESH_H
+#endif // HY3D_MESH_H

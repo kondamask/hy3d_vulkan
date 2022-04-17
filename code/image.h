@@ -4,7 +4,7 @@
 #define HY3D_IMAGE_H
 
 #define STB_IMAGE_IMPLEMENTATION
-#include "libs/stb_image.h"
+#include "extern/stb_image.h"
 #include "math.h"
 #include "core.h"
 

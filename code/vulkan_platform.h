@@ -23,6 +23,8 @@
 #define VULKAN_INDEX_TYPE VK_INDEX_TYPE_UINT32
 #endif
 
+#define VULKAN_MAX_TEXTURES 10
+
 //------------------------------------------------------------------------
 #include "core.h"
 #include "renderer_platform.h"
@@ -42,9 +44,6 @@ struct vulkan_image
 
 struct vulkan_mesh
 {
-	u32 nIndices;
-	u32 nVertices;
-	u32 nInstances;
 	u32 pipelineID;
 };
 
@@ -88,6 +87,15 @@ struct vulkan_render_object
 	u32 transformID;
 };
 
+enum VULKAN_DESCRIPTOR_BIND_FREQUENCY
+{
+	VULKAN_DESCRIPTOR_BIND_FREQUENCY_LOW,
+	VULKAN_DESCRIPTOR_BIND_FREQUENCY_MID,
+	VULKAN_DESCRIPTOR_BIND_FREQUENCY_HIGH,
+	
+	VULKAN_DESCRIPTOR_BIND_FREQUENCY_COUNT
+};
+
 struct vulkan_context
 {
 	VkPhysicalDeviceProperties gpuProperties;
@@ -125,26 +133,25 @@ struct vulkan_context
 	u32 currentResource;
 
 	VkSampler textureSampler;
-	
-	VkDescriptorSetLayout globalDescriptorSetLayout;
+
 	VkDescriptorPool globalDescriptorPool;
-	VkDescriptorSet globalDescriptorSet[NUM_SWAPCHAIN_IMAGES];
-	
+	VkDescriptorSetLayout globalSetLayout;
+	VkDescriptorSet globalSets[NUM_SWAPCHAIN_IMAGES];
+
 	vulkan_buffer buffers[10]; // TEMP SIZE
 	u32 nextBuffer;
-	
+
 	vulkan_buffer stagingBuffer;
 	vulkan_image depthBuffer;
 	vulkan_buffer vertexBuffer;
 	vulkan_buffer indexBuffer;
 	vulkan_buffer gridBuffer;
-	u32 gridVertexCount;	
+	u32 gridVertexCount;
 
-	vulkan_mesh loadedMesh[MAX_MESHES];
 	vulkan_pipeline pipeline[PIPELINES_COUNT];
-	u32 loadedMeshCount;
-
-	vulkan_image texture;
+	
+	vulkan_image textures[VULKAN_MAX_TEXTURES];
+	u32 texturesCount;
 
 	bool canRender;
 

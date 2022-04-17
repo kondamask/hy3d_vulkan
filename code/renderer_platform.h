@@ -43,9 +43,10 @@ struct render_packet
 	f32 dt;
 	vec3 clearColor;
 	vec3 playerPos;
-	
+	scene_data scene;
+
 	//------------------------------------------------------------------------
-	
+
 	// RENDERER -> ENGINE
 	void *nextCameraPtr;
 	void *nextScenePtr;
@@ -53,7 +54,7 @@ struct render_packet
 };
 
 struct renderer_platform;
-	
+
 #define FUNC_RENDERER_INITIALIZE(name) bool name(renderer_platform *renderer, const char *appName)
 typedef FUNC_RENDERER_INITIALIZE(func_renderer_initialize);
 
@@ -72,7 +73,7 @@ typedef FUNC_RENDERER_ON_RESIZE(func_renderer_on_resize);
 #define FUNC_RENDERER_CREATE_SURFACE(name) void name(void *surfaceInfoIn)
 typedef FUNC_RENDERER_CREATE_SURFACE(func_renderer_create_surface);
 
-#define FUNC_RENDERER_UPLOAD_RESOURCES(name) bool name(staged_resources *staged)
+#define FUNC_RENDERER_UPLOAD_RESOURCES(name) bool name(scene_resources &resources)
 typedef FUNC_RENDERER_UPLOAD_RESOURCES(func_renderer_upload_resources);
 
 #define FUNC_RENDERER_REQUEST_BUFFER(name) void *name(RENDERER_BUFFER_TYPE bufferType, u64 size, bool doubleBuffer)
@@ -82,12 +83,12 @@ typedef FUNC_RENDERER_REQUEST_BUFFER(func_renderer_request_buffer);
 typedef FUNC_RENDERER_BIND_SHADER_RESOURCES(func_renderer_bind_shader_resources);
 
 struct renderer_platform
-{	
+{
 	RENDERER_GRAPHICS_API gfxAPI;
 	bool canRender;
 	u32 windowWidth;
 	u32 windowHeight;
-	
+
 	//------------------------------------------------------------------------
 	// API for Engine	
 	func_renderer_initialize *Initialize;
@@ -96,10 +97,10 @@ struct renderer_platform
 	func_renderer_upload_resources *Upload;
 	func_renderer_request_buffer *RequestBuffer;
 	func_renderer_bind_shader_resources *BindShaderResources;
-	
+
 	func_renderer_on_shader_reload *OnShaderReload;
 	func_renderer_on_resize *OnResize;
-	
+
 	//------------------------------------------------------------------------
 	// Platform Specific Called From The Graphics API
 	func_renderer_create_surface *FillSurfaceWindowContext;

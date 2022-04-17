@@ -5,6 +5,7 @@ enum SHADER_RESOURCE_TYPE
 {
 	SHADER_RESOURCE_TYPE_UNIFORM,
 	SHADER_RESOURCE_TYPE_STORAGE,
+	SHADER_RESOURCE_TYPE_TEXTURE
 };
 
 enum SHADER_STAGE_FLAG
@@ -22,7 +23,7 @@ struct shader_resource_bind
 	u64 size;
 	bool perFrame; // This will create multple copies of the buffer to use on each frame on flight
 	
-	void *data; // This is the pointer to the buffer that we'll use.
+	void **data; // This is the pointer to the buffer that we'll use.
 };
 
 #endif // INCLUDE_ENGINE_SHADER_H

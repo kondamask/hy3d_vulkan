@@ -93,6 +93,28 @@
             "group": {
                 "kind": "build"
             }
+        },
+        {
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new",
+                "showReuseMessage": false,
+                "clear": true
+            },
+            "label": "Set Up VSDEV",
+            "type": "shell",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "windows": {
+                "command": "W:/x64.bat"
+            },
+            "group": {
+                "kind": "none"
+            },
+            "runOptions": {"runOn": "folderOpen"}
         }
     ]
 }

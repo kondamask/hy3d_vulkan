@@ -1,0 +1,3 @@
+[submodule "code/extern/glslang"]
+	path = code/extern/glslang
+	url = https://github.com/KhronosGroup/glslang

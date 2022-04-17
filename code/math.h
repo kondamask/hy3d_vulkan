@@ -3,7 +3,7 @@
 #ifndef HY3D_MATH_H
 #define HY3D_MATH_H
 
-#include "libs/HandmadeMath.h"
+#include "extern/HandmadeMath.h"
 #include "core.h"
 
 #define Min(a, b) ((a) > (b) ? (b) : (a))

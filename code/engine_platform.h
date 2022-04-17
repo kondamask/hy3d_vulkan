@@ -67,15 +67,20 @@ struct platform_api
 	func_was_file_updated_func *WasFileUpdated;
 };
 
+struct stage_buffer
+{
+	void *memory;
+	void *nextWrite;
+};
+
 struct engine_memory
 {
     u64 permanentMemorySize;
     void *permanentMemory;
     u64 transientMemorySize;
     void *transientMemory;
-    
-    void *stagingMemory;
-    void *nextStagingAddr;
+	
+	stage_buffer stageBuffer;
 	
     camera_ubo *cameraUBO;
     scene_ubo *sceneUBO;

@@ -3,7 +3,7 @@
 //------------------------------------------------------------------------
 // GLOBALS
 
-global_var platform_api *platformAPI;
+global_var platform_api *platformAPI; // This is also used in vulkan_platform.
 
 //------------------------------------------------------------------------
 
@@ -39,9 +39,9 @@ extern "C" FUNC_ENGINE_INITIALIZE(EngineInitialize)
 
 	engine_memory *memory = &engine->memory;
 	engine_state *state = engine->state = (engine_state *)memory->permanentMemory;
-	renderer_platform *renderer = &engine->renderer;
 
 	MemoryArenaInitialize(&state->memoryArena, (u8 *)memory->permanentMemory + sizeof(engine_state), memory->permanentMemorySize - sizeof(engine_state));
+	memory->isInitialized = true;
 
 	// NOTE: Everything is initialized here
 	state->renderPacket.clearColor = { 0.0f, 0.4f, 0.3f };
@@ -55,40 +55,28 @@ extern "C" FUNC_ENGINE_INITIALIZE(EngineInitialize)
 	platformAPI->GetFileWriteTime(DEFAULT_SHADER_FILEPATH, &engine->shadersWriteTime);
 
 	shader_resource_bind shaderBinds[] = {
-		{ SHADER_STAGE_FLAG_VERTEX, SHADER_RESOURCE_TYPE_UNIFORM, 0, sizeof(camera_ubo), true },
-		{ SHADER_STAGE_FLAG_FRAGMENT, SHADER_RESOURCE_TYPE_UNIFORM, 1, sizeof(scene_ubo), true },
-		{ SHADER_STAGE_FLAG_VERTEX, SHADER_RESOURCE_TYPE_STORAGE, 3, sizeof(object_transform) * MAX_OBJECT_TRANSFORMS, true },
+		{ SHADER_STAGE_FLAG_VERTEX, SHADER_RESOURCE_TYPE_UNIFORM, 0, sizeof(camera_ubo), true, (void **)&memory->cameraUBO },
+		{ SHADER_STAGE_FLAG_FRAGMENT, SHADER_RESOURCE_TYPE_UNIFORM, 1, sizeof(scene_ubo), true, (void **)&memory->sceneUBO },
+		{ SHADER_STAGE_FLAG_VERTEX, SHADER_RESOURCE_TYPE_STORAGE, 2, sizeof(object_transform) * MAX_OBJECT_TRANSFORMS, true, (void **)&memory->transforms },
 	};
-	renderer->BindShaderResources(shaderBinds, ArrayCount(shaderBinds));
-	VulkanCreateAllPipelines();
+	VulkanBindShaderResources(shaderBinds, ArrayCount(shaderBinds));
 
-	memory->cameraUBO = (camera_ubo *)shaderBinds[0].data;
-	memory->sceneUBO = (scene_ubo *)shaderBinds[1].data;
-	memory->transforms = (object_transform *)shaderBinds[2].data;
+	memory->stageBuffer.memory = VulkanRequestBuffer(RENDERER_BUFFER_TYPE_STAGING, MEGABYTES(256), false);
+	memory->stageBuffer.nextWrite = memory->stageBuffer.memory;
 
-	memory->stagingMemory = renderer->RequestBuffer(RENDERER_BUFFER_TYPE_STAGING, MEGABYTES(256), false);
-	// TODO: This should be handled in a function.
-	memory->nextStagingAddr = memory->stagingMemory;
+	VulkanCreateGrid(); // TODO: This uses the stage buffer. But it should be done in the engine.
 
-	memory->sceneUBO->ambientColor = { 0.5f, 0.5f, 0.65f, 0.0f };
+	scene_resources sceneResources = {};
+	CreateScene(memory->stageBuffer.nextWrite, sceneResources, state->renderPacket.scene, *memory->sceneUBO);
 
-	VulkanCreateGrid();
+	VulkanUpload(sceneResources);
 
-	staged_resources sceneResources = {};
-	sceneResources.nextWriteAddr = memory->nextStagingAddr;
-
-	// Make initial scene
-	CreateScene(sceneResources);
-	renderer->Upload(&sceneResources);
-
-	memory->isInitialized = true;
-
-	CameraInitialize(engine->state->player, { 0.0f, 2.0f, -5.0f }, { 0.0f, 0.0f, -1.0f }, VEC3_UP, 4.0f, 2.0f, 60.0f);
+	CameraInitialize(state->player, { 0.0f, 2.0f, -5.0f }, { 0.0f, 0.0f, -1.0f }, VEC3_UP, 4.0f, 2.0f, 60.0f);
 
 	engine->input.mouse.cursorEnabled = true;
 	engine->input.mouse.firstMove = true;
 
-	engine->state->time = 0.0f;
+	state->time = 0.0f;
 	engine->frameStart = std::chrono::steady_clock::now();
 }
 
@@ -181,8 +169,9 @@ extern "C" FUNC_ENGINE_UPDATE_AND_RENDER(EngineUpdateAndRender)
 
 	engine_memory *memory = &engine->memory;
 	engine_state *state = engine->state = (engine_state *)memory->permanentMemory;
+	renderer_platform &renderer = engine->renderer;
 
-	if (!engine->renderer.canRender)
+	if (!renderer.canRender)
 		return;
 
 	if (engine->reloaded)
@@ -195,16 +184,16 @@ extern "C" FUNC_ENGINE_UPDATE_AND_RENDER(EngineUpdateAndRender)
 	// Check if shader have been updated
 	if (platformAPI->WasFileUpdated(DEFAULT_SHADER_FILEPATH, &engine->shadersWriteTime))
 	{
-		engine->renderer.OnShaderReload();
+		renderer.OnShaderReload();
 	}
 
 	if (engine->onResize)
 	{
-		engine->renderer.OnResize(&engine->renderer);
+		renderer.OnResize(&renderer);
 
 		engine->onResize = false;
-		engine->windowWidth = engine->renderer.windowWidth;
-		engine->windowHeight = engine->renderer.windowHeight;
+		engine->windowWidth = renderer.windowWidth;
+		engine->windowHeight = renderer.windowHeight;
 	}
 
 	// NOTE: Frame time
@@ -224,18 +213,31 @@ extern "C" FUNC_ENGINE_UPDATE_AND_RENDER(EngineUpdateAndRender)
 
 	//------------------------------------------------------------------------
 	// TEMP
+	state->renderPacket.scene.loadedMeshes[0].count = 4U;
+
 	f32 scaleFactor = Abs(CosF(state->time)) + 0.5f;
 	object_transform *t = (object_transform *)memory->transforms;
+
 	t[0].model = Translate( { SinF(state->time), 0.0f, 0.0f }) *
 		Rotate(-90.0f, { 0.0f, 1.0f, 0.0f }) *
 		Rotate(-90.0f, { 1.0f, 0.0f, 0.0f }) *
 		Scale( { scaleFactor, scaleFactor, scaleFactor });
+
 	t[1].model = Translate( { 3.0, SinF(state->time), CosF(state->time) }) *
+		Rotate(-90.0f, { 0.0f, 1.0f, 0.0f }) *
+		Rotate(-90.0f, { 1.0f, 0.0f, 0.0f });
+
+	t[2].model = Translate( { 6.0f, 0.0f, 0.0f }) *
+		Rotate(-90.0f, { 0.0f, 1.0f, 0.0f }) *
+		Rotate(-90.0f, { 1.0f, 0.0f, 0.0f }) *
+		Scale( { scaleFactor, scaleFactor, scaleFactor });
+
+	t[3].model = Translate( { -6.0f, SinF(state->time), CosF(state->time) }) *
 		Rotate(-90.0f, { 0.0f, 1.0f, 0.0f }) *
 		Rotate(-90.0f, { 1.0f, 0.0f, 0.0f });
 	//------------------------------------------------------------------------
 
-	engine->renderer.DrawFrame(&state->renderPacket);
+	renderer.DrawFrame(&state->renderPacket);
 
 	memory->cameraUBO = (camera_ubo *)state->renderPacket.nextCameraPtr;
 	memory->sceneUBO = (scene_ubo *)state->renderPacket.nextScenePtr;
