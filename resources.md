@@ -17,7 +17,6 @@
 ## Articles & Talks
 
 * https://zeux.io/2020/02/27/writing-an-efficient-vulkan-renderer/
-
-
+* https://ourmachinery.com/post/moving-the-machinery-to-bindless/
 
 *probably more stuff I forgot :(*
