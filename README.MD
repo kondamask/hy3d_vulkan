@@ -2,56 +2,56 @@ Just a dude learning vulkanContext->
 
 [Resources](resources.md)
 
-## Progress (most recent first):
+## Progress: [imgur archive](https://imgur.com/a/opoR1nl)
 
 * 17/4/22: 
   * Switched to a indexed tescriptor for tectures
   * A start towards a bindless system
   * Now rendering multiple objects with different textures
 
-  <img src="README.assets/14 GIF 17-Apr-22 20-34-04.gif" >
+  ![](https://i.imgur.com/I5v56qr.gif)
 
 * 9/4/22: 
   * Removed vulkan stuff from windows platform and created a renderer api.
   * Vulkan code can also be hotloaded now along with the engine code
   * Made the grid look nice with fragment shader magic :)
 
-  <img src="README.assets/13 GIF 09-Apr-22 18-46-06.gif" >
+  ![](https://i.imgur.com/Sur6SdD.gif)
 
 
 * 6/4/22: Drawing a grid
 
-  <img src="README.assets/12 GIF 06-Apr-22 00-54-38.gif" >
+  <img src="https://i.imgur.com/6uz1xNn.gif" >
 
 * 28/10/21: Multiple model matrices and other info in the shaders
 
-  <img src="README.assets/11 GIF 10-28-2021 10-04-10 PM.gif">
+  <img src="https://i.imgur.com/ANz5iUt.gif">
 
 * 23/10/21: Free roam camera
 
-  <img src="README.assets/10 GIF 10-24-2021 5-58-32 PM.gif">
+  <img src="https://i.imgur.com/0VSrnD5.gif">
 
 * 23/10/21:
   * Texture mipmaps
   * Multisample anti-aliasing
   * System to change msaa and other settings on runtime
 
-  <img src="README.assets/9 GIF 10-23-2021 7-23-02 PM.gif">
+  <img src="https://i.imgur.com/oXkRqzN.gif">
 
 * 21/10/21: 3D Model! (just obj for now)
 
-  <img src="README.assets/8 GIF 10-22-2021 12-47-37 AM.gif" alt="8 GIF 10-22-2021 12-47-37 AM" style="zoom:150%;" />
+  <img src="https://i.imgur.com/lCCZHq1.gif" />
 
 * 19/10/21: Depth Buffer
 
-  ![](README.assets/7_201021.gif)
+  ![](https://i.imgur.com/U4kW7JS.gif)
 
 * 19/10/21:
 
   * Stage multiple resources and push the into memory in a batch
   * Texture!
 
-  ![](README.assets/6_191021.gif)
+  ![](https://i.imgur.com/QWrnnjw.gif)
 
 * 17/10/21:
   
@@ -59,24 +59,24 @@ Just a dude learning vulkanContext->
   * Draw indexed triangles
   * Pass model, view and projection matrices in vertex shader.
 
-  ![](README.assets/5_171021.gif)
+  ![](https://i.imgur.com/ZNlyxhw.gif)
 
 * 12/10/21: Drawing a simple vertex buffer that I'm updating.
 
-  ![](README.assets/4_121021.gif)
+  ![](https://i.imgur.com/Fio8kQ6.gif)
 
 * 11/10/21: Shader code hotloading!
 
-  ![](README.assets/3_111021.gif)
+  ![](https://i.imgur.com/5yn5urS.gif)
 
 * 10/10/21: Triangle!
 
-  ![](README.assets/2_101021.gif)
+  ![](https://i.imgur.com/FtPKAfL.gif)
 
 * 06/10/21: Engine code hotloading.
 
-  ![](README.assets/1_071021.gif)
+  ![](https://i.imgur.com/nP75WzS.gif)
 
 * 06/10/21: Just clearing the window to a color.
 
-  <img src="README.assets/0_061021.gif" alt="0_061021" style="zoom: 67%;" />
+  <img src="https://i.imgur.com/QxD9fqt.gif" />
