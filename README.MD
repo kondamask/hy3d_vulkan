@@ -1,11 +1,11 @@
-Just a dude learning vulkanContext->
+Just a dude learning vulkan
 
 [Resources](resources.md)
 
 ## Progress: [imgur archive](https://imgur.com/a/opoR1nl)
 
 * 17/4/22: 
-  * Switched to a indexed tescriptor for tectures
+  * Switched to a indexed descriptor for textures
   * A start towards a bindless system
   * Now rendering multiple objects with different textures
 
