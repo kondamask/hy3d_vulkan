@@ -69,7 +69,7 @@ static_func VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugCallback(
 	DebugPrint('\n');
 	if (isError)
 	{
-		//Assert(0);
+		// Assert(0);
 		return VK_FALSE;
 	}
 	return VK_FALSE;
@@ -125,12 +125,10 @@ inline static_func bool VulkanCreateInstance(renderer_platform *renderer, const 
 	//------------------------------------------------------------------------
 #if VULKAN_VALIDATION_LAYERS_ON
 	char *instanceLayers[] = {
-		"VK_LAYER_KHRONOS_validation"
-	};
+		"VK_LAYER_KHRONOS_validation" };
 #else
 	char **instanceLayers = 0;
 #endif
-
 
 	if (instanceLayers)
 	{
@@ -427,8 +425,7 @@ inline static_func bool VulkanCreateDevice(renderer_platform *renderer)
 	char *desiredDeviceExtensions[] = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 		VK_KHR_MAINTENANCE3_EXTENSION_NAME,
-		VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME
-	};
+		VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME };
 
 	u32 deviceExtensionsCount;
 	VkExtensionProperties availableDeviceExtensions[255] = {};
@@ -452,7 +449,6 @@ inline static_func bool VulkanCreateDevice(renderer_platform *renderer)
 			return false;
 		}
 	}
-
 
 	// TODO(heyyod): Check if these features are supported;
 	VkPhysicalDeviceFeatures desiredFeatures = {};
@@ -725,8 +721,7 @@ static_func bool VulkanCreateGraphicsPipeline(VULKAN_PIPELINE_ID pipelineID)
 
 	VkDynamicState dynamicStates[] = {
 		VK_DYNAMIC_STATE_VIEWPORT,
-		VK_DYNAMIC_STATE_SCISSOR
-	};
+		VK_DYNAMIC_STATE_SCISSOR };
 	VkPipelineDynamicStateCreateInfo dynamicStateInfo = {};
 	dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 	dynamicStateInfo.dynamicStateCount = ArrayCount(dynamicStates);
@@ -748,8 +743,7 @@ static_func bool VulkanCreateGraphicsPipeline(VULKAN_PIPELINE_ID pipelineID)
 		case PIPELINE_GRID:
 		{
 			VkPushConstantRange pushConstants[] = {
-				{ VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(vec3) }
-			};
+				{ VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(vec3) } };
 
 			pipelineLayoutInfo.pushConstantRangeCount = ArrayCount(pushConstants);
 			pipelineLayoutInfo.pPushConstantRanges = pushConstants;
@@ -765,12 +759,10 @@ static_func bool VulkanCreateGraphicsPipeline(VULKAN_PIPELINE_ID pipelineID)
 			}
 
 			VkVertexInputBindingDescription vertexBindingDesc[] {
-				{ 0, sizeof(vec3), VK_VERTEX_INPUT_RATE_VERTEX }
-			};
+				{ 0, sizeof(vec3), VK_VERTEX_INPUT_RATE_VERTEX } };
 
 			VkVertexInputAttributeDescription vertexAttributeDescs[] = {
-				{ 0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0 }
-			};
+				{ 0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0 } };
 
 			vertexInputInfo.vertexBindingDescriptionCount = ArrayCount(vertexBindingDesc);
 			vertexInputInfo.pVertexBindingDescriptions = vertexBindingDesc;
@@ -782,8 +774,7 @@ static_func bool VulkanCreateGraphicsPipeline(VULKAN_PIPELINE_ID pipelineID)
 
 			VkPipelineShaderStageCreateInfo shaderStages[] = {
 				vsStage,
-				fsStage
-			};
+				fsStage };
 
 			inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
 
@@ -833,14 +824,12 @@ static_func bool VulkanCreateGraphicsPipeline(VULKAN_PIPELINE_ID pipelineID)
 			// NOTE(heyyod): specify some general info for the memory of
 			// the vertex buffer we'll be reading from
 			VkVertexInputBindingDescription vertexBindingDesc[] = {
-				{ 0, sizeof(vertex), VK_VERTEX_INPUT_RATE_VERTEX }
-			};
+				{ 0, sizeof(vertex), VK_VERTEX_INPUT_RATE_VERTEX } };
 
 			VkVertexInputAttributeDescription vertexAttributeDescs[] = {
 				{ 0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(vertex, pos) },
 				{ 1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(vertex, normal) },
-				{ 2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(vertex, texCoord) }
-			};
+				{ 2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(vertex, texCoord) } };
 
 			vertexInputInfo.vertexBindingDescriptionCount = ArrayCount(vertexBindingDesc);
 			vertexInputInfo.pVertexBindingDescriptions = vertexBindingDesc;
@@ -1373,8 +1362,7 @@ static_func bool VulkanInitializeDescriptorsSetLayout()
 			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 100 },
 			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 100 },
 			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 100 },
-			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 100 }
-		};
+			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 100 } };
 
 		VkDescriptorPoolCreateInfo poolInfo = {};
 		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1385,15 +1373,15 @@ static_func bool VulkanInitializeDescriptorsSetLayout()
 	}
 
 	/*
-	* PLAN: A bindless system based on:
-	* https://ourmachinery.com/post/moving-the-machinery-to-bindless/
-	* https://zeux.io/2020/02/27/writing-an-efficient-vulkan-renderer/
-	* https://github.com/SaschaWillems/Vulkan/blob/master/examples/descriptorindexing/descriptorindexing.cpp
-	* 
-	* overview:
-	* - On global set layout that will get binded to all pipelines
-	* - Descriptor Arrays 
-	*/
+	 * PLAN: A bindless system based on:
+	 * https://ourmachinery.com/post/moving-the-machinery-to-bindless/
+	 * https://zeux.io/2020/02/27/writing-an-efficient-vulkan-renderer/
+	 * https://github.com/SaschaWillems/Vulkan/blob/master/examples/descriptorindexing/descriptorindexing.cpp
+	 *
+	 * overview:
+	 * - On global set layout that will get binded to all pipelines
+	 * - Descriptor Arrays
+	 */
 
 	VkDescriptorSetLayoutBinding bindings[] = {
 		{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, 0 },
@@ -1574,13 +1562,13 @@ static_func void VulkanBindTexture(VkImageView imageView, VkSampler sampler)
 	{
 		imageInfo[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		imageInfo[i].sampler = sampler;
-		
+
 		if (i < vulkanContext->texturesCount)
 			imageInfo[i].imageView = vulkanContext->textures[i].view;
 		else
 			imageInfo[i].imageView = vulkanContext->textures[0].view;
 	}
-	
+
 	VkWriteDescriptorSet bufferWrite = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
 	bufferWrite.dstBinding = 3;
 	bufferWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -1622,8 +1610,7 @@ FUNC_RENDERER_REQUEST_BUFFER(VulkanRequestBuffer)
 		mapFlag = true;
 	}
 
-	if (doubleBuffer)
-		size *= 2;
+	size *= 2;
 
 	vulkan_buffer newBuffer = {};
 	if (VulkanCreateBuffer(usage, size, properties, newBuffer, mapFlag))
@@ -1647,79 +1634,6 @@ static_func vulkan_cmd_resources *VulkanGetNextAvailableResource()
 	VK_CHECK_RESULT(vkResetFences(vulkanContext->device, 1, &result->fence));
 
 	return result;
-}
-
-static_func bool VulkanCreateGrid()
-{
-	// Create Grid Vertices
-	vec3 *v = (vec3 *)vulkanContext->stagingBuffer.data;
-	u32 iVert = 0;
-	i32 gridSize = 500;
-	i32 halfGridSize = gridSize / 2;
-	v[iVert++] = { 0.0f, (f32)halfGridSize, 0.0f };
-	v[iVert++] = { 0.0f, -(f32)halfGridSize, 0.0f };
-	{
-		i32 z = halfGridSize;
-		for (i32 x = -halfGridSize; x < halfGridSize; x++)
-		{
-			v[iVert++] = { (f32)x, 0.0f, (f32)z };
-			v[iVert++] = { (f32)x, 0.0f, -(f32)z };
-		}
-	}
-	{
-		i32 x = halfGridSize;
-		for (i32 z = -halfGridSize; z < halfGridSize; z++)
-		{
-			v[iVert++] = { (f32)x, 0.0f, (f32)z };
-			v[iVert++] = { -(f32)x, 0.0f, (f32)z };
-		}
-	}
-	vulkanContext->gridVertexCount = (u32)iVert - 1;
-	u32 size = sizeof(vec3) * vulkanContext->gridVertexCount;
-
-	if (!VulkanCreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, size, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vulkanContext->gridBuffer))
-	{
-		Assert("Could not create grid buffer");
-		return false;
-	}
-
-	vulkan_cmd_resources *res = VulkanGetNextAvailableResource();
-	/*
-		VkMappedMemoryRange flushRange = {};
-		flushRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-		flushRange.memory = vulkanContext->stagingBuffer.memoryHandle;
-		flushRange.size = vulkanContext->stagingBuffer.size;
-		vkFlushMappedMemoryRanges(vulkanContext->device, 1, &flushRange);
-		*/
-	VkCommandBufferBeginInfo cmdBufferBeginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
-	cmdBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-	VK_CHECK_RESULT(vkBeginCommandBuffer(res->cmdBuffer, &cmdBufferBeginInfo));
-
-	VkBufferCopy bufferCopyInfo = {};
-	bufferCopyInfo.srcOffset = 0;
-	bufferCopyInfo.dstOffset = 0;
-	bufferCopyInfo.size = size;
-	vkCmdCopyBuffer(res->cmdBuffer, vulkanContext->stagingBuffer.handle, vulkanContext->gridBuffer.handle, 1, &bufferCopyInfo);
-
-	VkBufferMemoryBarrier bufferBarriers = { VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER };
-	bufferBarriers.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
-	bufferBarriers.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
-	bufferBarriers.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	bufferBarriers.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	bufferBarriers.buffer = vulkanContext->gridBuffer.handle;
-	bufferBarriers.offset = 0;
-	bufferBarriers.size = size;
-
-	vkCmdPipelineBarrier(res->cmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, 0, 1, &bufferBarriers, 0, 0);
-
-	VK_CHECK_RESULT(vkEndCommandBuffer(res->cmdBuffer));
-	VkSubmitInfo submitInfo = {};
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &res->cmdBuffer;
-	VK_CHECK_RESULT(vkQueueSubmit(vulkanContext->graphicsQueue, 1, &submitInfo, res->fence));
-
-	return true;
 }
 
 FUNC_RENDERER_INITIALIZE(VulkanInitialize)
@@ -1795,7 +1709,6 @@ FUNC_RENDERER_INITIALIZE(VulkanInitialize)
 	DebugPrintFunctionResult(result);
 	DebugPrintSeperator();
 	return result;
-
 }
 
 inline static_func void VulkanDestroy()
@@ -1825,10 +1738,10 @@ inline static_func void VulkanDestroy()
 		if (VK_CHECK_HANDLE(vulkanContext->globalDescriptorPool))
 			vkDestroyDescriptorPool(vulkanContext->device, vulkanContext->globalDescriptorPool, 0);
 
-		//VulkanClearBuffer(vulkanContext->stagingBuffer);
-		//VulkanClearBuffer(vulkanContext->vertexBuffer);
-		//VulkanClearBuffer(vulkanContext->indexBuffer);
-		//VulkanClearBuffer(vulkanContext->gridBuffer);
+		// VulkanClearBuffer(vulkanContext->stagingBuffer);
+		// VulkanClearBuffer(vulkanContext->vertexBuffer);
+		// VulkanClearBuffer(vulkanContext->indexBuffer);
+		// VulkanClearBuffer(vulkanContext->gridBuffer);
 
 		VulkanClearRenderPass();
 
@@ -1895,7 +1808,7 @@ FUNC_RENDERER_CHANGE_GRAPHICS_SETTINGS(VulkanChangeGraphicsSettings)
 	return true;
 }
 
-static_func void VulkanCmdChangeImageLayout(VkCommandBuffer cmdBuffer, VkImage imgHandle, image *imageInfo, VkImageLayout oldLayout, VkImageLayout newLayout)
+static_func void VulkanCmdChangeImageLayout(VkCommandBuffer cmdBuffer, VkImage imgHandle, image_header *imageInfo, VkImageLayout oldLayout, VkImageLayout newLayout)
 {
 	// NOTE(heyyod): ONLY CALL AFRER WE START RECORDING A COMMAND BUFFER
 	VkImageMemoryBarrier barrier = {};
@@ -1959,7 +1872,7 @@ static_func void VulkanCmdChangeImageLayout(VkCommandBuffer cmdBuffer, VkImage i
 	vkCmdPipelineBarrier(cmdBuffer, sourceStage, destinationStage, 0, 0, 0, 0, 0, 1, &barrier);
 }
 
-FUNC_RENDERER_UPLOAD_RESOURCES(VulkanUpload)
+FUNC_RENDERER_UPLOAD_ASSETS(VulkanUpload)
 {
 	vulkan_cmd_resources *res = VulkanGetNextAvailableResource();
 
@@ -1977,28 +1890,34 @@ FUNC_RENDERER_UPLOAD_RESOURCES(VulkanUpload)
 	bool pushedMesh = false;
 	bool pushedImage = false;
 
-	u64 vertexBufferStartOffset = vulkanContext->vertexBuffer.writeOffset;
-	u64 indexBufferStartOffset = vulkanContext->indexBuffer.writeOffset;
+	u64 &vertexBufferStartOffset = vulkanContext->vertexBuffer.writeOffset;
+	u64 &indexBufferStartOffset = vulkanContext->indexBuffer.writeOffset;
 
-	for (u32 iResource = 0; iResource < resources.count; iResource++)
+	for (u32 iAsset = 0; iAsset < count; iAsset++)
 	{
-		switch (resources.types[iResource])
+		switch (assets[iAsset].type)
 		{
-			case RESOURCE_TYPE_MESH:
+			case ASSET_TYPE_MESH:
 			{
+				// TODO: This is where the vertex and index buffers ar created if we don't have one.
+				// Maybe it should check if it's full and then create a new one too or copy the old
+				// data to the new bigger buffer and add the new data too.
 				pushedMesh = true;
-				mesh *m = (mesh *)resources.data[iResource];
+				mesh_header *m = (mesh_header *)assets[iAsset].header;
 
 				VkBufferCopy bufferCopyInfo = {};
 				// NOTE(heyyod): Set where to read and where to copy the indices
-				bufferCopyInfo.srcOffset = resources.offsets[iResource];
-				bufferCopyInfo.dstOffset = vulkanContext->indexBuffer.writeOffset;
-				bufferCopyInfo.size = MESH_PTR_INDICES_SIZE(m);
-				vulkanContext->indexBuffer.writeOffset += bufferCopyInfo.size; // set next write offset in index buffer
-				vkCmdCopyBuffer(res->cmdBuffer, vulkanContext->stagingBuffer.handle, vulkanContext->indexBuffer.handle, 1, &bufferCopyInfo);
+				if (m->nIndices)
+				{
+					bufferCopyInfo.srcOffset = m->indicesOffset;
+					bufferCopyInfo.dstOffset = vulkanContext->indexBuffer.writeOffset;
+					bufferCopyInfo.size = MESH_PTR_INDICES_SIZE(m);
+					vulkanContext->indexBuffer.writeOffset += bufferCopyInfo.size; // set next write offset in index buffer
+					vkCmdCopyBuffer(res->cmdBuffer, vulkanContext->stagingBuffer.handle, vulkanContext->indexBuffer.handle, 1, &bufferCopyInfo);
+				}
 
 				// NOTE(heyyod): Set where to read and where to copy the vertices
-				bufferCopyInfo.srcOffset = bufferCopyInfo.srcOffset + bufferCopyInfo.size;
+				bufferCopyInfo.srcOffset = m->verticesOffset;
 				bufferCopyInfo.dstOffset = vulkanContext->vertexBuffer.writeOffset;
 				bufferCopyInfo.size = MESH_PTR_VERTICES_SIZE(m);
 				vulkanContext->vertexBuffer.writeOffset += bufferCopyInfo.size; // set next write offset in vertex buffer
@@ -2006,18 +1925,19 @@ FUNC_RENDERER_UPLOAD_RESOURCES(VulkanUpload)
 			}
 			break;
 
-			case RESOURCE_TYPE_TEXTURE:
+			case ASSET_TYPE_TEXTURE:
 			{
 				pushedImage = true;
-				image *img = (image *)resources.data[iResource];
+				image_header *img = (image_header *)assets[iAsset].header;
 
 				vulkan_image &nextTexture = vulkanContext->textures[vulkanContext->texturesCount];
 
 				if (!VulkanCreateImage(VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, { img->width, img->height, 1 },
-					img->mipLevels,	VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_TILING_OPTIMAL,
-					VK_IMAGE_USAGE_TRANSFER_SRC_BIT | // to create the mipmaps
+					img->mipLevels, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_TILING_OPTIMAL,
+					VK_IMAGE_USAGE_TRANSFER_SRC_BIT |	 // to create the mipmaps
 					VK_IMAGE_USAGE_TRANSFER_DST_BIT | // to copy buffer into image
-					VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT,
+					VK_IMAGE_USAGE_SAMPLED_BIT,
+					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT,
 					nextTexture))
 				{
 					return false;
@@ -2031,7 +1951,7 @@ FUNC_RENDERER_UPLOAD_RESOURCES(VulkanUpload)
 					VulkanCmdChangeImageLayout(res->cmdBuffer, nextTexture.handle, img, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
 					VkBufferImageCopy bufferToImageCopy = {};
-					bufferToImageCopy.bufferOffset = resources.offsets[iResource];
+					bufferToImageCopy.bufferOffset = img->offset;
 					bufferToImageCopy.bufferRowLength = 0;
 					bufferToImageCopy.bufferImageHeight = 0;
 					bufferToImageCopy.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
@@ -2114,20 +2034,21 @@ FUNC_RENDERER_UPLOAD_RESOURCES(VulkanUpload)
 				else
 				{
 					/**
-					* There are two alternatives in this case. You could implement a func
-					* that searches common texture image formats for one that does support linear
-					* blitting, or you could implement the mipmap generation in software with a library
-					* like stb_image_resize. Each mip level can then be loaded into the image in the same
-					* way that you loaded the original image.
-					* It should be noted that it is uncommon in practice to generate the mipmap levels at
-					* runtime anyway. Usually they are pregenerated and stored in the texture file alongside
-					* the base level to improve loading speed. Implementing resizing in software and loading
-					* multiple levels from a file is left as an exercise to the reader.
-					*/
+				 * There are two alternatives in this case. You could implement a func
+				 * that searches common texture image formats for one that does support linear
+				 * blitting, or you could implement the mipmap generation in software with a library
+				 * like stb_image_resize. Each mip level can then be loaded into the image in the same
+				 * way that you loaded the original image.
+				 * It should be noted that it is uncommon in practice to generate the mipmap levels at
+				 * runtime anyway. Usually they are pregenerated and stored in the texture file alongside
+				 * the base level to improve loading speed. Implementing resizing in software and loading
+				 * multiple levels from a file is left as an exercise to the reader.
+				 */
 				}
 
 				VulkanBindTexture(nextTexture.view, vulkanContext->textureSampler);
-			} break;
+			}
+			break;
 
 			default:
 			{
@@ -2242,7 +2163,7 @@ FUNC_RENDERER_DRAW_FRAME(VulkanDraw)
 		vkCmdBindVertexBuffers(res->cmdBuffer, 0, 1, &vulkanContext->vertexBuffer.handle, &bufferOffset);
 		vkCmdBindIndexBuffer(res->cmdBuffer, vulkanContext->indexBuffer.handle, 0, VULKAN_INDEX_TYPE);
 		u32 firstIndex = 0;
-		u32 indexOffset = 0;
+		u32 indexOffset = 0; // TODO: This should not be 0 by default.
 		i32 currentPipelineId = -1;
 		u32 transformIndex = 0; // TODO: get this from the scene data
 
@@ -2251,7 +2172,7 @@ FUNC_RENDERER_DRAW_FRAME(VulkanDraw)
 		vkCmdBindDescriptorSets(res->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkanContext->pipeline[currentPipelineId].layout, 0, 1, &vulkanContext->globalSets[nextImage], 0, 0);
 		for (u32 meshId = 0; meshId < packet->scene.loadedMeshesCount; meshId++)
 		{
-			u32 meshInstances = packet->scene.loadedMeshes[meshId].count;
+			u32 meshInstances = packet->scene.loadedMeshes[meshId].instances;
 			u32 nIndices = packet->scene.loadedMeshes[meshId].nIndices;
 			u32 nVertices = packet->scene.loadedMeshes[meshId].nVertices;
 			u32 textureIndex = packet->scene.loadedMeshes[meshId].textureIndex;
@@ -2289,7 +2210,7 @@ FUNC_RENDERER_DRAW_FRAME(VulkanDraw)
 		}
 
 		currentPipelineId = PIPELINE_GRID;
-		vkCmdBindVertexBuffers(res->cmdBuffer, 0, 1, &vulkanContext->gridBuffer.handle, &bufferOffset);
+		vkCmdBindVertexBuffers(res->cmdBuffer, 0, 1, &vulkanContext->vertexBuffer.handle, &bufferOffset);
 		vkCmdBindPipeline(res->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkanContext->pipeline[currentPipelineId].handle);
 		vkCmdBindDescriptorSets(res->cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vulkanContext->pipeline[currentPipelineId].layout, 0, 1, &vulkanContext->globalSets[nextImage], 0, 0);
 		vkCmdPushConstants(res->cmdBuffer, vulkanContext->pipeline[currentPipelineId].layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(vec3), &packet->playerPos);

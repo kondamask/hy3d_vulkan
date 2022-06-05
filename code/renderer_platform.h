@@ -5,6 +5,9 @@
 #include "math.h"
 #include "graphics_settings.h"
 #include "engine_shader.h"
+#include "scene.h"
+#include "asset.h"
+#include "renderer_buffer.h"
 
 //------------------------------------------------------------------------
 
@@ -14,7 +17,6 @@ struct graphics_context
 {
 	u8 data[GRAPHICS_CONTEXT_SIZE];
 };
-
 
 //------------------------------------------------------------------------
 struct engine_state;
@@ -26,17 +28,6 @@ enum RENDERER_GRAPHICS_API
 	RENDERER_GRAPHICS_API_DIRECTX,
 };
 
-// NOTE: Some of these only apply on vulkan.
-// I can probably just remap them in the background on other apis.
-enum RENDERER_BUFFER_TYPE
-{
-	RENDERER_BUFFER_TYPE_UNIFORM,
-	RENDERER_BUFFER_TYPE_UNIFORM_DYNAMIC,
-	RENDERER_BUFFER_TYPE_STORAGE,
-	RENDERER_BUFFER_TYPE_STORAGE_DYNAMIC,
-	RENDERER_BUFFER_TYPE_STAGING,
-};
-
 struct render_packet
 {
 	// ENGINE -> RENDERER
@@ -44,6 +35,7 @@ struct render_packet
 	vec3 clearColor;
 	vec3 playerPos;
 	scene_data scene;
+	scene_data engineView;
 
 	//------------------------------------------------------------------------
 
@@ -73,8 +65,8 @@ typedef FUNC_RENDERER_ON_RESIZE(func_renderer_on_resize);
 #define FUNC_RENDERER_CREATE_SURFACE(name) void name(void *surfaceInfoIn)
 typedef FUNC_RENDERER_CREATE_SURFACE(func_renderer_create_surface);
 
-#define FUNC_RENDERER_UPLOAD_RESOURCES(name) bool name(scene_resources &resources)
-typedef FUNC_RENDERER_UPLOAD_RESOURCES(func_renderer_upload_resources);
+#define FUNC_RENDERER_UPLOAD_ASSETS(name) bool name(asset *assets, u32 count)
+typedef FUNC_RENDERER_UPLOAD_ASSETS(func_renderer_upload_assets);
 
 #define FUNC_RENDERER_REQUEST_BUFFER(name) void *name(RENDERER_BUFFER_TYPE bufferType, u64 size, bool doubleBuffer)
 typedef FUNC_RENDERER_REQUEST_BUFFER(func_renderer_request_buffer);
@@ -94,7 +86,7 @@ struct renderer_platform
 	func_renderer_initialize *Initialize;
 	func_renderer_draw_frame *DrawFrame;
 	func_renderer_change_graphics_settings *ChangeGraphicsSettings;
-	func_renderer_upload_resources *Upload;
+	func_renderer_upload_assets *Upload;
 	func_renderer_request_buffer *RequestBuffer;
 	func_renderer_bind_shader_resources *BindShaderResources;
 

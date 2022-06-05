@@ -9,6 +9,8 @@ global_var platform_api *platformAPI; // This is also used in vulkan_platform.
 
 #include "camera.cpp"
 #include "renderer_platform.cpp"
+#include "engine_view.cpp"
+#include "scene.cpp"
 
 #define DEFAULT_SHADER_FILEPATH ".\\assets\\shaders\\default.vert.spv"
 
@@ -33,7 +35,7 @@ static_func void *MemoryArenaReserve(memory_arena *arena, size_t size)
 extern "C" FUNC_ENGINE_INITIALIZE(EngineInitialize)
 {
 	platformAPI = &engine->platformAPI;
-
+	
 	engine->input = {};
 	engine->onResize = false;
 
@@ -61,15 +63,10 @@ extern "C" FUNC_ENGINE_INITIALIZE(EngineInitialize)
 	};
 	VulkanBindShaderResources(shaderBinds, ArrayCount(shaderBinds));
 
-	memory->stageBuffer.memory = VulkanRequestBuffer(RENDERER_BUFFER_TYPE_STAGING, MEGABYTES(256), false);
-	memory->stageBuffer.nextWrite = memory->stageBuffer.memory;
 
-	VulkanCreateGrid(); // TODO: This uses the stage buffer. But it should be done in the engine.
+	EngineViewInitialize(state->renderPacket.engineView);
 
-	scene_resources sceneResources = {};
-	CreateScene(memory->stageBuffer.nextWrite, sceneResources, state->renderPacket.scene, *memory->sceneUBO);
-
-	VulkanUpload(sceneResources);
+	CreateScene(state->renderPacket.scene, *memory->sceneUBO);
 
 	CameraInitialize(state->player, { 0.0f, 2.0f, -5.0f }, 0.0f, 90.0f, VEC3_UP, 4.0f, 2.0f, 60.0f);
 

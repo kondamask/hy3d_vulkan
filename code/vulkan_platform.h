@@ -145,8 +145,9 @@ struct vulkan_context
 	vulkan_image depthBuffer;
 	vulkan_buffer vertexBuffer;
 	vulkan_buffer indexBuffer;
-	vulkan_buffer gridBuffer;
-	u32 gridVertexCount;
+
+	vulkan_buffer engineViewVertexBuffer;
+	vulkan_buffer engineViewIndexBuffer;
 
 	vulkan_pipeline pipeline[PIPELINES_COUNT];
 	
